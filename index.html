@@ -1,0 +1,2390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MT academy</title>
+<style>
+/* Color palette aligned with logo; emphasize blue */
+:root{--bg:linear-gradient(135deg,#0ea5e9 70%,#fb923c);--card:#e0f2fe;--muted:#6b7280;--text:#0f172a;--accent:#0ea5e9;--secondary:#fb923c}
+
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0f172a;--card:#1e293b;--muted:#94a3b8;--text:#f8fafc;--accent:#0ea5e9;--secondary:#fb923c}
+}
+*{box-sizing:border-box}body{margin:0;font-size:125%;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);min-height:100vh;border:12px solid transparent;border-image:linear-gradient(135deg,#0ea5e9,#fb923c) 1}
+.app{max-width:1100px;margin:18px auto;padding:16px}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;position:relative}
+.title-block{flex:1}
+.logo{width:calc(44px*1.25);height:calc(44px*1.25);border-radius:8px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0ea5e9 70%,#fb923c);font-weight:700;color:#fff}
+.nav-menu{position:fixed;top:0;right:0;bottom:0;width:180px;background:var(--card);border-left:1px solid rgba(0,0,0,.1);box-shadow:0 0 8px rgba(0,0,0,.1);display:flex;flex-direction:column;z-index:1000;padding:10px;transform:translateX(100%);transition:transform .3s}
+.nav-menu.open{transform:translateX(0)}
+.nav-menu .tab{background:transparent;border:none;padding:10px 12px;text-align:left;color:var(--text);cursor:pointer}
+.nav-menu .tab.active{background:var(--secondary)}
+.tab{background:transparent;border:1px solid rgba(0,0,0,.1);padding:8px 12px;border-radius:6px;color:var(--text);cursor:pointer}
+.tab.active{background:var(--secondary)}
+.card{background:var(--card);padding:14px;border-radius:8px;margin-bottom:12px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;justify-content:flex-start;flex-direction:column}
+.btn{padding:8px 12px;border-radius:6px;border:1px solid rgba(0,0,0,.1);background:var(--secondary);color:var(--text);cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff}.btn.secondary{background:var(--secondary);color:var(--text)}
+.small{font-size:calc(13px*1.25);color:var(--muted)}
+.menu-toggle{display:flex;flex-direction:column;gap:4px;cursor:pointer;padding:8px}
+.menu-toggle span{display:block;width:24px;height:3px;background:var(--text);border-radius:2px}
+.controls select{font-size:.7em;padding:2px 4px}
+.controls label{font-size:.7em;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);border-radius:6px;padding:8px;border:1px solid rgba(0,0,0,.1);resize:vertical}
+.fact{background:var(--secondary);padding:10px;border-radius:6px;margin:8px 0}
+.result.ok{border-left:4px solid #16a34a;padding:8px}.result.bad{border-left:4px solid #ef4444;padding:8px}
+.rule-item{border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px;margin:6px 0}
+.rule-title{font-weight:600;cursor:pointer}
+.badge{font-size:calc(11px*1.25);padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff}
+.quiz-q{font-weight:600;margin-bottom:6px}.quiz-opt{display:block;margin:6px 0;padding:6px 8px;border:1px solid rgba(0,0,0,.1);border-radius:6px;background:var(--secondary)}
+.quiz-correct{background:rgba(34,197,94,.15)}.quiz-wrong{background:rgba(239,68,68,.15)}
+/* Transcript highlight classes */
+.hl-leading{background:rgba(79,195,247,.22)}
+.hl-hearsay{background:rgba(16,185,129,.22)}
+.hl-spec{background:rgba(99,102,241,.22)}
+.hl-narr{background:rgba(250,204,21,.22)}
+.hl-arg{background:rgba(239,68,68,.22)}
+.hl-comp{background:rgba(168,85,247,.22)}
+.hl-asked{background:rgba(148,163,184,.22)}
+.tag{display:inline-block;padding:2px 6px;border-radius:999px;border:1px solid rgba(0,0,0,.14);margin:0 4px 4px 0}
+.table{width:100%;border-collapse:collapse;margin-top:8px}
+.table th,.table td{border:1px solid rgba(0,0,0,.1);padding:6px 8px;text-align:left}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 10px}
+.kv div{padding:2px 0}
+.scorebar{height:8px;background:var(--secondary);border-radius:999px;position:relative;margin-top:4px}
+.scorebar>span{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:999px}
+/* Gateway modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9999}
+.modal{width:min(740px,94vw);background:var(--card);border:1px solid rgba(0,0,0,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:16px}
+.modal h3{margin:0 0 6px}
+.modal .note{font-size:calc(13px*1.25);color:var(--muted);margin-bottom:10px}
+.input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.1);background:var(--secondary);color:var(--text)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.choice{flex:1;border:1px solid rgba(0,0,0,.1);border-radius:10px;padding:12px;background:var(--secondary)}
+.choice h4{margin:0 0 6px}
+.warn{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;padding:6px 8px;border-radius:8px;font-size:calc(12px*1.25)}
+.ok{background:#f0fdf4;color:#166534;border:1px solid #6ee7b7;padding:6px 8px;border-radius:8px}
+.badge-mode{font-size:calc(12px*1.25);padding:2px 6px;border-radius:999px;background:var(--secondary);color:var(--text);margin-left:6px}
+.chat-entry{margin-top:8px;padding:6px;border-radius:6px;border:1px solid rgba(0,0,0,.1)}
+.chat-entry.user{background:var(--secondary)}
+.chat-entry.chatgpt{background:var(--accent);color:#fff}
+.chat-entry.judge{background:var(--card)}
+hr.sep{border:0;border-top:1px solid rgba(0,0,0,.1);margin:12px 0}
+a.inline{color:var(--accent);text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="logo">MT</div>
+    <div class="title-block">
+        <h1 style="margin:0">MT academy
+        <span id="modeBadge" class="badge-mode" title="Scoring Engine">Mode: Built-in (less accurate)</span>
+      </h1>
+      <div class="small">Objection Practice</div>
+    </div>
+    <div id="menuToggle" class="menu-toggle" aria-label="Menu" aria-expanded="false">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+  </div>
+
+  <nav id="navMenu" class="nav-menu">
+    <button class="tab" data-tab="objections">Objections</button>
+    <button class="tab" data-tab="video">Video Coach</button>
+    <button class="tab" data-tab="writing">Writing</button>
+    <button class="tab" data-tab="rules" id="rulesTab">AZ Rules</button>
+    <button class="tab" data-tab="quiz">Rules Quiz</button>
+    <button class="tab active" data-tab="howto">How To Use</button>
+    <button class="tab" data-tab="contact">Contact</button>
+  </nav>
+
+  <!-- Gateway -->
+  <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
+    <div class="modal">
+      <h3 id="videoGateTitle">Choose how to score your performance</h3>
+      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring, or continue with the built-in scorer.</div>
+      <div class="row">
+        <div class="choice">
+          <h4>Option A — Use my ChatGPT account (recommended)</h4>
+          <ol class="small" style="margin-top:6px">
+            <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
+            <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
+            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger.</li>
+          </ol>
+          <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
+          <label class="small">OpenAI API Key
+            <input id="openaiKey" class="input" type="password" placeholder="sk-...">
+          </label>
+          <div class="row" style="margin-top:8px">
+            <label class="small" style="flex:1">Model
+              <select id="openaiModel" class="input">
+                <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
+                <option value="gpt-4o">gpt-4o (better)</option>
+              </select>
+            </label>
+            <label class="small" style="flex:1">Max tokens
+              <input id="openaiMaxTokens" class="input" type="number" value="600" min="200" max="2000">
+            </label>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button id="btnUseChatGPT" class="btn primary">Use ChatGPT Scoring</button>
+            <button id="btnForgetKey" class="btn secondary" title="Delete saved key">Remove saved key</button>
+          </div>
+        </div>
+        <div class="choice">
+          <h4>Option B — Built-in scoring (faster, <em>less accurate</em>)</h4>
+          <p class="small">On-device heuristics. Scores structure, delivery, common cues—not as nuanced as a judge.</p>
+          <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
+          <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
+        </div>
+      </div>
+      <hr class="sep">
+      <div class="row" style="justify-content:flex-end">
+        <button id="btnCloseGate" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objections -->
+  <section id="objections" class="card" hidden>
+    <h3>Objections Drill</h3>
+    <div class="controls small">
+      <label>Filter: <select id="objFilter"><option value="all">All</option><option>Hearsay</option><option>611 Control</option><option>Foundation</option><option>Opinion/Experts</option><option>Character/404</option><option>Relevance/403</option><option>Policy Exclusions</option></select></label>
+      <label>Difficulty: <select id="objDiff"><option value="both">Both</option><option value="core">Core</option><option value="advanced">Advanced</option></select></label>
+      <button id="btnResetStats" class="btn secondary">Reset Stats</button>
+      <span>Mastery: <span id="objStats">N/A</span></span>
+    </div>
+    <div class="fact" id="objFact"></div>
+    <div class="small" id="objQ"></div>
+    <div class="controls" style="margin-top:8px">
+      <select id="objSelect" aria-label="Choose objection"></select>
+      <button id="btnNewObj" class="btn primary">New Drill</button>
+      <button id="btnCheckObj" class="btn secondary">Check</button>
+      <button id="btnShowModel" class="btn secondary">Show Model</button>
+    </div>
+    <div class="controls" style="margin-top:8px">
+      <label>GPT Difficulty:
+        <select id="objGPTDiff">
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="difficult">Difficult</option>
+        </select>
+      </label>
+      <label>Role:
+        <select id="objGPTRole">
+          <option value="chatgpt">ChatGPT objects</option>
+          <option value="user">I object</option>
+        </select>
+      </label>
+      <button id="btnGPTNew" class="btn primary">GPT Prompt</button>
+      <button id="btnObjChangeEngine" class="btn secondary" title="Add or change API key">API Key</button>
+    </div>
+    <div class="small" style="margin-top:8px">Press <strong>ChatGPT Argue</strong> to show argument actions.</div>
+    <button id="btnGPTArgue" class="btn primary" style="width:100%;margin-top:4px">ChatGPT Argue</button>
+    <div id="objGPTChat" class="small" hidden style="margin-top:8px;white-space:pre-wrap"></div>
+    <div id="objGPTControls" class="controls" hidden style="margin-top:8px">
+      <input id="objGPTInput" type="text" style="flex:1">
+      <button id="btnGPTRecord" class="btn secondary">Record</button>
+      <button id="btnGPTStopRecord" class="btn secondary" disabled>Stop</button>
+      <button id="btnGPTSend" class="btn secondary">Send</button>
+      <button id="btnGPTRule" class="btn secondary" hidden>Rule on Argument</button>
+    </div>
+      <div id="objResult" class="result" hidden style="margin-top:8px">
+      <div><strong>Ruling:</strong> <span id="objRuling"></span></div>
+      <div><strong>Rule:</strong> <span id="objRule"></span></div>
+      <div><strong>Why:</strong> <span id="objWhy"></span></div>
+    </div>
+  </section>
+
+  <!-- Video Coach -->
+  <section id="video" class="card" hidden>
+    <h3>Video Coach (Transcribe & Type-Specific Rubric + Objection Finder)</h3>
+    <div class="small" id="videoModeBanner"></div>
+    <div class="controls small">
+      <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
+      <button id="btnVideoStart" class="btn primary">Start Recording</button>
+      <button id="btnStopRecording" class="btn secondary">Stop</button>
+      <button id="btnMicOnly" class="btn secondary">Mic Only</button>
+      <button id="btnUploadVideo" class="btn secondary">Upload Video</button>
+      <input id="videoFile" type="file" accept="video/*" style="display:none">
+      <button id="btnPlayRecording" class="btn secondary">Play</button>
+      <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
+      <span>Timer: <span id="videoTimer">00:00</span></span>
+    </div>
+    <div id="videoStatus" class="small" style="margin-top:4px;color:#9aa4b2"></div>
+    <video id="videoPreview" autoplay playsinline muted style="width:100%;background:#000;border-radius:6px"></video>
+    <textarea id="videoTranscript" placeholder="Transcript will appear here"></textarea>
+    <div class="controls">
+      <button id="btnScoreVideo" class="btn secondary">Re-score</button>
+      <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
+      <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
+      <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
+      <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
+    </div>
+    <div id="videoFeedback" class="small"></div>
+    <div id="videoRubricDetails" class="small" style="display:none"></div>
+    <div id="videoCriteria" class="small" style="display:none"></div>
+    <div id="videoObjections" class="small" style="margin-top:10px"></div>
+  </section>
+
+  <!-- Writing -->
+  <section id="writing" class="card" hidden>
+    <h3>Writing New Materials (ChatGPT)</h3>
+    <div class="controls small">
+      <label>Type:
+        <select id="writeType">
+          <option value="opening">Opening</option>
+          <option value="closing">Closing</option>
+          <option value="direct">Direct</option>
+          <option value="cross">Cross</option>
+        </select>
+      </label>
+    </div>
+    <textarea id="gptWriteInput" placeholder="Paste draft or notes here"></textarea>
+    <textarea id="gptWriteGoal" placeholder="Describe what you're trying to write or improve"></textarea>
+    <div class="controls">
+      <button id="btnGPTWrite" class="btn secondary">Ask ChatGPT to Draft</button>
+      <button id="btnWriteChangeEngine" class="btn secondary" title="Add or change API key">API Key / Engine</button>
+    </div>
+    <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
+  </section>
+
+  <!-- Rules -->
+  <section id="rules" class="card" hidden>
+    <h3 id="rulesHeading">AZ HS Mock Trial Rules of Evidence — Explorer</h3>
+    <div class="controls small">
+      <input id="rulesSearch" placeholder="Search by number or topic (e.g., 403, hearsay)" style="width:320px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:#061122;color:#e6eef6">
+      <button id="btnClearSearch" class="btn secondary">Clear</button>
+      <a class="btn secondary" target="_blank" href="https://lawforkids.org/programs/mock-trial/document-center/tournament-documents/1612-az-rules-converted-from-nhsmtc-rules-august-2023/file">Official PDF</a>
+    </div>
+    <div class="small" style="margin-top:8px">Click a rule to view its full text word for word.</div>
+    <div id="rulesList" class="small" style="margin-top:8px"></div>
+  </section>
+
+  <!-- Rules Quiz -->
+  <section id="quiz" class="card" hidden>
+    <h3>Rules Quiz</h3>
+    <div class="controls small">
+      <label>Mode: <select id="quizMode"><option value="mix">Mixed</option><option value="titleFromNumber">Title from Number</option><option value="numberFromTitle">Number from Title</option></select></label>
+      <label>Rules: <select id="quizScope"><option value="all">All</option><option value="hearsay">Hearsay</option><option value="character">Character Evidence</option><option value="witness">Witness Testimony</option></select></label>
+      <label>Questions: <select id="quizCount"><option>5</option><option>10</option><option>15</option></select></label>
+      <label>Difficulty: <select id="quizDifficulty"><option value="1">Standard</option><option value="2">Hard (subsections)</option></select></label>
+      <button id="btnStartQuiz" class="btn primary">Start Quiz</button>
+      <button id="btnNextQ" class="btn secondary" disabled>Next</button>
+      <span>Score: <span id="quizScore">0</span>/<span id="quizTotal">0</span> • Best: <span id="quizBest">0</span></span>
+    </div>
+    <div id="quizBody" style="margin-top:8px"></div>
+    <div id="quizExplain" class="small" style="margin-top:8px"></div>
+  </section>
+  <!-- How To -->
+  <section id="howto" class="card">
+    <h3>How to Use</h3>
+    <p class="small">Use the tabs above to explore the different practice tools.</p>
+    <ul class="small">
+      <li><strong>Objections:</strong> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em> or <em>Show Model</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
+      <li><strong>Video Coach:</strong> choose the speech type, record or <em>Upload Video</em>, then view <em>Metrics</em>, <em>Criteria</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing.</li>
+      <li><strong>Writing:</strong> choose a type, add your notes and goals, then click <em>Ask ChatGPT to Draft</em> to get help writing new material; use <em>API Key / Engine</em> to pick the model.</li>
+      <li><strong>Rules:</strong> search by number or topic, then tap a rule to see the text and a plain-language <em>What it means</em> explanation.</li>
+      <li><strong>Rules Quiz:</strong> choose mode, rule set, question count and difficulty, then hit <em>Start Quiz</em>. Use <em>Next</em> to advance; the top shows your score and best.</li>
+    </ul>
+    <h4>Upload an API Key</h4>
+    <ol class="small" style="margin-top:6px">
+      <li>Visit <strong>platform.openai.com</strong> and create an API key.</li>
+      <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
+      <li>In this app, click the “API Key” or “API Key / Engine” button.</li>
+      <li>Paste your key and choose a model. The key is stored only in your browser.</li>
+        <li>Expect roughly $0.01 per short scoring request with <em>gpt‑4o‑mini</em>, so a $5 deposit covers around 500 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
+    </ol>
+  </section>
+  <!-- Contact -->
+  <section id="contact" class="card" hidden>
+    <h3>Contact</h3>
+    <p class="small">For recommendations, contact the creator at <a href="mailto:amielbeyo1@gmail.com">amielbeyo1@gmail.com</a>.</p>
+  </section>
+</div>
+
+<script>
+// Detailed Arizona Mock Trial Rules of Evidence
+// Expose rule details on the global object so they are available to scripts
+// that run after this file is loaded. Using `globalThis` ensures compatibility
+// in both browser and non-browser environments (where `window` may be
+// undefined).
+const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+root.AZ_RULES_DETAIL = {
+  "101": {
+    full: `These rules govern proceedings in the Arizona High School Mock Trial Program.`,
+    meaning: `These are the evidence rules used in this competition.`
+  },
+  "102": {
+    full: `These rules should be construed so as to administer every proceeding fairly, eliminate unjustifiable expense and delay, and promote the development of evidence law, to the end of ascertaining the truth and securing a just determination.`,
+    meaning: `Judges and competitors should apply the rules to ensure fairness and a search for truth.`
+  },
+  "105": {
+    full: `If the court admits evidence that is admissible against a party or for a purpose\u2014but not against another party or for another purpose\u2014the court, on timely request, must restrict the evidence to its proper scope and instruct the jury accordingly.`,
+    meaning: `When evidence is allowed for one reason but not another, the judge will tell the jury how it can be used.`
+  },
+  "106": {
+    full: `If a party introduces all or part of a writing or recorded statement, an adverse party may require the introduction, at that time, of any other part\u2014or any other writing or recorded statement\u2014that in fairness ought to be considered at the same time.`,
+    meaning: `When one side offers part of a document or recording, the other side can insist on showing the rest so the jury is not misled.`
+  },
+  "201": {
+    full: `(a) Scope. This rule governs judicial notice of an adjudicative fact only, not a legislative fact. (b) Kinds of Facts That May Be Judicially Noticed. The court may judicially notice a fact that is not subject to reasonable dispute because it: (1) is generally known within the trial court\u2019s territorial jurisdiction; or (2) can be accurately and readily determined from sources whose accuracy cannot reasonably be questioned. (c) Taking Notice. The court: (1) may take judicial notice on its own; or (2) must take judicial notice if a party requests it and the court is supplied with the necessary information. (d) Timing. The court may take judicial notice at any stage of the proceeding. (e) Opportunity to Be Heard. On timely request, a party is entitled to be heard on the propriety of taking judicial notice and the nature of the fact to be noticed. (f) Instructing the Jury. In a civil case, the court must instruct the jury to accept the noticed fact as conclusive. In a criminal case, the court must instruct the jury that it may or may not accept the noticed fact as conclusive.`,
+    meaning: `Courts can accept certain commonly known or easily verified facts without formal proof. In civil cases the jury must accept them; in criminal cases the jury may choose whether to accept them.`
+  },
+  "401": {
+    full: `Evidence is relevant if: (a) it has any tendency to make a fact more or less probable than it would be without the evidence; and (b) the fact is of consequence in determining the action.`,
+    meaning: `Evidence is relevant when it helps prove or disprove an important fact in the case.`
+  },
+  "402": {
+    full: `Relevant evidence is admissible unless any of the following provides otherwise: the United States Constitution; a federal statute; these rules; or other rules prescribed by the Supreme Court. Irrelevant evidence is not admissible.`,
+    meaning: `If evidence relates to the issues in the case, it comes in unless some other rule keeps it out.`
+  },
+  "403": {
+    full: `The court may exclude relevant evidence if its probative value is substantially outweighed by a danger of one or more of the following: unfair prejudice, confusing the issues, misleading the jury, undue delay, wasting time, or needlessly presenting cumulative evidence.`,
+    meaning: `Even when evidence matters, the judge can keep it out if it causes more problems than it is worth.`
+  },
+  "404": {
+    full: `(a) Character Evidence. (1) Prohibited Uses. Evidence of a person\u2019s character or character trait is not admissible to prove that on a particular occasion the person acted in accordance with the character or trait. (2) Exceptions for a Defendant or Victim in a Criminal Case. (A) a defendant may offer evidence of the defendant\u2019s pertinent trait, and if the evidence is admitted, the prosecutor may offer evidence to rebut it; (B) subject to Rule 412, a defendant may offer evidence of an alleged victim\u2019s pertinent trait, and if the evidence is admitted, the prosecutor may offer evidence to rebut it and may offer evidence of the defendant\u2019s same trait; and (C) in a homicide case, the prosecutor may offer evidence of the alleged victim\u2019s trait of peacefulness to rebut evidence that the victim was the first aggressor. (3) Exceptions for a Witness. Evidence of a witness\u2019s character may be admitted under Rules 607, 608, and 609. (b) Crimes, Wrongs, or Other Acts. (1) Prohibited Uses. Evidence of a crime, wrong, or other act is not admissible to prove a person\u2019s character in order to show that on a particular occasion the person acted in accordance with the character. (2) Permitted Uses; Notice in a Criminal Case. This evidence may be admissible for another purpose, such as proving motive, opportunity, intent, preparation, plan, knowledge, identity, absence of mistake, or lack of accident. On request by a defendant in a criminal case, the prosecutor must provide reasonable notice of the general nature of any such evidence that the prosecutor intends to offer at trial and do so before trial or during trial if the court, for good cause, excuses lack of pretrial notice.`,
+    meaning: `You generally cannot use someone\u2019s past behavior to show they acted the same way this time, but character evidence can come in for limited purposes or to show things like motive or intent.`
+  },
+  "405": {
+    full: `(a) By Reputation or Opinion. When evidence of a person\u2019s character or character trait is admissible, it may be proved by testimony about the person\u2019s reputation or by testimony in the form of an opinion. On cross-examination of the character witness, the court may allow an inquiry into relevant specific instances of the person\u2019s conduct. (b) By Specific Instances of Conduct. When a person\u2019s character or character trait is an essential element of a charge, claim, or defense, the character or trait may also be proved by relevant specific instances of the person\u2019s conduct.`,
+    meaning: `If character evidence is allowed, it usually comes in through reputation or opinion; specific acts are allowed only when character itself is at issue.`
+  },
+  "406": {
+    full: `Evidence of a person\u2019s habit or an organization\u2019s routine practice may be admitted to prove that on a particular occasion the person or organization acted in accordance with the habit or routine practice. The court may admit this evidence regardless of whether it is corroborated or whether there was an eyewitness.`,
+    meaning: `Regular habits can show what likely happened on a specific occasion.`
+  },
+  "407": {
+    full: `When measures are taken that would have made an earlier injury or harm less likely to occur, evidence of the subsequent measures is not admissible to prove negligence, culpable conduct, a defect in a product or its design, or a need for a warning or instruction. But the court may admit this evidence for another purpose, such as impeachment or\u2014if disputed\u2014proving ownership, control, or the feasibility of precautionary measures.`,
+    meaning: `Fixing a problem after an accident cannot be used to show the party was negligent before, but it may show things like ownership or control.`
+  },
+  "408": {
+    full: `(a) Prohibited Uses. Evidence of the following is not admissible to prove or disprove the validity or amount of a disputed claim or to impeach by a prior inconsistent statement or a contradiction: (1) furnishing, promising, or offering\u2014or accepting, promising to accept, or offering to accept\u2014a valuable consideration in compromising or attempting to compromise the claim; and (2) conduct or statements made during compromise negotiations about the claim\u2014except when offered in a criminal case and when the negotiations related to a claim by a public office in the exercise of its regulatory, investigative, or enforcement authority. (b) Exceptions. The court may admit this evidence for another purpose, such as proving a witness\u2019s bias or prejudice, negating a contention of undue delay, or proving an effort to obstruct a criminal investigation or prosecution.`,
+    meaning: `Settlement talks can\u2019t be used to show someone is liable, but they might show bias or obstruction.`
+  },
+  "409": {
+    full: `Evidence of furnishing, promising to pay, or offering to pay medical, hospital, or similar expenses resulting from an injury is not admissible to prove liability for the injury.`,
+    meaning: `Paying someone\u2019s medical bills doesn\u2019t mean you admit fault.`
+  },
+  "410": {
+    full: `(a) Prohibited Uses. In a civil or criminal case, evidence of the following is not admissible against the defendant who made the plea or participated in the plea discussions: (1) a guilty plea that was later withdrawn; (2) a nolo contendere plea; (3) a statement made during a proceeding on either of those pleas under Federal Rule of Criminal Procedure 11 or a comparable state procedure; or (4) a statement made during plea discussions with an attorney for the prosecuting authority if the discussions did not result in a guilty plea or they resulted in a later-withdrawn guilty plea. (b) Exceptions. The court may admit a statement described in Rule 410(a)(3) or (4): (1) in any proceeding in which another statement made during the same plea or plea discussions has been introduced, if in fairness the statements ought to be considered together; or (2) in a criminal proceeding for perjury or false statement, if the defendant made the statement under oath, on the record, and with counsel present.`,
+    meaning: `Withdrawn pleas and most plea-talk statements cannot be used against a defendant, except in limited situations.`
+  },
+  "411": {
+    full: `Evidence that a person was or was not insured against liability is not admissible to prove whether the person acted negligently or otherwise wrongfully. But the court may admit this evidence for another purpose, such as proving a witness\u2019s bias or prejudice or proving agency, ownership, or control.`,
+    meaning: `Having or lacking insurance doesn\u2019t show fault, though it can show bias or who controlled something.`
+  },
+  "501": {
+    full: `The common law\u2014as interpreted by United States courts in the light of reason and experience\u2014governs a claim of privilege unless the United States Constitution, a federal statute, or rules prescribed by the Supreme Court provide otherwise. In civil cases, state law governs privilege regarding a claim or defense for which state law supplies the rule of decision.`,
+    meaning: `Only established privileges apply, such as attorney-client or doctor-patient.`
+  },
+  "601": {
+    full: `Every person is competent to be a witness unless these rules provide otherwise.`,
+    meaning: `Almost anyone can testify.`
+  },
+  "602": {
+    full: `A witness may testify to a matter only if evidence is introduced sufficient to support a finding that the witness has personal knowledge of the matter. Evidence to prove personal knowledge may consist of the witness\u2019s own testimony. This rule does not apply to a witness\u2019s expert testimony under Rule 703.`,
+    meaning: `Witnesses can only talk about what they personally perceived.`
+  },
+  "607": {
+    full: `Any party, including the party that called the witness, may attack the witness\u2019s credibility.`,
+    meaning: `Either side can challenge a witness\u2019s truthfulness.`
+  },
+  "608": {
+    full: `(a) Reputation or Opinion Evidence. A witness\u2019s credibility may be attacked or supported by testimony about the witness\u2019s reputation for having a character for truthfulness or untruthfulness, or by testimony in the form of an opinion about that character. But evidence of truthful character is admissible only after the witness\u2019s character for truthfulness has been attacked. (b) Specific Instances of Conduct. Except for a criminal conviction under Rule 609, extrinsic evidence is not admissible to prove specific instances of a witness\u2019s conduct in order to attack or support the witness\u2019s character for truthfulness. But the court may, on cross-examination, allow them to be inquired into if they are probative of the character for truthfulness or untruthfulness of the witness or another witness whose character the witness being cross-examined has testified about.`,
+    meaning: `You can use reputation or opinion to show a witness lies or tells the truth, and sometimes ask about specific acts on cross.`
+  },
+  "609": {
+    full: `(a) In General. The following rules apply to attacking a witness\u2019s character for truthfulness by evidence of a criminal conviction: (1) for a crime that, in the convicting jurisdiction, was punishable by death or by imprisonment for more than one year, the evidence: (A) must be admitted, subject to Rule 403, in a civil case or in a criminal case in which the witness is not a defendant; and (B) must be admitted in a criminal case in which the witness is a defendant, if the probative value of the evidence outweighs its prejudicial effect to that defendant; and (2) for any crime regardless of the punishment, the evidence must be admitted if the court can readily determine that establishing the elements of the crime required proving\u2014or the witness\u2019s admitting\u2014a dishonest act or false statement. (b) Limit on Using the Evidence After 10 Years. If more than 10 years have passed since the witness\u2019s conviction or release, the evidence is admissible only if its probative value substantially outweighs its prejudicial effect and the proponent gives reasonable written notice. (c) Effect of a Pardon, Annulment, or Certificate of Rehabilitation. Evidence of a conviction is not admissible if the conviction has been the subject of a pardon, annulment, certificate of rehabilitation, or other equivalent procedure based on a finding of rehabilitation, or based on a finding of innocence. (d) Juvenile Adjudications. Evidence of a juvenile adjudication is admissible only if certain conditions are met. (e) Pendency of an Appeal. A conviction that satisfies this rule is admissible even if an appeal is pending; evidence of the pendency is also admissible.`,
+    meaning: `Prior convictions can show a witness lies, but there are many limits, especially for old crimes or when the witness is the defendant.`
+  },
+  "610": {
+    full: `Evidence of a witness\u2019s religious beliefs or opinions is not admissible to attack or support the witness\u2019s credibility.`,
+    meaning: `You can\u2019t use religion to argue someone is more or less truthful.`
+  },
+  "611": {
+    full: `(a) Control by the Court; Purposes. The court should exercise reasonable control over the mode and order of examining witnesses and presenting evidence so as to (1) make those procedures effective for determining the truth; (2) avoid wasting time; and (3) protect witnesses from harassment or undue embarrassment. (b) Scope of Cross-Examination. Cross-examination is not limited to the subject matter of the direct examination and may inquire into any relevant facts or matters affecting the witness\u2019s credibility. (c) Leading Questions. Leading questions should not be used on direct examination except as necessary to develop the witness\u2019s testimony. Ordinarily, the court should allow leading questions (1) on cross-examination; and (2) when a party calls a hostile witness, an adverse party, or a witness identified with an adverse party. (d) Redirect and Recross. After cross-examination, redirect and recross are permitted, limited to matters raised on the immediately preceding examination and subject to the court\u2019s discretion.`,
+    meaning: `Judges control questioning; cross can explore any relevant matter; leading questions generally belong on cross or with hostile witnesses; redirect and recross are allowed but limited and discretionary.`
+  },
+  "612": {
+    full: `(a) Scope. This rule gives an adverse party certain options when a witness uses a writing to refresh memory: while testifying; or before testifying, if the court decides that justice requires the party to have those options. (b) Adverse Party\u2019s Options; Deleting Unrelated Matter. Unless 18 U.S.C. \u00a7 3500 provides otherwise in a criminal case, an adverse party is entitled to have the writing produced, to inspect it, to cross-examine the witness about it, and to introduce in evidence any portion that relates to the witness\u2019s testimony. If the producing party claims that the writing includes unrelated matter, the court must examine the writing in camera, delete any unrelated portion, and order that the rest be delivered to the adverse party. Any portion deleted over objection must be preserved for the record. (c) Failure to Produce or Deliver the Writing. If a writing is not produced or is not delivered as ordered, the court may issue any appropriate order; but if the prosecution does not comply in a criminal case, the court must strike the witness\u2019s testimony or declare a mistrial.`,
+    meaning: `If a witness uses a document to jog memory, the other side gets to see it and may use it in cross.`
+  },
+  "613": {
+    full: `(a) Showing or Disclosing the Statement During Examination. When examining a witness about the witness\u2019s prior statement, a party need not show it or disclose its contents to the witness. But the party must, on request, show it or disclose its contents to an adverse party\u2019s attorney. (b) Extrinsic Evidence of a Prior Inconsistent Statement. Extrinsic evidence of a witness\u2019s prior inconsistent statement is admissible only if the witness is given an opportunity to explain or deny the statement and an adverse party is given an opportunity to examine the witness about it, or if justice so requires. This rule does not apply to an opposing party\u2019s statement under Rule 801(d)(2).`,
+    meaning: `You don\u2019t have to show a prior statement before asking a witness about it, but the other side can see it; extrinsic proof is allowed only with a chance to explain.`
+  },
+  "701": {
+    full: `If a witness is not testifying as an expert, testimony in the form of an opinion is limited to one that is (a) rationally based on the witness\u2019s perception; (b) helpful to clearly understanding the witness\u2019s testimony or to determining a fact in issue; and (c) not based on scientific, technical, or other specialized knowledge within the scope of Rule 702.`,
+    meaning: `Nonexperts may give opinions only if based on what they personally saw and if it helps the jury.`
+  },
+  "702": {
+    full: `A witness who is qualified as an expert by knowledge, skill, experience, training, or education may testify in the form of an opinion or otherwise if (a) the expert\u2019s scientific, technical, or other specialized knowledge will help the trier of fact to understand the evidence or to determine a fact in issue; (b) the testimony is based on sufficient facts or data; (c) the testimony is the product of reliable principles and methods; and (d) the expert has reliably applied the principles and methods to the facts of the case.`,
+    meaning: `Experts can testify if their specialized knowledge will help and they used reliable methods.`
+  },
+  "703": {
+    full: `An expert may base an opinion on facts or data in the case that the expert has been made aware of or personally observed. If experts in the particular field would reasonably rely on those kinds of facts or data in forming an opinion on the subject, they need not be admissible for the opinion to be admitted. But if the facts or data would otherwise be inadmissible, the proponent may disclose them to the jury only if their probative value in helping the jury evaluate the opinion substantially outweighs their prejudicial effect.`,
+    meaning: `Experts can rely on information others gave them, but that information usually isn\u2019t shown to the jury unless its value outweighs any prejudice.`
+  },
+  "704": {
+    full: `(a) In General \u2014 Not Automatically Objectionable. An opinion is not objectionable just because it embraces an ultimate issue. (b) Exception. In a criminal case, an expert witness must not state an opinion about whether the defendant did or did not have a mental state or condition that constitutes an element of the crime charged or of a defense. Those matters are for the trier of fact alone.`,
+    meaning: `Witnesses may give opinions on ultimate facts, but experts cannot say the defendant had the required mental state.`
+  },
+  "705": {
+    full: `Unless the court orders otherwise, an expert may state an opinion\u2014and give the reasons for it\u2014without first testifying to the underlying facts or data. But the expert may be required to disclose those facts or data on cross-examination.`,
+    meaning: `Experts can give opinions without first listing every fact, but can be asked about those facts on cross.`
+  },
+  "801": {
+    full: `(a) Statement. \u201cStatement\u201d means a person\u2019s oral assertion, written assertion, or nonverbal conduct, if the person intended it as an assertion. (b) Declarant. \u201cDeclarant\u201d means the person who made the statement. (c) Hearsay. \u201cHearsay\u201d means a statement that (1) the declarant does not make while testifying at the current trial or hearing; and (2) a party offers in evidence to prove the truth of the matter asserted in the statement. (d) Statements That Are Not Hearsay. A statement that meets the following conditions is not hearsay: (1) A Declarant-Witness\u2019s Prior Statement. The declarant testifies and is subject to cross-examination about a prior statement, and the statement: (A) is inconsistent with the declarant\u2019s testimony and was given under penalty of perjury at a trial, hearing, or other proceeding or in a deposition; (B) is consistent with the declarant\u2019s testimony and is offered to rebut an express or implied charge that the declarant recently fabricated it or acted from a recent improper influence or motive in so testifying, or to rehabilitate the declarant\u2019s credibility as a witness when attacked on another ground; or (C) identifies a person as someone the declarant perceived earlier. (2) An Opposing Party\u2019s Statement. The statement is offered against an opposing party and: (A) was made by the party in an individual or representative capacity; (B) is one the party manifested that it adopted or believed to be true; (C) was made by a person whom the party authorized to make a statement on the subject; (D) was made by the party\u2019s agent or employee on a matter within the scope of that relationship and while it existed; or (E) was made by the party\u2019s coconspirator during and in furtherance of the conspiracy.`,
+    meaning: `Hearsay is an out-of-court statement offered for its truth. Some statements, like prior testimony or admissions by a party, are defined as \u201cnot hearsay.\u201d`
+  },
+  "802": {
+    full: `Hearsay is not admissible unless any of the following provides otherwise: a federal statute; these rules; or other rules prescribed by the Supreme Court.`,
+    meaning: `Out-of-court statements offered for their truth are kept out unless an exception applies.`
+  },
+  "803": {
+    full: `The following are not excluded by the rule against hearsay, regardless of whether the declarant is available as a witness: (1) Present Sense Impression; (2) Excited Utterance; (3) Then-Existing Mental, Emotional, or Physical Condition; (4) Statement Made for Medical Diagnosis or Treatment; (5) Recorded Recollection; (6) Records of a Regularly Conducted Activity; (7) Absence of a Record of a Regularly Conducted Activity; (8) Public Records; (10) Absence of a Public Record; (16) Statements in Ancient Documents; (18) Statements in Learned Treatises, Periodicals, or Pamphlets; (21) Reputation Concerning Character; (22) Judgment of a Previous Conviction.`,
+    meaning: `These are the most common hearsay exceptions where the declarant may be available or not, such as excited utterances and business records.`
+  },
+  "804": {
+    full: `(a) Criteria for Being Unavailable. A declarant is considered to be unavailable as a witness if the declarant: (1) is exempted from testifying about the subject matter of the declarant\u2019s statement because the court rules that a privilege applies; (2) refuses to testify about the subject matter despite a court order to do so; (3) testifies to not remembering the subject matter; (4) cannot be present or testify at the trial or hearing because of death or a then-existing infirmity, physical illness, or mental illness; or (5) is absent from the trial or hearing and the statement\u2019s proponent has not been able, by process or other reasonable means, to procure the declarant\u2019s attendance or testimony. But this subdivision (a) does not apply if the statement\u2019s proponent procured or wrongfully caused the declarant\u2019s unavailability as a witness in order to prevent the declarant from attending or testifying. (b) The Exceptions. The following are not excluded by the rule against hearsay if the declarant is unavailable as a witness: (1) Former Testimony. Testimony that was given as a witness at a trial, hearing, or lawful deposition and is now offered against a party who had\u2014or in a civil case, whose predecessor in interest had\u2014an opportunity and similar motive to develop it by direct, cross-, or redirect examination; (2) Statement Under the Belief of Imminent Death. In a prosecution for homicide or in a civil case, a statement that the declarant, while believing the declarant\u2019s death to be imminent, made about its cause or circumstances; (3) Statement Against Interest. A statement that a reasonable person in the declarant\u2019s position would have made only if the person believed it to be true because, when made, it was so contrary to the declarant\u2019s proprietary or pecuniary interest or had so great a tendency to invalidate the declarant\u2019s claim against someone else or to expose the declarant to civil or criminal liability, and if offered in a criminal case, is supported by corroborating circumstances that clearly indicate its trustworthiness; (4) Statement of Personal or Family History. A statement about the declarant\u2019s own birth, adoption, legitimacy, ancestry, marriage, divorce, relationship by blood, adoption, or marriage, or similar facts of personal or family history, or about another person concerning any of these facts, as well as death, if the declarant was related to the person or was so intimately associated with the person\u2019s family that the declarant\u2019s information is likely to be accurate; (6) Statement Offered Against a Party That Wrongfully Caused the Declarant\u2019s Unavailability. A statement offered against a party that wrongfully caused\u2014or acquiesced in wrongfully causing\u2014the declarant\u2019s unavailability as a witness, and did so intending that result.`,
+    meaning: `If the speaker can\u2019t testify, certain statements like former testimony or dying declarations may still be used.`
+  },
+  "805": {
+    full: `Hearsay within hearsay is not excluded by the rule against hearsay if each part of the combined statements conforms with an exception to the rule.`,
+    meaning: `Every layer of a multi-level statement must fit an exception.`
+  },
+  "806": {
+    full: `When a hearsay statement\u2014or a statement described in Rule 801(d)(2)(C), (D), or (E)\u2014has been admitted in evidence, the declarant\u2019s credibility may be attacked, and then supported, by any evidence that would be admissible for those purposes if the declarant had testified as a witness. The court may admit evidence of the declarant\u2019s inconsistent statement or conduct, regardless of when it occurred or whether the declarant had an opportunity to explain or deny it. If the party against whom the statement was admitted calls the declarant as a witness, the party may examine the declarant on the statement as if on cross-examination.`,
+    meaning: `Once a hearsay statement is in, you can attack the speaker\u2019s credibility just like any witness.`
+  },
+  "807": {
+    full: `(a) In General. Under the following conditions, a hearsay statement is not excluded by the rule against hearsay even if the statement is not admissible under a hearsay exception in Rule 803 or 804: (1) the statement has equivalent circumstantial guarantees of trustworthiness; (2) it is offered as evidence of a material fact; (3) it is more probative on the point for which it is offered than any other evidence that the proponent can obtain through reasonable efforts; and (4) admitting it will best serve the purposes of these rules and the interests of justice. (b) Notice. The statement is admissible only if, before the trial or hearing, the proponent gives an adverse party reasonable notice of the intent to offer the statement and its particulars, including the declarant\u2019s name and address, so that the party has a fair opportunity to meet it.`,
+    meaning: `Even if no specific exception applies, a trustworthy statement on an important point can be allowed with advance notice.`
+  },
+  "103": {full:`A party may claim error in a ruling to admit or exclude evidence only if it affects a substantial right and the party timely objects or makes an offer of proof. The court may take notice of plain error.`,meaning:`To preserve an evidentiary issue, object promptly; serious plain errors can be reviewed even without objection.`},
+  "104": {full:`The court decides preliminary questions about whether a witness is qualified, a privilege exists, or evidence is admissible. When relevance depends on a fact, proof must support that finding.`,meaning:`Judges decide foundational questions and may admit conditionally relevant evidence only with supporting proof.`},
+  "301": {full:`In civil cases, unless a statute or rules provide otherwise, a presumption imposes on the party against whom it is directed the burden of producing evidence to rebut it.`,meaning:`Once a presumption arises, the opposing party must produce evidence to overcome it.`},
+  "302": {full:`State law governs the effect of a presumption regarding a claim or defense for which state law provides the rule of decision.`,meaning:`Use state law to determine presumptions in civil actions.`},
+  "412": {full:`(a) Prohibited Uses. The following evidence is not admissible in a civil or criminal proceeding involving alleged sexual misconduct:\n  (1) evidence offered to prove that a victim engaged in other sexual behavior; or\n  (2) evidence offered to prove a victim\u2019s sexual predisposition.\n(b) Exceptions.\n  (1) Criminal Cases. The court may admit the following evidence in a criminal case:\n    (A) evidence of specific instances of a victim\u2019s sexual behavior, if offered to prove that someone other than the defendant was the source of semen, injury, or other physical evidence;\n    (B) evidence of specific instances of a victim\u2019s sexual behavior with respect to the person accused of the sexual misconduct, if offered by the defendant to prove consent or if offered by the prosecutor; and\n    (C) evidence whose exclusion would violate the defendant\u2019s constitutional rights.\n  (2) Civil Cases. In a civil case, the court may admit evidence offered to prove a victim\u2019s sexual behavior or sexual predisposition if its probative value substantially outweighs the danger of harm to any victim and of unfair prejudice to any party. The court may admit evidence of a victim\u2019s reputation only if the victim has placed it in controversy.\n(c) Procedure to Determine Admissibility.\n  (1) Motion. If a party intends to offer evidence under Rule 412(b), the party must:\n    (A) file a motion that specifically describes the evidence and states the purpose for which it is to be offered;\n    (B) do so at least 14 days before trial unless the court, for good cause, sets a different time;\n    (C) serve the motion on all parties; and\n    (D) notify the victim or, when appropriate, the victim\u2019s guardian or representative.\n  (2) Hearing. Before admitting evidence under this rule, the court must conduct an in camera hearing and give the victim and parties a right to attend and be heard. The motion, related materials, and the record of the hearing must be sealed and remain under seal unless the court orders otherwise.\n(d) Definition of \u201cVictim.\u201d In this rule, \u201cvictim\u201d includes an alleged victim.`,meaning:`Victim sexual history is mostly barred, subject to narrow exceptions and special procedures.`},
+  "413": {full:`(a) Permitted Uses. In a criminal case in which a defendant is accused of a sexual assault, the court may admit evidence that the defendant committed any other sexual assault. The evidence may be considered on any matter to which it is relevant.\n(b) Disclosure to the Defendant. If the prosecutor intends to offer this evidence, the prosecutor must disclose it to the defendant, including witnesses\u2019 statements or a summary of the expected testimony, at least 15 days before trial or at a later time that the court allows for good cause.\n(c) Effect on Other Rules. This rule does not limit the admission or consideration of evidence under any other rule.\n(d) Definition of \u201cSexual Assault.\u201d In this rule and Rule 415, \u201csexual assault\u201d means a crime under federal or state law involving any conduct proscribed by 18 U.S.C. chapter 109A, contact without consent between any part of the defendant\u2019s body\u2014or an object\u2014and another person\u2019s genitals or anus, contact between the defendant\u2019s genitals or anus and any part of another person\u2019s body, deriving sexual pleasure from inflicting death, bodily injury, or physical pain on another person, or an attempt or conspiracy to engage in such conduct.`,meaning:`Prior sexual assaults by the accused can be used against them in similar cases after proper notice.`},
+  "414": {full:`(a) Permitted Uses. In a criminal case in which a defendant is accused of child molestation, the court may admit evidence that the defendant committed any other child molestation. The evidence may be considered on any matter to which it is relevant.\n(b) Disclosure to the Defendant. If the prosecutor intends to offer this evidence, the prosecutor must disclose it to the defendant, including witnesses\u2019 statements or a summary of the expected testimony, at least 15 days before trial or at a later time that the court allows for good cause.\n(c) Effect on Other Rules. This rule does not limit the admission or consideration of evidence under any other rule.\n(d) Definition of \u201cChild\u201d and \u201cChild Molestation.\u201d In this rule and Rule 415, \u201cchild\u201d means a person below the age of 14, and \u201cchild molestation\u201d means a crime under federal or state law involving any sexual contact with a child, deriving sexual pleasure from inflicting death, bodily injury, or physical pain on a child, or an attempt or conspiracy to engage in such conduct.`,meaning:`Evidence of other child molestation offenses by the defendant can be admitted with notice.`},
+  "415": {full:`(a) Permitted Uses. In a civil case involving a claim for relief based on a party\u2019s alleged sexual assault or child molestation, the court may admit evidence that the party committed any other sexual assault or child molestation. The evidence may be considered on any matter to which it is relevant.\n(b) Disclosure to the Opponent. If a party intends to offer this evidence, the party must disclose it to the opposing party, including witnesses\u2019 statements or a summary of the expected testimony, at least 15 days before trial or at a later time that the court allows for good cause.\n(c) Effect on Other Rules. This rule does not limit the admission or consideration of evidence under any other rule.`,meaning:`Civil sexual-assault or molestation suits may include evidence of prior similar acts with proper notice.`},
+  "502": {full:`The attorney\u2013client privilege and work-product protection apply even after disclosure unless the holder intentionally waives it; subject to limitations for inadvertent disclosure.`,meaning:`Confidential lawyer\u2013client communications are protected unless clearly waived.`},
+  "503": {full:`A patient has a privilege to refuse to disclose and to prevent others from disclosing confidential communications made for mental health diagnosis or treatment.`,meaning:`Psychotherapist\u2013patient communications are protected.`},
+  "504": {full:`A person has a privilege to refuse to disclose and to prevent others from disclosing a confidential communication made to a cleric in a spiritual capacity.`,meaning:`Spiritual counseling communications remain confidential.`},
+  "505": {full:`An individual has a privilege to refuse to disclose and to prevent another from disclosing confidential marital communications.`,meaning:`Spouses may keep private marital conversations out of court.`},
+  "506": {full:`The government has a privilege to refuse to disclose the identity of an informer.`,meaning:`Informer identities are protected unless fairness requires disclosure.`},
+  "614": {full:`(a) Calling. The court may call a witness on its own or at a party\u2019s request. Each party is entitled to cross-examine the witness.\n(b) Examining. The court may examine a witness regardless of who calls the witness.\n(c) Objections. A party may object to the court\u2019s calling or examining a witness either at that time or at the next opportunity when the jury is not present.`,meaning:`Judges can call and question witnesses, but parties may object.`},
+  "615": {full:`At a party\u2019s request, the court must order witnesses excluded so that they cannot hear other witnesses\u2019 testimony. Or the court may do so on its own. But this rule does not authorize excluding:\n  (a) a party who is a natural person;\n  (b) an officer or employee of a party that is not a natural person, after being designated as the party\u2019s representative by its attorney;\n  (c) a person whose presence a party shows to be essential to presenting the party\u2019s claim or defense; or\n  (d) a person authorized by statute to be present.`,meaning:`Witnesses can be sequestered, but parties and essential witnesses may remain.`},
+  "706": {full:`(a) Appointment Process. On a party\u2019s motion or on its own, the court may order the parties to show cause why expert witnesses should not be appointed and may ask the parties to submit nominations. The court may appoint any expert that the court finds appropriate. The court must inform the expert of the expert\u2019s duties. The court may authorize the expert to hold conferences with the parties, to testify, and to be deposed by any party.\n(b) Expert\u2019s Role. The expert must advise the parties of any findings. The expert\u2019s deposition may be taken by any party; the expert may be called to testify by the court or any party; and the expert may be cross-examined by any party.\n(c) Compensation. The expert is entitled to a reasonable compensation, as the court directs. In civil cases, the compensation is paid by the parties; in criminal cases, it is paid from funds provided by law.\n(d) Disclosing the Appointment to the Jury. The court may authorize disclosure to the jury that the court appointed the expert.\n(e) Parties\u2019 Choice of Their Own Experts. This rule does not limit a party in calling its own expert witnesses.`,meaning:`Courts may appoint their own experts, who may be deposed and cross-examined and must be paid as the court directs.`},
+  "901": {full:`(a) To satisfy the requirement of authenticating or identifying an item of evidence, the proponent must produce evidence sufficient to support a finding that the item is what the proponent claims it is. (b) Examples include testimony of a witness with knowledge, distinctive characteristics, and more.`,meaning:`Evidence must be shown to be genuine through testimony or characteristics.`},
+  "902": {full:`The following items are self-authenticating; they require no extrinsic evidence of authenticity: domestic public documents under seal, certified copies of public records, official publications, newspapers, trade inscriptions, acknowledged documents, commercial paper, and certified business records, among others.`,meaning:`Certain documents prove themselves without additional testimony.`},
+  "903": {full:`The testimony of a subscribing witness is unnecessary to authenticate a writing unless required by a statute.`,meaning:`You usually don't need the signing witness to authenticate a document.`},
+  "1001": {full:`Defines writings, recordings, photographs, originals, and duplicates for the rules on proving content.`,meaning:`Clarifies terminology for best-evidence rules.`},
+  "1002": {full:`An original writing, recording, or photograph is required to prove its content unless these rules or a statute provide otherwise.`,meaning:`To prove content, produce the original unless an exception applies.`},
+  "1003": {full:`A duplicate is admissible to the same extent as the original unless a genuine question is raised about the original's authenticity or it would be unfair to admit the duplicate.`,meaning:`Copies are fine unless authenticity is challenged.`},
+  "1004": {full:`An original is not required if it has been lost or destroyed, cannot be obtained, is in the opponent's possession and they fail to produce it, or relates only to a collateral matter.`,meaning:`Other evidence of content is allowed when the original isn't available for specified reasons.`},
+  "1005": {full:`The contents of an official record may be proved by a copy certified as correct or by a witness who has compared it with the original.`,meaning:`Certified copies can prove public records.`},
+  "1006": {full:`The proponent may use a summary, chart, or calculation to prove the content of voluminous writings, recordings, or photographs that cannot be conveniently examined in court.`,meaning:`Summaries of voluminous documents are admissible if originals are available.`},
+  "1007": {full:`The proponent may prove the content of a writing, recording, or photograph by the testimony, deposition, or written statement of the party against whom the evidence is offered.`,meaning:`A party's own words can prove a document's content without the original.`},
+  "1008": {full:`Ordinarily, the court determines whether the proponent has fulfilled the factual conditions for admitting other evidence of content under these rules; in jury trials, the jury decides disputes about whether an original ever existed, whether another one produced at trial is the original, and whether other evidence accurately reflects the content.`,meaning:`Judges admit secondary evidence; juries resolve factual disputes about originals.`},
+  "1101": {full:`These rules apply to proceedings in United States courts except as provided for certain types of cases and circumstances.`,meaning:`Rules govern most proceedings with specific exceptions.`},
+  "1102": {full:`These rules may be cited as the Arizona Rules of Evidence.`,meaning:`Provides the formal title of the rule set.`},
+  "1103": {full:`These rules do not supersede existing privileges or other federal statutes.`,meaning:`Other statutes and privileges remain effective.`}
+};
+
+</script>
+<script>
+// Mock trial scoring utilities
+const MT_SCORING = (() => {
+  const OPENING_CRITERIA = [
+    "Provided a case overview and story",
+    "The theme/theory of the case was identified",
+    "Mentioned the key witnesses",
+    "Provided a clear and concise description of their team\u2019s evidence and side of the case",
+    "Stated the relief or verdict requested",
+    "Discussed the burden of proof",
+    "Presentation was non-argumentative; did not include improper statements or assume facts not in evidence",
+    "Professional and composed",
+    "Spoke naturally and clearly",
+  ];
+
+  const DIRECT_CRITERIA = [
+    "Properly phrased and effective questions",
+    "Examination was organized effectively to make points clearly; questions had clear purpose",
+    "Used proper courtroom procedures",
+    "Handled objections appropriately and effectively",
+    "Did not overuse objections",
+    "Did not ask questions that called for an unfair extrapolation from the witness",
+    "Demonstrated an understanding of the Modified Federal Rules of Evidence",
+    "Handled physical evidence appropriately and effectively",
+    "Professional and composed",
+    "Spoke confidently and clearly",
+  ];
+
+  const CROSS_CRITERIA = [
+    "Properly phrased and effective questions",
+    "Examination was organized effectively to make points clearly; questions had clear purpose",
+    "Used proper courtroom procedures",
+    "Handled objections appropriately and effectively",
+    "Did not overuse objections",
+    "Did not ask questions that called for an unfair extrapolation from the witness",
+    "Used various techniques, as necessary, to handle a non-responsive witness",
+    "Properly impeached witnesses",
+    "Demonstrated an understanding of the Modified Federal Rules of Evidence",
+    "Handled physical evidence appropriately and effectively",
+    "Professional and composed",
+    "Spoke confidently and clearly",
+  ];
+
+  const CLOSING_CRITERIA = [
+    "Theme/theory reiterated in closing argument",
+    "Summarized the evidence",
+    "Emphasized the supporting points of their own case and mistakes and weaknesses of the opponent\u2019s case",
+    "Concentrated on the important, not the trivial",
+    "Applied the relevant law",
+    "Discussed burden of proof",
+    "Did not discuss evidence that was not included in the trial presentation",
+    "Overall, the closing statement was persuasive",
+    "Use of notes was minimal, effective, and purposeful",
+    "Contained spontaneous elements that reflect unanticipated outcomes of this specific trial",
+    "Professional and composed",
+    "Spoke naturally and clearly",
+  ];
+
+  function numericToGrade(score) {
+    if (score < 5) return 'F';
+    if (score < 6) return 'D';
+    if (score < 7) return 'C-';
+    if (score < 8) return 'B-';
+    if (score < 10) return 'A-';
+    return 'A';
+  }
+
+  function evaluate(responses, criteria) {
+    if (responses.length !== criteria.length) {
+      throw new Error('Number of responses must match number of criteria');
+    }
+    const score = responses.filter(Boolean).length / criteria.length * 10;
+    return { score, grade: numericToGrade(score) };
+  }
+
+  return {
+    OPENING_CRITERIA,
+    DIRECT_CRITERIA,
+    CROSS_CRITERIA,
+    CLOSING_CRITERIA,
+    numericToGrade,
+    evaluateOpening: responses => evaluate(responses, OPENING_CRITERIA),
+    evaluateDirect: responses => evaluate(responses, DIRECT_CRITERIA),
+    evaluateCross: responses => evaluate(responses, CROSS_CRITERIA),
+    evaluateClosing: responses => evaluate(responses, CLOSING_CRITERIA),
+  };
+})();
+</script>
+<script>
+// ChatGPT scoring and transcript formatting utilities ported from Python
+const ChatGPTScoring = (() => {
+  const NON_ANSWER_PATTERNS = [
+    /^i don't know$/i,
+    /^i do not know$/i,
+    /^i dont know$/i,
+    /^i'm not sure$/i,
+    /^im not sure$/i,
+    /^no idea$/i,
+    /^idk$/i,
+  ];
+
+  const RATING_RUBRIC = `1 — Irrelevant, incorrect, or admits lack of knowledge.\n`
+    + `2 — Mostly incorrect or vague, providing little value.\n`
+    + `3 — Shows minimal understanding but has major gaps.\n`
+    + `4 — Somewhat helpful but still misses key points.\n`
+    + `5 — Partially correct but incomplete or unclear.\n`
+    + `6 — Mostly correct with moderate detail.\n`
+    + `7 — Useful, with only minor issues or omissions.\n`
+    + `8 — Very good, mostly thorough and accurate.\n`
+    + `9 — Excellent, highly informative with minor nitpicks.\n`
+    + `10 — Exceptional, fully accurate, comprehensive, and highly helpful.`;
+
+  const ARGUMENT_RUBRIC = `Mock Trial Argument & Objection Rubric (1–10)\n\n`
+    + `Checklist Categories (score each, then sum and scale to 10):\n\n`
+    + `Objection Grounds (0–3 points)\n\n`
+    + `0 = Wrong / vague grounds.\n`
+    + `1–2 = Some correct grounds, missing specificity.\n`
+    + `3 = Clearly correct rule + properly stated.\n`
+    + `[Cite rules when possible, e.g., FRE 403, 611(c), 801(d)(2)(A). Missing rule citations only warrant a minor (0.5 point) deduction.]\n\n`
+    + `Rule Application (0–2 points)\n\n`
+    + `0 = No link to facts.\n`
+    + `1 = Weak or partial link.\n`
+    + `2 = Strong, specific application of rule to facts.\n\n`
+    + `Rebuttal & Response (0–2 points)\n\n`
+    + `0 = No real response.\n`
+    + `1 = Partial / generic.\n`
+    + `2 = Direct, persuasive, on-point rebuttal.\n\n`
+    + `Argument Quality (0–3 points)\n\n`
+    + `0 = Disorganized, inaccurate, off-record.\n`
+    + `1–2 = Basic structure, some use of facts/law.\n`
+    + `3 = Clear, persuasive, well-structured, accurate use of record.\n\n`
+    + `Scoring Instructions (for ChatGPT):\n\n`
+    + `Add up the category scores (max = 10).\n`
+    + `Report a total 1–10 score.\n`
+    + `Give 2–3 sentences of feedback: (a) what worked, (b) what to fix.\n`
+    + `Always name any evidence rules cited (FRE or jurisdiction given).`;
+
+  const PROMPT_TEMPLATE =
+`You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
+`Below is a transcript of an argument or discussion.\n\n`+
+`Transcript:\n{transcript}\n\n`+
+`Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Your task:\n`+
+`1. Read the entire transcript carefully from start to finish.\n`+
+`2. Summarize the transcript in detail, citing at least three direct quotes \n`+
+`   or paraphrased references from different parts of the transcript to \n`+
+`   demonstrate you read all of it.\n`+
+`3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
+`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
+`   should reflect the transcript and not default to a midpoint score.\n`+
+`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`6. Provide a brief explanation for why you chose that score, referring to \n`+
+`   the referenced sections of the transcript.\n`+
+`7. Suggest where the participant can improve and what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`Format your response as:\n`+
+`Summary: <detailed summary with references>\n`+
+`Score: <number from 1 to 10>\n`+
+`Explanation: <short paragraph>\n`+
+`Improvements: <specific, actionable suggestions referencing where to change the argument>`;
+
+  const PROMPT_TEMPLATE_RULING =
+`You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
+`Below is a transcript of an argument or discussion.\n\n`+
+`Transcript:\n{transcript}\n\n`+
+`Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Your task:\n`+
+`1. Read the entire transcript carefully from start to finish.\n`+
+`2. Summarize the transcript in detail, citing at least three direct quotes \n`+
+`   or paraphrased references from different parts of the transcript to \n`+
+`   demonstrate you read all of it.\n`+
+`3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
+`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
+`   should reflect the transcript and not default to a midpoint score.\n`+
+`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`6. Decide whether the objection should be sustained or overruled.\n`+
+`7. Provide a brief explanation for why you chose that score, referring to \n`+
+`   the referenced sections of the transcript.\n`+
+`8. Suggest where the participant can improve and what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`Format your response as:\n`+
+`Ruling: <Sustained or Overruled>\n`+
+`Summary: <detailed summary with references>\n`+
+`Score: <number from 1 to 10>\n`+
+`Explanation: <short paragraph>\n`+
+`Improvements: <specific, actionable suggestions referencing where to change the argument>`;
+
+  function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
+    let cleaned = transcript.trim();
+    const lowered = cleaned.toLowerCase();
+    if (NON_ANSWER_PATTERNS.some(r => r.test(lowered))) {
+      cleaned += '\n\n[Note: The participant admitted lack of knowledge; according to the rubric this should be scored 1.]';
+    }
+    const wordCount = (lowered.match(/\b\w+\b/g) || []).length;
+    if (wordCount < 15) {
+      cleaned += '\n\n[Note: The response is very brief and may lack substantive reasoning; according to the rubric this should likely receive a low score.]';
+    }
+    const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
+    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', rubric);
+  }
+
+  function parseScoreResponse(text){
+    const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
+    const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore:/i);
+    const scoreMatch = text.match(/Score:\s*(\d+)/i);
+    const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
+    const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
+    if(!scoreMatch || !explanationMatch){
+      throw new Error('Response did not match expected format');
+    }
+    return {
+      ruling: rulingMatch ? rulingMatch[1] : null,
+      summary: summaryMatch ? summaryMatch[1].trim() : '',
+      score: Number(scoreMatch[1]),
+      explanation: explanationMatch[1].trim(),
+      improvement: improvementMatch ? improvementMatch[1].trim() : ''
+    };
+  }
+
+  return { buildScoringPrompt, parseScoreResponse, ARGUMENT_RUBRIC };
+})();
+
+function formatTranscripts(pairs){
+  const combinedLines = [];
+  const questionLines = [];
+  const answerLines = [];
+  pairs.forEach((pair, idx) => {
+    if(!Array.isArray(pair) || pair.length !== 2){
+      throw new Error("Each item in 'pairs' must be a 2-item sequence");
+    }
+    const [qRaw, aRaw] = pair;
+    const q = String(qRaw).trim();
+    const a = String(aRaw).trim();
+    const n = idx + 1;
+    combinedLines.push(`Q${n}: ${q}`);
+    combinedLines.push(`A${n}: ${a}`);
+    questionLines.push(`Question ${n}: ${q}`);
+    answerLines.push(`Answer ${n}: ${a}`);
+  });
+  return [
+    combinedLines.join('\n'),
+    questionLines.join('\n'),
+    answerLines.join('\n')
+  ];
+}
+</script>
+<script>
+// Ensure the script only runs in a browser environment.
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+/* Debug + provenance */
+let DEBUG_CHATGPT = true;
+function showProvenance(msg, isErr=false){
+  const s = document.getElementById('videoStatus');
+  if(!s) return;
+  const tag = isErr ? '\u26a0\ufe0f' : '\u2705';
+  s.innerHTML = `<span style="font-weight:600">${tag} ${msg}</span>`;
+  s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
+}
+
+/* Utilities */
+const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
+function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
+
+/* Robust JSON extraction (handles ```json fences) */
+function extractFirstJson(str){
+  if(!str) return null;
+  const clean = str.replace(/```json\s*([\s\S]*?)```/i,'$1').replace(/```\s*([\s\S]*?)```/g,'$1').trim();
+  try{ return JSON.parse(clean); }catch(_){}
+  const start = clean.indexOf('{'); const end = clean.lastIndexOf('}');
+  if(start!==-1 && end!==-1 && end>start){
+    const cand = clean.slice(start,end+1);
+    try{ return JSON.parse(cand); }catch(_){}
+  }
+  return null;
+}
+
+/* State data */
+const CURRENT_STATE = 'AZ';
+function makeRubricMap(stateName, abbr){
+  return {
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
+  - Content & Case Theory (30)
+  - Organization & Roadmap (20)
+  - Knowledge of Law/Facts (15)
+  - Persuasiveness (15)
+  - Delivery (15)
+  - Professionalism/Decorum (5)
+  Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask.
+  Evaluate using this checklist:
+  \u25a1 Provided a case overview and story
+  \u25a1 The theme/theory of the case was identified
+  \u25a1 Mentioned the key witnesses
+  \u25a1 Provided a clear and concise description of their team\u2019s evidence and side of the case
+  \u25a1 Stated the relief or verdict requested
+  \u25a1 Discussed the burden of proof
+  \u25a1 Presentation was non-argumentative; did not include improper statements or assume facts not in evidence
+  \u25a1 Professional and composed
+  \u25a1 Spoke naturally and clearly
+  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
+  - Content & Law Application (30)
+  - Structure & Element Walk-through (20)
+  - Refutation & Rebuttal (15)
+  - Persuasiveness (15)
+  - Delivery (15)
+  - Professionalism (5)
+  Consider instructions, burden, element-by-element, addressing opponent ("they said...").
+  Evaluate using this checklist:
+  \u25a1 Theme/theory reiterated in closing argument
+  \u25a1 Summarized the evidence
+  \u25a1 Emphasized the supporting points of their own case and mistakes and weaknesses of the opponent\u2019s case
+  \u25a1 Concentrated on the important, not the trivial
+  \u25a1 Applied the relevant law
+  \u25a1 Discussed burden of proof
+  \u25a1 Did not discuss evidence that was not included in the trial presentation
+  \u25a1 Overall, the closing statement was persuasive
+  \u25a1 Use of notes was minimal, effective, and purposeful
+  \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
+  \u25a1 Professional and composed
+  \u25a1 Spoke naturally and clearly
+  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
+  - Chapters & Story Build (25)
+  - Open-Ended Technique (20)
+  - Foundation & Exhibits (20)
+  - Listening & Follow-ups (15)
+  - Delivery/Presence (15)
+  - Professionalism (5)
+  Penalize leading/compound. Credit foundation/authentication/follow-ups.
+  Evaluate using this checklist:
+  \u25a1 Properly phrased and effective questions
+  \u25a1 Examination was organized effectively to make points clearly; questions had clear purpose
+  \u25a1 Used proper courtroom procedures
+  \u25a1 Handled objections appropriately and effectively
+  \u25a1 Did not overuse objections
+  \u25a1 Did not ask questions that called for an unfair extrapolation from the witness
+  \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
+  \u25a1 Handled physical evidence appropriately and effectively
+  \u25a1 Professional and composed
+  \u25a1 Spoke confidently and clearly
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
+  - Chapters & Damage Theory (25)
+  - Leading & Control (25)
+  - Impeachment/Admissions (20)
+  - Brevity & Question Craft (15)
+  - Delivery/Presence (10)
+  - Professionalism (5)
+  Credit short leading Qs; anchors (page/line); admissions. Penalize compound/argumentative.
+  Evaluate using this checklist:
+  \u25a1 Properly phrased and effective questions
+  \u25a1 Examination was organized effectively to make points clearly; questions had clear purpose
+  \u25a1 Used proper courtroom procedures
+  \u25a1 Handled objections appropriately and effectively
+  \u25a1 Did not overuse objections
+  \u25a1 Did not ask questions that called for an unfair extrapolation from the witness
+  \u25a1 Used various techniques, as necessary, to handle a non-responsive witness
+  \u25a1 Properly impeached witnesses
+  \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
+  \u25a1 Handled physical evidence appropriately and effectively
+  \u25a1 Professional and composed
+  \u25a1 Spoke confidently and clearly
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
+  };
+}
+
+/* Global engine state */
+const EngineState = {
+  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
+  set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
+  get openaiKey(){ return load('mtpl.openaiKey','') },
+  set openaiKey(v){ save('mtpl.openaiKey', v||'') },
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+};
+
+function renderModeBadge(){
+  const b=$('modeBadge'), banner=$('videoModeBanner');
+  if(!b) return;
+  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+    b.textContent='Mode: ChatGPT (OpenAI API)';
+    if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
+  } else {
+    b.textContent='Mode: Built-in (less accurate)';
+    if(banner) banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong>.';
+  }
+}
+
+/* Navigation menu + tabs */
+(function(){
+  const navMenu=$('navMenu');
+  function btns(){return Q('#navMenu button.tab[data-tab]')}
+  function names(){return btns().map(b=>b.dataset.tab)}
+  function show(n){
+    btns().forEach(b=>b.classList.toggle('active',b.dataset.tab===n));
+    names().forEach(t=>{const el=$(t);if(el) el.hidden=(t!==n)});
+    save('mtpl.tab',n);
+    if(n==='video'){ maybeShowVideoGate(); renderModeBadge(); }
+  }
+  navMenu.addEventListener('click',e=>{
+    const t=e.target.closest('button.tab[data-tab]');
+    if(t){ e.preventDefault(); show(t.dataset.tab); }
+  });
+  document.addEventListener('DOMContentLoaded',()=>{ show('howto') })
+})();
+
+/* Gateway wiring */
+function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
+function closeVideoGate(){ $('videoGate').style.display='none' }
+function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
+function attachVideoGateHandlers(){
+  $('btnCloseGate').addEventListener('click', closeVideoGate);
+  $('btnUseBuiltin').addEventListener('click', ()=>{
+    EngineState.mode='builtin'; closeVideoGate(); renderModeBadge();
+    $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
+  });
+  $('btnUseChatGPT').addEventListener('click', ()=>{
+    const key=$('openaiKey').value.trim();
+    const model=$('openaiModel').value;
+    const maxt=Number($('openaiMaxTokens').value)||600;
+    if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
+    EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
+    closeVideoGate(); renderModeBadge();
+    $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
+  });
+  $('btnForgetKey').addEventListener('click', ()=>{
+    EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
+    alert('Removed saved API key. Falling back to built-in scoring.');
+  });
+}
+document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
+
+/* Env warnings + error surface */
+function envWarn(){
+  const el=$('videoStatus'); if(!el) return;
+  const msgs=[];
+  if(!window.isSecureContext && location.hostname!=='localhost') msgs.push('Use HTTPS or localhost for camera/mic.');
+  try{ if(window.top!==window.self) msgs.push('If embedded: add allow="camera; microphone" on iframe.'); }catch(e){}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) msgs.push('Camera API not available. Use Mic Only or Upload Video.');
+  if(msgs.length) el.textContent = msgs.join(' ');
+}
+window.addEventListener('error', e=>{
+  const s=$('videoStatus'); if(s) { s.textContent = 'JS Error: '+(e?.message||'error'); s.style.color='#ef9a9a'; }
+});
+window.addEventListener('unhandledrejection', e=>{
+  const s=$('videoStatus'); if(s){ s.textContent = 'Promise error: '+(e?.reason?.message||String(e?.reason||'error')); s.style.color='#ef9a9a'; }
+});
+
+/* Legacy stub retained */
+function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0,wpm:0,fillers:0,legalKeywords:0,signposts:0}; }
+
+/* Objections module (full) */
+const OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
+
+const Objections=(function(){
+ const DB=[
+  {fact:"Witness: 'My friend told me the light was red.'",ans:"Hearsay",rule:"801/802",why:"Out-of-court statement for truth.",q:"Best objection?"},
+  {fact:"Officer: 'The neighbor said he saw the defendant running.'",ans:"Hearsay",rule:"801/802",why:"Non-testifying declarant.",q:"Best objection?"},
+  {fact:"Witness: 'She nodded yes when I asked if she was drunk.'",ans:"Hearsay",rule:"801(a)/(c)",why:"Nonverbal assertion.",q:"Best objection?"},
+  {fact:"Witness: 'My boss said HR told him policy changed.'",ans:"Hearsay within Hearsay",rule:"805",why:"Multiple layers.",q:"Best objection?"},
+  {fact:"On direct: 'You were texting while driving, right?'",ans:"Leading",rule:"611(c)",why:"Leading on direct.",q:"Best objection?"},
+  {fact:"Witness: 'He intended to rob me.'",ans:"Speculation",rule:"602",why:"Mental state speculation.",q:"Best objection?"},
+  {fact:"Counsel moves to admit Exhibit 5 without sponsor.",ans:"Lack of Foundation",rule:"104/602/901",why:"No predicate laid.",q:"Best objection?"},
+  {fact:"Counsel: 'Did you call and write to the insurer?'",ans:"Compound",rule:"611(a)",why:"Two questions in one.",q:"Best objection?"},
+  {fact:"Counsel: 'You're lying to get a payout, aren't you?'",ans:"Argumentative",rule:"611(a)",why:"Badgering.",q:"Best objection?"},
+  {fact:"Counsel repeats same question after answer.",ans:"Asked & Answered",rule:"611(a)",why:"Repetition.",q:"Best objection?"},
+  {fact:"On cross: entirely new topics not on direct.",ans:"Beyond Scope",rule:"611(b)",why:"Beyond scope.",q:"Best objection?"},
+  {fact:"Q: 'When was it?' (no context)",ans:"Vague/Ambiguous",rule:"611(a)",why:"Unclear.",q:"Best objection?"},
+  {fact:"Q misquotes exhibit contents.",ans:"Misstates Evidence",rule:"403/611",why:"Mischaracterizes evidence.",q:"Best objection?"},
+  {fact:"Q assumes unproven premise.",ans:"Assumes Facts Not in Evidence",rule:"611(a)",why:"Presumes disputed fact.",q:"Best objection?"},
+  {fact:"Witness gives long story beyond question.",ans:"Narrative",rule:"611(a)",why:"Narrative/nonresponsive.",q:"Best objection?"},
+  {fact:"Sixth witness repeats identical fact.",ans:"Cumulative",rule:"403",why:"Needless cumulation.",q:"Best objection?"},
+  {fact:"Counsel: 'He has a reputation for speeding so he sped here.'",ans:"Improper Character",rule:"404(a)",why:"Propensity.",q:"Best objection?"},
+  {fact:"Lay witness: 'He was negligent.'",ans:"Improper Opinion",rule:"701",why:"Legal conclusion.",q:"Best objection?"},
+  {fact:"After accident company installed guardrails (to prove negligence).",ans:"Subsequent Remedial Measures",rule:"407",why:"Not to prove negligence.",q:"Best objection?"},
+  {fact:"'Didn't defendant offer to pay medical bills?'",ans:"Medical Payments",rule:"409",why:"Not to prove liability.",q:"Best objection?"},
+  {fact:"'You tried to settle for $5,000, right?'",ans:"Compromise/Offers",rule:"408(a)",why:"Settlement talks.",q:"Best objection?"},
+  {fact:"'You have car insurance, correct?' (to show fault)",ans:"Insurance",rule:"411",why:"Insurance \u2260 negligence.",q:"Best objection?"},
+  {fact:"'In plea talks you admitted speeding, right?'",ans:"Plea Discussions",rule:"410(a)",why:"Plea statements.",q:"Best objection?"},
+  {fact:"Witness: 'My accountant told me the books were falsified.'",ans:"Hearsay",rule:"801/802",why:"Out-of-court statement for truth.",q:"Best objection?"},
+  {fact:"Witness: 'The shopkeeper said the defendant looked nervous.'",ans:"Hearsay",rule:"801/802",why:"Out-of-court statement offered for truth.",q:"Best objection?"},
+  {fact:"Witness: 'My mother said the signal was green.'",ans:"Hearsay",rule:"801/802",why:"Statement from non-testifying declarant.",q:"Best objection?"},
+  {fact:"Witness: 'According to the police report, the suspect confessed.'",ans:"Hearsay",rule:"801/802",why:"Report is an out-of-court statement.",q:"Best objection?"},
+  {fact:"Witness: 'My coworker said the manager heard the janitor admit stealing.'",ans:"Hearsay within Hearsay",rule:"805",why:"Multiple out-of-court layers.",q:"Best objection?"},
+  {fact:"Witness: 'The letter quotes a doctor saying the nurse repeated the patient's words.'",ans:"Hearsay within Hearsay",rule:"805",why:"Quoted statement contains another statement.",q:"Best objection?"},
+  {fact:"Witness: 'She texted me that her brother claimed the witness lied.'",ans:"Hearsay within Hearsay",rule:"805",why:"Text relays secondhand claim.",q:"Best objection?"},
+  {fact:"Witness: 'The memo states an informant told detectives the victim shouted.'",ans:"Hearsay within Hearsay",rule:"805",why:"Memo contains declarant reporting another declarant.",q:"Best objection?"},
+  {fact:"On direct: 'You met the defendant on April 3, didn't you?'",ans:"Leading",rule:"611(c)",why:"Suggests answer on direct.",q:"Best objection?"},
+  {fact:"On direct: 'You saw him hit the brake, right?'",ans:"Leading",rule:"611(c)",why:"Leading question on direct.",q:"Best objection?"},
+  {fact:"On direct: 'And then you called 911, correct?'",ans:"Leading",rule:"611(c)",why:"Suggests sequence on direct.",q:"Best objection?"},
+  {fact:"On direct: 'It's true you were angry that night, isn't it?'",ans:"Leading",rule:"611(c)",why:"Counsel suggests the answer.",q:"Best objection?"},
+  {fact:"Witness: 'He must have been speeding because he was late.'",ans:"Speculation",rule:"602",why:"Inference about speed without perception.",q:"Best objection?"},
+  {fact:"Witness: 'She probably hid the evidence to protect herself.'",ans:"Speculation",rule:"602",why:"Guessing about motive.",q:"Best objection?"},
+  {fact:"Witness: 'I think he intended to burn the documents.'",ans:"Speculation",rule:"602",why:"Speculates on intent.",q:"Best objection?"},
+  {fact:"Witness: 'He looked like he wanted to fight.'",ans:"Speculation",rule:"602",why:"Opinion on unperceived mental state.",q:"Best objection?"},
+  {fact:"Counsel offers a photo with no testimony about who took it.",ans:"Lack of Foundation",rule:"104/602/901",why:"No predicate for authenticity.",q:"Best objection?"},
+  {fact:"Counsel introduces a contract without establishing authenticity.",ans:"Lack of Foundation",rule:"104/602/901",why:"Document not authenticated.",q:"Best objection?"},
+  {fact:"Counsel asks an expert for an opinion before qualifying them.",ans:"Lack of Foundation",rule:"104/702",why:"Expert not yet qualified.",q:"Best objection?"},
+  {fact:"Counsel shows a weapon without proving chain of custody.",ans:"Lack of Foundation",rule:"104/901",why:"No evidence it's the same item.",q:"Best objection?"},
+  {fact:"Witness: 'I heard the alarm, so the fire started in the kitchen.'",ans:"Lack of Personal Knowledge",rule:"602",why:"Assumes facts without observation.",q:"Best objection?"},
+  {fact:"Witness: 'They told me the defendant was out of town.'",ans:"Lack of Personal Knowledge",rule:"602",why:"Relies on others' statements.",q:"Best objection?"},
+  {fact:"Witness: 'I assume the car was stolen because the window was broken.'",ans:"Lack of Personal Knowledge",rule:"602",why:"No firsthand knowledge of theft.",q:"Best objection?"},
+  {fact:"Witness: 'The document looked real to me.'",ans:"Lack of Personal Knowledge",rule:"602",why:"Opinion without basis in perception.",q:"Best objection?"},
+  {fact:"Counsel: 'Did you grab the phone and run out the door?'",ans:"Compound",rule:"611(a)",why:"Two questions in one.",q:"Best objection?"},
+  {fact:"Counsel: 'You spoke to the manager and sent the email?'",ans:"Compound",rule:"611(a)",why:"Multiple inquiries at once.",q:"Best objection?"},
+  {fact:"Counsel: 'Isn't it true you called, texted, and visited the victim?'",ans:"Compound",rule:"611(a)",why:"Several questions combined.",q:"Best objection?"},
+  {fact:"Counsel: 'You checked the lock and opened the safe, right?'",ans:"Compound",rule:"611(a)",why:"Two actions in single question.",q:"Best objection?"},
+  {fact:"Counsel: 'Aren't you known for being dishonest?'",ans:"Improper Character",rule:"404(a)",why:"Attacks propensity for dishonesty.",q:"Best objection?"},
+  {fact:"Counsel: 'You have a reputation for fighting, don't you?'",ans:"Improper Character",rule:"404(a)",why:"Propensity evidence.",q:"Best objection?"},
+  {fact:"Counsel: 'Because you're clumsy, you tripped that day?'",ans:"Improper Character",rule:"404(a)",why:"Uses trait to prove conduct.",q:"Best objection?"},
+  {fact:"Counsel: 'He was fired for theft before, so he stole here.'",ans:"Improper Character",rule:"404(a)",why:"Prior acts to show propensity.",q:"Best objection?"},
+  {fact:"Lay witness: 'The contract is legally binding.'",ans:"Improper Opinion",rule:"701",why:"Legal conclusion from lay witness.",q:"Best objection?"},
+  {fact:"Lay witness: 'The driver was negligent.'",ans:"Improper Opinion",rule:"701",why:"Invades province of jury.",q:"Best objection?"},
+  {fact:"Lay witness: 'He was guilty.'",ans:"Improper Opinion",rule:"701",why:"Ultimate legal conclusion by lay witness.",q:"Best objection?"},
+  {fact:"Lay witness: 'The medicine caused her illness.'",ans:"Improper Opinion",rule:"701",why:"Requires expert testimony.",q:"Best objection?"},
+  {fact:"Counsel repeats 'What time did you arrive?' after answer given.",ans:"Asked & Answered",rule:"611(a)",why:"Question already answered.",q:"Best objection?"},
+  {fact:"Counsel re-asks 'Did you sign the check?' despite prior answer.",ans:"Asked & Answered",rule:"611(a)",why:"Repeated question.",q:"Best objection?"},
+  {fact:"Counsel keeps asking 'Were you angry?' though witness answered.",ans:"Asked & Answered",rule:"611(a)",why:"Repetition.",q:"Best objection?"},
+  {fact:"Counsel asks again 'Where were you seated?' after response.",ans:"Asked & Answered",rule:"611(a)",why:"Asked and answered.",q:"Best objection?"},
+  {fact:"Counsel: 'What is your favorite movie?'",ans:"Relevance",rule:"401/402",why:"No bearing on case.",q:"Best objection?"},
+  {fact:"Counsel: 'How many pets do you own?'",ans:"Relevance",rule:"401/402",why:"Irrelevant personal detail.",q:"Best objection?"},
+  {fact:"Counsel: 'What did you eat for breakfast?'",ans:"Relevance",rule:"401/402",why:"Does not make fact more or less probable.",q:"Best objection?"},
+  {fact:"Counsel: 'Where did you vacation last summer?'",ans:"Relevance",rule:"401/402",why:"Unrelated to issues.",q:"Best objection?"},
+  {fact:"Counsel: 'Isn't it true you're just making this up?'",ans:"Argumentative",rule:"611(a)",why:"Badgers the witness.",q:"Best objection?"},
+  {fact:"Counsel: 'You think you're smarter than everyone, don't you?'",ans:"Argumentative",rule:"611(a)",why:"Seeks argument, not facts.",q:"Best objection?"},
+  {fact:"Counsel: 'Why are you lying to the court?'",ans:"Argumentative",rule:"611(a)",why:"Accuses witness instead of eliciting facts.",q:"Best objection?"},
+  {fact:"Counsel: 'Is this how you always deceive people?'",ans:"Argumentative",rule:"611(a)",why:"Argumentative/insulting.",q:"Best objection?"},
+  {fact:"Counsel: 'Was the thing big?'",ans:"Vague/Ambiguous",rule:"611(a)",why:"Unclear reference.",q:"Best objection?"},
+  {fact:"Counsel: 'Did you do it earlier?'",ans:"Vague/Ambiguous",rule:"611(a)",why:"Ambiguous timing.",q:"Best objection?"},
+  {fact:"Counsel: 'Was it handled the usual way?'",ans:"Vague/Ambiguous",rule:"611(a)",why:"Undefined terms.",q:"Best objection?"},
+  {fact:"Counsel: 'Were they over there then?'",ans:"Vague/Ambiguous",rule:"611(a)",why:"Confusing question.",q:"Best objection?"},
+  {fact:"Q: 'Did you see the crash?' Witness: 'I've driven that road for years and know every turn.'",ans:"Nonresponsive",rule:"611(a)",why:"Answer fails to address question.",q:"Best objection?"},
+  {fact:"Q: 'What time was it?' Witness: 'Well, I left home early and grabbed coffee.'",ans:"Nonresponsive",rule:"611(a)",why:"Does not answer time asked.",q:"Best objection?"},
+  {fact:"Q: 'Did you sign the contract?' Witness: 'My lawyer advised me about the deal.'",ans:"Nonresponsive",rule:"611(a)",why:"Does not answer whether signed.",q:"Best objection?"},
+  {fact:"Q: 'Was the light red?' Witness: 'I was worried about my job that day.'",ans:"Nonresponsive",rule:"611(a)",why:"Avoids direct answer.",q:"Best objection?"},
+  {fact:"On cross, counsel asks about defendant's finances not on direct.",ans:"Beyond Scope",rule:"611(b)",why:"Topic not covered on direct.",q:"Best objection?"},
+  {fact:"On cross, counsel questions witness about unrelated prior lawsuit.",ans:"Beyond Scope",rule:"611(b)",why:"Outside scope of direct examination.",q:"Best objection?"},
+  {fact:"On cross, counsel explores new theory not covered in direct.",ans:"Beyond Scope",rule:"611(b)",why:"Introduces entirely new subject.",q:"Best objection?"},
+  {fact:"On cross, counsel delves into medical history not raised earlier.",ans:"Beyond Scope",rule:"611(b)",why:"Exceeds scope of direct.",q:"Best objection?"},
+  {fact:"Counsel: 'When did you stop embezzling funds?'",ans:"Assumes Facts Not in Evidence",rule:"611(a)",why:"Presumes embezzlement without proof.",q:"Best objection?"},
+  {fact:"Counsel: 'Where did you hide the stolen car?'",ans:"Assumes Facts Not in Evidence",rule:"611(a)",why:"Assumes theft not in evidence.",q:"Best objection?"},
+  {fact:"Counsel: 'After you hit the victim, what did you do?'",ans:"Assumes Facts Not in Evidence",rule:"611(a)",why:"Assumes act not established.",q:"Best objection?"},
+  {fact:"Counsel: 'How often do you meet your accomplice?'",ans:"Assumes Facts Not in Evidence",rule:"611(a)",why:"Presumes accomplice relationship.",q:"Best objection?"},
+  {fact:"Witness launches into entire day instead of answering question.",ans:"Narrative",rule:"611(a)",why:"Provides narrative beyond question.",q:"Best objection?"},
+  {fact:"Witness explains events from childhood unrelated to question.",ans:"Narrative",rule:"611(a)",why:"Narrative beyond scope.",q:"Best objection?"},
+  {fact:"Witness gives long story about career before answering.",ans:"Narrative",rule:"611(a)",why:"Unnecessary narrative.",q:"Best objection?"},
+  {fact:"Witness recites conversation line-by-line beyond question.",ans:"Narrative",rule:"611(a)",why:"Excessive narrative response.",q:"Best objection?"},
+  {fact:"Counsel: 'You said the meeting was on Tuesday,' but witness said Monday.",ans:"Misstates Evidence",rule:"403/611",why:"Misquotes prior testimony.",q:"Best objection?"},
+  {fact:"Counsel claims exhibit shows $5,000 when it shows $500.",ans:"Misstates Evidence",rule:"403/611",why:"Mischaracterizes exhibit.",q:"Best objection?"},
+  {fact:"Counsel says witness identified a knife though they said gun.",ans:"Misstates Evidence",rule:"403/611",why:"Alters prior statement.",q:"Best objection?"},
+  {fact:"Counsel asserts witness saw two people though they said one.",ans:"Misstates Evidence",rule:"403/611",why:"Misstates testimony.",q:"Best objection?"},
+  {fact:"Tenth witness repeats same statement about weather.",ans:"Cumulative",rule:"403",why:"Needlessly presents same fact.",q:"Best objection?"},
+  {fact:"Counsel introduces third photo of same scene already proven.",ans:"Cumulative",rule:"403",why:"Excessive evidence on same point.",q:"Best objection?"},
+  {fact:"Multiple witnesses testify to same conversation already established.",ans:"Cumulative",rule:"403",why:"Repetition of evidence.",q:"Best objection?"},
+  {fact:"Counsel asks another officer to repeat testimony of first officer.",ans:"Cumulative",rule:"403",why:"Cumulative witness testimony.",q:"Best objection?"},
+  {fact:"'After the accident, you installed brighter lights, correct?'",ans:"Subsequent Remedial Measures",rule:"407",why:"Post-accident fix to prove negligence.",q:"Best objection?"},
+  {fact:"'You added guardrails after the fall, didn't you?'",ans:"Subsequent Remedial Measures",rule:"407",why:"Later safety measure.",q:"Best objection?"},
+  {fact:"'The company rewrote the manual after the incident?'",ans:"Subsequent Remedial Measures",rule:"407",why:"Post-event change.",q:"Best objection?"},
+  {fact:"'You replaced the ladder after the worker slipped?'",ans:"Subsequent Remedial Measures",rule:"407",why:"Subsequent repair offered for negligence.",q:"Best objection?"},
+  {fact:"'You proposed settling the claim for half the amount?'",ans:"Compromise/Offers",rule:"408(a)",why:"Settlement offer.",q:"Best objection?"},
+  {fact:"'He emailed offering to resolve the dispute without trial?'",ans:"Compromise/Offers",rule:"408(a)",why:"Settlement discussion.",q:"Best objection?"},
+  {fact:"'You suggested mediation and offered compensation?'",ans:"Compromise/Offers",rule:"408(a)",why:"Attempt to compromise claim.",q:"Best objection?"},
+  {fact:"'She promised payment if plaintiff dropped the case?'",ans:"Compromise/Offers",rule:"408(a)",why:"Settlement offer.",q:"Best objection?"},
+  {fact:"'Didn't you pay her hospital bill to show you cared?'",ans:"Medical Payments",rule:"409",why:"Offer to pay medical expenses.",q:"Best objection?"},
+  {fact:"'He offered to cover surgery costs?'",ans:"Medical Payments",rule:"409",why:"Payment for medical expenses.",q:"Best objection?"},
+  {fact:"'You sent money for her rehab, correct?'",ans:"Medical Payments",rule:"409",why:"Medical payment evidence.",q:"Best objection?"},
+  {fact:"'He reimbursed ambulance fees, right?'",ans:"Medical Payments",rule:"409",why:"Offer to pay medical bill.",q:"Best objection?"},
+  {fact:"'During plea talks, you admitted the burglary, correct?'",ans:"Plea Discussions",rule:"410(a)",why:"Statement during plea negotiations.",q:"Best objection?"},
+  {fact:"'In negotiations with the prosecutor, you said you'd plead guilty?'",ans:"Plea Discussions",rule:"410(a)",why:"Plea discussion statement.",q:"Best objection?"},
+  {fact:"'You offered to plead to a lesser offense in a meeting with the DA?'",ans:"Plea Discussions",rule:"410(a)",why:"Plea bargaining statement.",q:"Best objection?"},
+  {fact:"'You discussed pleading in exchange for testimony?'",ans:"Plea Discussions",rule:"410(a)",why:"Plea negotiation statement.",q:"Best objection?"},
+  {fact:"'Your insurance paid for the damage, didn't it?'",ans:"Insurance",rule:"411",why:"Evidence of insurance to prove liability.",q:"Best objection?"},
+  {fact:"'You filed a claim with your insurer after the crash?'",ans:"Insurance",rule:"411",why:"Insurance offered for negligence.",q:"Best objection?"},
+  {fact:"'Isn't it true your liability policy would cover this?'",ans:"Insurance",rule:"411",why:"Insurance to show fault.",q:"Best objection?"},
+  {fact:"'Insurance would reimburse you if found liable?'",ans:"Insurance",rule:"411",why:"Insurance evidence to prove negligence.",q:"Best objection?"},
+  {fact:"Witness: 'The news reported the defendant confessed.'",ans:"Hearsay",rule:"801/802",why:"Media report offered for truth.",q:"Best objection?"},
+  {fact:"On direct: 'He ignored the warning signs, didn't he?'",ans:"Leading",rule:"611(c)",why:"Suggests answer on direct.",q:"Best objection?"},
+  {fact:"Counsel offers a digital log without proof of accuracy.",ans:"Lack of Foundation",rule:"104/901",why:"No authentication of electronic record.",q:"Best objection?"},
+  {fact:"Counsel: 'Isn't your favorite color blue?'",ans:"Relevance",rule:"401/402",why:"Irrelevant personal preference.",q:"Best objection?"}
+ ];
+ const CORE=new Set(["Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Argumentative","Asked & Answered","Beyond Scope","Vague/Ambiguous","Nonresponsive","Relevance"]);
+ const ADV=new Set(["Hearsay within Hearsay","Misstates Evidence","Assumes Facts Not in Evidence","Narrative","Cumulative","Improper Character","Improper Opinion","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"]);
+ function cat(a){if(a.includes('Hearsay'))return'Hearsay';if(["Leading","Argumentative","Asked & Answered","Beyond Scope","Vague/Ambiguous","Nonresponsive","Compound","Assumes Facts Not in Evidence","Narrative","Misstates Evidence"].includes(a))return'611 Control';if(["Lack of Foundation","Lack of Personal Knowledge"].includes(a))return'Foundation';if(a==="Improper Opinion")return'Opinion/Experts';if(a==="Improper Character")return'Character/404';if(["Relevance","Cumulative"].includes(a))return'Relevance/403';if(["Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"].includes(a))return'Policy Exclusions';return'Other'}
+function passDiff(ans,d){if(d==='both')return true;const isCore=CORE.has(ans);return d==='core'?isCore:ADV.has(ans)||!isCore}
+let cur=null, stats=load('mtpl.objStats',{}), gptChat=[], gptRecog=null, gptRecStream=null, gptSendLocked=false;
+function updateGPTSend(){
+ $('btnGPTSend').disabled=gptSendLocked || !$('objGPTInput').value.trim();
+}
+function appendChat(role,text){
+ const out=$('objGPTChat');
+ const div=document.createElement('div');
+ div.className=`chat-entry ${role}`;
+ const label=document.createElement('strong');
+ label.textContent=role==='user'? 'You:' : role==='judge'? 'Judge:' : 'ChatGPT:';
+ div.appendChild(label);
+ div.appendChild(document.createTextNode(' '+text));
+ out.appendChild(div);
+ out.scrollTop=out.scrollHeight;
+}
+function appendJudgeDecision(res){
+ const out=$('objGPTChat');
+ const div=document.createElement('div');
+ div.className='chat-entry judge';
+ const label=document.createElement('strong');
+ label.textContent='Judge:';
+ div.appendChild(label);
+ const ruling=document.createElement('div');
+ ruling.innerHTML=`<strong>Ruling:</strong> ${escHTML(res.ruling||'')}`;
+ div.appendChild(ruling);
+ if(res.summary){
+  const sum=document.createElement('div');
+  sum.innerHTML=`<strong>Summary:</strong> ${escHTML(res.summary)}`;
+  div.appendChild(sum);
+ }
+ const score=document.createElement('div');
+ score.innerHTML=`<strong>Score:</strong> ${escHTML(res.score)}`;
+ div.appendChild(score);
+ const explain=document.createElement('div');
+ explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
+ div.appendChild(explain);
+ if(res.improvement){
+  const impr=document.createElement('div');
+  impr.innerHTML=`<strong>Improvements:</strong> ${escHTML(res.improvement)}`;
+  div.appendChild(impr);
+ }
+ out.appendChild(div);
+ out.scrollTop=out.scrollHeight;
+}
+function populate(){const sel=$('objSelect');sel.innerHTML=OBJECTION_CHOICES.map(c=>`<option>${c}</option>`).join('')}
+function pool(){const f=$('objFilter').value||'all',d=$('objDiff').value||'both';return DB.filter(x=>(f==='all'||cat(x.ans)===f)&&passDiff(x.ans,d))}
+function newQ(){const p=pool();cur=p.length?p[Math.floor(Math.random()*(p.length))]:DB[Math.floor(Math.random()*DB.length)];$('objFact').textContent=cur.fact;$('objQ').textContent=cur.q;const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');$('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';$('objSelect').selectedIndex=0}
+ function updStats(c,ok){stats[c]=stats[c]||{attempts:0,correct:0};stats[c].attempts++;if(ok)stats[c].correct++;save('mtpl.objStats',stats);renderStats()}
+ function renderStats(){const cats=['Hearsay','611 Control','Foundation','Opinion/Experts','Character/404','Relevance/403','Policy Exclusions'];$('objStats').textContent=cats.map(k=>{const s=stats[k]||{attempts:0,correct:0};const pct=s.attempts?Math.round(100*s.correct/s.attempts):0;return `${k.split('/')[0]} ${pct}% (${s.correct}/${s.attempts})`}).join(' \u00b7 ')}
+function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
+function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
+ async function gptNew(){
+  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+   alert('ChatGPT mode not enabled or API key missing.');
+   return;
+  }
+  const diff=$('objGPTDiff').value||'easy';
+  $('objGPTChat').hidden=true;
+  let userPrompt=`Generate a ${diff} difficulty objection drill.`;
+  if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
+  try{
+   const messages=[
+    {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
+    {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
+   ];
+   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+    body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages,response_format:{type:'json_object'},max_tokens:250})
+   });
+   const data=await resp.json();
+   const raw=data?.choices?.[0]?.message?.content||'';
+   const obj=extractFirstJson(raw);
+   if(obj&&obj.fact&&obj.q&&obj.ans){
+    cur=obj;
+    $('objFact').textContent=obj.fact;
+    $('objQ').textContent=obj.q;
+    const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');
+    $('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';
+    if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
+   } else {
+    alert('Bad response from ChatGPT.');
+   }
+  }catch(e){
+   console.error('[GPT Prompt]',e);
+   alert('ChatGPT error');
+  }
+ }
+ async function gptArgue(){
+  if(!cur){alert('Get a prompt first.');return;}
+  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+   alert('ChatGPT mode not enabled or API key missing.');
+   return;
+  }
+ const role = $('objGPTRole').value || 'chatgpt';
+
+ // Stronger system guardrails: NO NEW FACTS, NO HYPOTHETICALS
+ const systemMsg = {
+  role: 'system',
+  content:
+ `${STATES[CURRENT_STATE].judgePrompt}
+You are acting as opposing counsel in a mock trial objection argument.
+Constraints (must follow):
+- Do NOT invent or add any facts, events, injuries, statements, or timelines beyond the SCENARIO block.
+- Do NOT use hypotheticals or "for example" stories.
+- If the question lacks foundation or requires inference beyond the SCENARIO, object on that basis (e.g., Rule 602 speculation, Rule 611, etc.) WITHOUT adding facts.
+- Keep responses concise, transcript-style (1–3 sentences), grounded ONLY in the SCENARIO facts and the rules of evidence.`
+ };
+
+ let userMsg;
+ if (role === 'chatgpt') {
+  // Opposing counsel states an objection ONLY from the given scenario
+  userMsg = {
+    role: 'user',
+    content:
+ `SCENARIO (verbatim)
+Fact: ${cur.fact}
+Question: ${cur.q}
+
+Task for Opposing Counsel:
+- State the single best objection drawn ONLY from the SCENARIO and Arizona HS Mock Trial Rules (cite rule number, e.g., 602, 611(c), 801/802).
+- Do NOT make up what happened next. Do NOT add facts or examples. No hypotheticals.
+- Keep it to 1–3 sentences max.
+- End with: "Counsel, your response?"`
+  };
+ } else {
+  // User will object; opposing counsel should only prompt, still bound by SCENARIO
+  userMsg = {
+    role: 'user',
+    content:
+ `SCENARIO (verbatim)
+Fact: ${cur.fact}
+Question: ${cur.q}
+
+Task:
+- Briefly set the scene (1 sentence max) WITHOUT adding any facts.
+- Ask me to state my objection based ONLY on the SCENARIO.
+- After I object, respond ONLY as opposing counsel, still WITHOUT adding facts. Keep each turn 1–3 sentences.`
+  };
+ }
+ gptChat=[systemMsg,userMsg];
+  const out=$('objGPTChat');
+  out.hidden=false;
+  out.innerHTML='';
+  $('objGPTControls').hidden=false;
+  $('btnGPTRule').hidden=false;
+  $('objGPTInput').value='';
+  gptSendLocked=false;
+  updateGPTSend();
+   try{
+    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+     method:'POST',
+     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+     body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:gptChat,max_tokens:150,temperature:0.7})
+    });
+   const data=await resp.json();
+   const text=data?.choices?.[0]?.message?.content?.trim()||'';
+   gptChat.push({role:'assistant',content:text});
+   appendChat('chatgpt',text);
+  }catch(e){
+    console.error('[GPT Argue]',e);
+    appendChat('chatgpt','ChatGPT error.');
+   }
+  }
+  async function gptSend(){
+   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
+   const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
+   updateGPTSend();
+  gptChat.push({role:'user',content:txt});
+  appendChat('user',txt);
+  try{
+   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+     method:'POST',
+     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+     body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:gptChat,max_tokens:150,temperature:0.7})
+    });
+   const data=await resp.json();
+   const reply=data?.choices?.[0]?.message?.content?.trim()||'';
+   gptChat.push({role:'assistant',content:reply});
+   appendChat('chatgpt',reply);
+  }catch(e){
+   console.error('[GPT Send]',e);
+   appendChat('chatgpt','ChatGPT error.');
+  }
+  }
+function gptRecord(){
+  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
+  $('objGPTInput').value='';
+  updateGPTSend();
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(SR){
+   gptRecog=new SR();
+   let txt='';
+   gptRecog.lang='en-US';
+   gptRecog.continuous=true;
+   gptRecog.interimResults=false;
+   gptRecog.onresult=ev=>{
+     for(let i=ev.resultIndex;i<ev.results.length;i++){
+       const res=ev.results[i];
+       if(res.isFinal){ txt+=res[0].transcript+' '; }
+     }
+   };
+   gptRecog.onend=()=>{
+     $('btnGPTRecord').disabled=false;
+     $('btnGPTStopRecord').disabled=true;
+     const t=txt.trim();
+     gptRecog=null;
+     if(t){ $('objGPTInput').value=t; }
+     updateGPTSend();
+   };
+   gptRecog.onerror=e=>{
+     alert('Speech recognition: '+e.error);
+     $('btnGPTRecord').disabled=false;
+     $('btnGPTStopRecord').disabled=true;
+     gptRecog=null;
+   };
+   $('btnGPTRecord').disabled=true;
+   $('btnGPTStopRecord').disabled=false;
+   gptRecog.start();
+  } else if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+   navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
+     gptRecStream=stream;
+     try{
+       const rec=new MediaRecorder(stream);
+       gptRecog=rec;const chunks=[];
+       rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+       rec.onstop=async()=>{
+         $('btnGPTRecord').disabled=false;
+         $('btnGPTStopRecord').disabled=true;
+         gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
+         const blob=new Blob(chunks,{type:'audio/webm'});
+         const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('file',blob,'audio.webm');
+         try{
+           const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
+           const data=await resp.json();const text=data?.text?.trim();
+           if(text){$('objGPTInput').value=text;}
+         }catch(err){alert('Transcription error: '+err.message);}
+         updateGPTSend();
+       };
+       rec.start();
+       $('btnGPTRecord').disabled=true;
+       $('btnGPTStopRecord').disabled=false;
+     }catch(e){
+       alert('MediaRecorder not supported: '+e.message);
+       gptRecStream.getTracks().forEach(t=>t.stop());
+       gptRecStream=null;
+     }
+   }).catch(err=>alert('Mic error: '+err.message));
+  } else {
+   alert('Speech recognition not supported in this browser.');
+  }
+ }
+function gptStopRecord(){
+  if(gptRecog){
+   $('btnGPTStopRecord').disabled=true;
+   try{gptRecog.stop();}catch(e){}
+  }
+}
+  async function gptRule(){
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('ChatGPT mode not enabled or API key missing.');
+      return;
+    }
+
+    // Require at least one user argument beyond the initial scenario
+    const userMsgs = gptChat.filter(m => m.role === 'user');
+    if(userMsgs.length <= 1){
+      alert('Provide your argument before requesting a ruling.');
+      return;
+    }
+
+    // Tag the whole conversation for CONTEXT (judge can read it, but must not score it)
+    const fullTagged = gptChat.map(m => {
+      // User = you; Assistant = opposing counsel; anything else = system
+      const tag = (m.role === 'user') ? '[USER]' : (m.role === 'assistant' ? '[OC]' : '[SYS]');
+      return `${tag}: ${m.content}`;
+    }).join('\n');
+
+    // Build a USER-ONLY block that the judge must score
+    const userOnly = gptChat
+      .filter(m => m.role === 'user')
+      .map(m => `[USER]: ${m.content}`)
+      .join('\n');
+
+    // Include the original scenario verbatim so the judge has the same context
+    const scenarioHeader =
+`SCENARIO (verbatim)
+Fact: ${cur.fact}
+Question: ${cur.q}
+Candidate Objection (from prompt): ${cur.ans} (Rule ${cur.rule})`;
+
+    // Compose the transcript with explicit instructions:
+    // - CONTEXT is visible but not to be scored
+    // - EVALUATE block is the ONLY material to score
+    const transcript =
+`${scenarioHeader}
+
+CONTEXT (read for background; DO NOT SCORE any of this):
+${fullTagged}
+
+EVALUATE (score ONLY the [USER] lines below using the rubric):
+${userOnly}
+
+Scoring rule:
+- Apply the rubric strictly to the EVALUATE block ([USER] lines).
+- Ignore any facts or arguments that appear only in CONTEXT.
+- Do NOT infer or credit facts not in the SCENARIO.`;
+
+    // Keep your existing rubric/template & parser/output
+    const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
+
+    try{
+      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+        body: JSON.stringify({
+          model: EngineState.openaiModel || 'gpt-4o-mini',
+          messages:[{role:'user', content: prompt}],
+          max_tokens: 200,
+          temperature: 0.7
+        })
+      });
+      const data = await resp.json();
+      const text = data?.choices?.[0]?.message?.content?.trim() || '';
+
+      try{
+        const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
+        appendJudgeDecision(parsed);                            // unchanged UI
+      }catch{
+        // If the model didn't use the expected format, show raw text so you see what happened
+        appendChat('judge', text);
+      }
+
+      gptSendLocked = true;
+      updateGPTSend();
+      $('btnGPTRule').disabled = true;
+
+    }catch(e){
+      console.error('[GPT Rule]', e);
+      appendChat('chatgpt','ChatGPT error.');
+    }
+  }
+function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('btnShowModel').addEventListener('click',model);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
+ return{wire}
+})();
+
+/* Video Coach (ChatGPT integration + fallback) */
+const VideoCoach=(function(){
+  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null;
+
+  const EXEMPLARS={
+    opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
+      the defendant chose speed over safety. You will hear from Officer Diaz, who clocked
+      62 in a 35 and recovered debris matching the defendant\u2019s bumper. You will see Exhibit 7,
+      a diagram placing the defendant's car in the wrong lane. We accept the burden by a preponderance
+      of the evidence. Our roadmap is simple: first, duty; second, breach; third, causation and damages.
+      At the end, we will ask you to return a verdict finding liability for negligence.`},
+    closing:{title:"Closing Exemplar",text:`Theme returned: choices have consequences. Apply the law the judge gave you to the facts.
+      Element by element: Duty is undisputed. Breach\u2014the speed and lane position from Exhibit 7 and Officer Diaz.
+      Causation\u2014the skid analysis from Dr. Shaw. Damages\u2014hospital bills and lost wages.
+      Address their points: they said \u201cit was raining,\u201d but the photos show dry pavement.
+      The burden is preponderance\u2014more likely than not. The evidence meets it. The only fair verdict is for the plaintiff.`},
+    direct:{title:"Direct Exemplar",text:`Chapters with open questions: Background, Event, Aftermath.
+      Background: Please introduce yourself. What do you do? How are you connected to June 12th?
+      Event: What did you observe as you approached the intersection? What, if anything, did you notice about the blue sedan?
+      Exhibit foundation: Do you recognize Exhibit 7? How do you recognize it? Is it a fair and accurate depiction?
+      Move to admit Exhibit 7. Follow-up listening: What happened next?`},
+    cross:{title:"Cross Exemplar",text:`Short leading questions, one fact per question:
+      You were 200 feet away when you first saw the car, correct? Your view was partially blocked by a truck, right?
+      In your statement on page 3, line 12, you wrote \u201cI couldn\u2019t see the lane dividers,\u201d correct?
+      The intersection had no streetlights in that direction, yes?
+      You can\u2019t say the car was speeding with certainty, correct?`}
+  };
+
+  const PATS={
+    opening:{must:["theme","the evidence will show","you will hear","you will see","roadmap","first","second","burden","preponderance","ask you to return a verdict"],nice:["negligence","duty","breach","causation","damages","timeline","exhibit","witness","theory","story"]},
+    closing:{must:["apply the law","element","burden","preponderance","more likely than not","address","they said","the only fair verdict"],nice:["theme","duty","breach","causation","damages","exhibit","admissions","refutation","jury instruction","standard of proof"]},
+    direct:{must:["please introduce yourself","what did you","how do you recognize","fair and accurate","move to admit","what happened next"],nice:["open-ended","exhibit","foundation","background","event","aftermath","follow-up","authenticate","identify","admit into evidence"]},
+    cross:{must:["correct?","right?","yes or no","you wrote","on page","line","you can\u2019t say","isn\u2019t it true"],nice:["leading","impeach","admission","one fact per question","control","statement","affidavit","deposition"]}
+  };
+
+  const OBJ_RULES=[
+    {name:"Leading", rule:"611(c)", cls:"hl-leading", when:(s,ctx)=> ctx.type==="direct" && /\b(isn't it true|is it true that|wouldn't you agree|you admit|you agree|correct\?|right\?|yes or no|isn't that right)\b/i.test(s)},
+    {name:"Hearsay", rule:"801/802", cls:"hl-hearsay", when:(s)=>/\b(told me|said that|he said|she said|they said|my friend told|the neighbor said|i heard that)\b/i.test(s)},
+    {name:"Speculation", rule:"602", cls:"hl-spec", when:(s)=>/\b(i guess|i think he intended|probably|might have|must have thought|i assume)\b/i.test(s)},
+    {name:"Narrative", rule:"611(a)", cls:"hl-narr", when:(s)=> s.split(/\s+/).length>35 },
+    {name:"Argumentative", rule:"611(a)", cls:"hl-arg", when:(s)=>/\b(so you expect us to believe|that makes no sense|you\u2019re lying|ridiculous|absurd)\b/i.test(s)},
+    {name:"Compound", rule:"611(a)", cls:"hl-comp", when:(s)=>/\?[^?]+\?/.test(s)||/\b(and|or)\b.*\?/i.test(s)},
+    {name:"Asked & Answered", rule:"611(a)", cls:"hl-asked", when:(s,ctx)=>{ const key=s.toLowerCase().replace(/[^a-z ]/g,'').split(' ').slice(0,8).join(' '); if(ctx.qSeen.has(key)) return true; ctx.qSeen.add(key); return false; }}
+  ];
+
+  function clean(s){return (s||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').replace(/\s+/g,' ').trim()}
+  // Safer sentence split (no lookbehind): convert punctuation to breaks
+  function sentences(raw){ if(!raw) return []; const withBreaks = raw.replace(/([.!?])\s+/g,'$1\n'); return withBreaks.split(/\n+/).map(s=>s.trim()).filter(Boolean); }
+  function tokens(s){return clean(s).split(/\s+/).filter(Boolean)}
+  function uniq(a){return Array.from(new Set(a))}
+  function ngrams(arr,n){const out=[];for(let i=0;i<=arr.length-n;i++) out.push(arr.slice(i,i+n).join(' '));return out}
+  function cosineCount(a,b){const m=new Map();a.forEach(t=>m.set(t,(m.get(t)||0)+1));const n=new Map();b.forEach(t=>n.set(t,(n.get(t)||0)+1));let dot=0,na=0,nb=0;m.forEach((v,k)=>{na+=v*v;if(n.has(k)) dot+=v*n.get(k)});n.forEach(v=>nb+=v*v);return (na&&nb)? dot/(Math.sqrt(na)*Math.sqrt(nb)) : 0;}
+  const SIGNPOSTS_OPEN=/\b(first|second|third|to begin|the evidence will show|you will hear|you will see|our roadmap)\b/i;
+  const SIGNPOSTS_CLOSE=/\b(apply the law|element|burden|therefore|in conclusion|the only fair verdict)\b/i;
+
+  function compareToExemplar(type, transcript){
+    const ex=EXEMPLARS[type]?.text||'';
+    const tTokens=tokens(transcript), eTokens=tokens(ex);
+    const tBigrams=ngrams(tTokens,2), eBigrams=ngrams(eTokens,2);
+    const lexCos=cosineCount(tTokens,eTokens);
+    const biCos=cosineCount(tBigrams,eBigrams);
+    const libs=PATS[type]||{must:[],nice:[]};
+    const lower=transcript.toLowerCase();
+    const mustHits=libs.must.filter(k=>lower.includes(k)).length;
+    const niceHits=libs.nice.filter(k=>lower.includes(k)).length;
+    const mustScore=libs.must.length? mustHits/libs.must.length : 0;
+    const niceScore=libs.nice.length? Math.min(1, niceHits/(libs.nice.length*0.7)) : 0;
+    let struct=0;
+    if(type==='opening'){struct+=SIGNPOSTS_OPEN.test(transcript)?0.6:0; struct+=/\b(theme|theory|story)\b/i.test(transcript)?0.2:0; struct+=/\bask (you|the jury)|we ask you\b/i.test(transcript)?0.2:0;}
+    else if(type==='closing'){struct+=SIGNPOSTS_CLOSE.test(transcript)?0.5:0; struct+=/\b(refut|they said|they claim)\b/i.test(transcript)?0.3:0; struct+=/\bburden|preponderance|more likely than not\b/i.test(transcript)?0.2:0;}
+    else if(type==='direct'){struct+=/\bplease introduce yourself|state your name\b/i.test(transcript)?0.3:0; struct+=/\brecognize|fair and accurate|move to admit\b/i.test(transcript)?0.4:0; struct+=/\bwhat happened next\b/i.test(transcript)?0.3:0;}
+    else if(type==='cross'){struct+=/\b(correct\?|right\?|yes or no|isn't it true)\b/i.test(transcript)?0.5:0; struct+=/\b(page|line|statement|affidavit|deposition)\b/i.test(transcript)?0.3:0; struct+=/\bone fact per\b/i.test(transcript)?0.2:0;}
+    const blend=(0.35*lexCos+0.25*biCos+0.25*mustScore+0.10*niceScore+0.05*struct);
+    return {lexCos:+lexCos.toFixed(3),biCos:+biCos.toFixed(3),mustHits,niceHits,mustTotal:libs.must.length,niceTotal:libs.nice.length,struct:+struct.toFixed(3),score:+blend.toFixed(3)};
+  }
+
+  const RUBRICS={
+    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.35},{key:'organization',n:'Organization & Roadmap',w:0.25},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15},{key:'decorum',n:'Professionalism/Decorum',w:0.05}]},
+    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.30},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
+    direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.25},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
+    cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.25},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10},{key:'decorum',n:'Professionalism',w:0.05}]}
+  };
+
+  function baseMetrics(text){
+    const words=(text||'').trim().split(/\s+/).filter(Boolean);
+    const wordCount=words.length;
+    const wpm=sec>0?Math.round(wordCount/(sec/60)):(wordCount?150:0);
+    const fillers=(text.match(/\b(um+|uh+|like|you know|er|ah)\b/gi)||[]).length;
+    const signposts=(text.match(/\b(first|second|third|to begin|next|finally|in conclusion|therefore|because|the evidence (will|does) show)\b/gi)||[]).length;
+    const vocab=uniq(words.map(w=>w.toLowerCase().replace(/[^a-z']/g,'')).filter(Boolean));
+    const vocabRich=clamp(Math.log2(vocab.length+1)/7*10,1,10);
+    return {wordCount,wpm,fillers,signposts,vocabRich};
+  }
+
+  function isEffectivelyEmpty(text){
+    if(!text) return true;
+    const stripped=text
+      .replace(/\[(?:inaudible|noise|music|silence|applause)[^\]]*\]/gi,'')
+      .replace(/[0-9]/g,'')
+      .replace(/[\s.,!?;:"'`~^@#$%&*()_+\[\]{}<>\\\/|\-\u2013\u2014]/g,'')
+      .trim();
+    return stripped.length===0;
+  }
+  function effectiveWordCount(text){
+    if(!text) return 0;
+    const cleaned = text
+      .replace(/\[(?:inaudible|noise|music|silence|applause)[^\]]*\]/gi,' ')
+      .toLowerCase()
+      .replace(/[^a-z?\s]/g,' ');
+    const fillers=new Set(['um','uh','er','ah','like','you','know','so']);
+    return cleaned.split(/\s+/).filter(Boolean).filter(w=>!fillers.has(w)).length;
+  }
+
+  function getQuestionLines(transcript){
+    const lines=(transcript||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);
+    let qLines=lines.filter(l=>/^\s*(Q[:;]|Question[:;])\s*/i.test(l))
+                    .map(l=>l.replace(/^\s*(Q[:;]|Question[:;])\s*/i,''));
+    if(qLines.length===0){ qLines=(transcript||'').match(/[^?]*\?/g)||[]; qLines=qLines.map(s=>s.trim()); }
+    return qLines;
+  }
+
+  function formatTranscriptQA(transcript){
+    const lines=(transcript||'').split(/\n+/).map(l=>l.trim()).filter(Boolean);
+    let out=[], expectQ=true;
+    for(const line of lines){
+      if(/^\s*Q[:;\-]?/i.test(line)){ out.push('Q: '+line.replace(/^\s*Q[:;\-]?\s*/i,'')); expectQ=false; }
+      else if(/^\s*A[:;\-]?/i.test(line)){ out.push('A: '+line.replace(/^\s*A[:;\-]?\s*/i,'')); expectQ=true; }
+      else {
+        out.push((expectQ?'Q: ':'A: ')+line);
+        expectQ=!expectQ;
+      }
+    }
+    return out.join('\n');
+  }
+
+  function formatTranscripts(pairs){
+    const combinedLines=[], questionLines=[], answerLines=[];
+    pairs.forEach((pair, idx)=>{
+      const [question, answer] = pair;
+      const num = idx+1;
+      combinedLines.push(`Q${num}: ${question}`);
+      combinedLines.push(`A${num}: ${answer}`);
+      questionLines.push(`Question ${num}: ${question}`);
+      answerLines.push(`Answer ${num}: ${answer}`);
+    });
+    return {
+      combined: combinedLines.join('\n'),
+      questions: questionLines.join('\n'),
+      answers: answerLines.join('\n')
+    };
+  }
+  function isOpenQuestion(q){return /^\s*(what|why|how|describe|explain|tell(\s+us)?|walk\s+us\s+through|please\s+introduce|state\s+your\s+name|who|where|when)\b/i.test(q);}
+  function isLeadingQuestion(q){return /\b(correct\?|right\?|yes\s+or\s+no\b|isn'?t\s+(it|that)\s+true|wouldn'?t\s+you\s+agree|you\s+(agree|admit)|is\s+it\s+true\s+that)\b/i.test(q);}
+  function isCompoundQuestion(q){return /\?[^?]+\?/.test(q) || /\b(and|or)\b[^?]*\?/i.test(q);}
+  function hasFoundationCue(q){return /\b(recognize|identify|authenticate|fair\s+and\s+accurate|move\s+to\s+admit|admit\s+(it|this)|publish|marked\s+as\s+exhibit|exhibit\s+\d+)\b/i.test(q);}
+  function hasImpeachAnchor(q){return /\b(page|line|statement|prior\s+statement|affidavit|deposition|in\s+your\s+statement|exhibit(\s+\d+)?)\b/i.test(q);}
+  function bandScore(val,lo,hi){ if(!isFinite(val)||val<=0) return 3; if(val>=lo&&val<=hi) return 9; const span=Math.max(1,hi-lo); if(val>=lo-0.5*span&&val<=hi+0.5*span) return 7; if(val>=lo-1.0*span&&val<=hi+1.0*span) return 6; return 4; }
+  function questionMetrics(text, secs){
+    const qLines=getQuestionLines(text); const qCount=qLines.length;
+    const minutes=secs>0?(secs/60):Math.max(1,(text.split(/\s+/).filter(Boolean).length)/140);
+    const qPerMin=qCount/minutes;
+    const tokCounts=qLines.map(q=>(q.match(/\S+/g)||[]).length);
+    const avgTokens=tokCounts.length?(tokCounts.reduce((a,b)=>a+b,0)/tokCounts.length):0;
+    let open=0,lead=0,compound=0,found=0,impeach=0,follow=0;
+    qLines.forEach(q=>{ if(isOpenQuestion(q))open++; if(isLeadingQuestion(q))lead++; if(isCompoundQuestion(q))compound++; if(hasFoundationCue(q))found++; if(hasImpeachAnchor(q))impeach++; if(/\b(what\s+happened\s+next|then\s+what|after\s+that|and\s+what\s+did\s+you\s+do)\b/i.test(q))follow++; });
+    const openRatio=qCount?open/qCount:0, leadRatio=qCount?lead/qCount:0, compoundRate=qCount?compound/qCount:0;
+    return {qLines,qCount,qPerMin,avgTokens,openCount:open,leadCount:lead,compoundCount:compound,foundationCount:found,impeachCount:impeach,followupCount:follow,openRatio,leadRatio,compoundRate};
+  }
+
+  function score(type,text){
+    const bm=baseMetrics(text);
+    const cmp=compareToExemplar(type,text);
+    const qM=questionMetrics(text,sec);
+
+    const effWords=effectiveWordCount(text);
+    const noSpeech=isEffectivelyEmpty(text)||(effWords<3&&qM.qCount===0);
+    if(noSpeech){
+      const conf=RUBRICS[type]; const pack={};
+      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
+      else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
+      else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;pack.decorum=1;}
+      else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;pack.decorum=1;}
+      let total=0; conf.cats.forEach(c=>{ total+=1*(c.w*10) }); total=Math.round(total);
+      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
+    }
+
+    const isVeryShort=(effWords<10&&qM.qCount<2);
+    const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
+
+    let delivery=6;
+    if(bm.wpm>=125&&bm.wpm<=165) delivery=9; else if(bm.wpm>=110&&bm.wpm<=180) delivery=7;
+    delivery-=Math.min(3,Math.floor(bm.fillers/3)); if(bm.wordCount===0) delivery=1; delivery=clamp(delivery,1,10);
+
+    let organization=clamp(4+Math.min(5,Math.floor(bm.signposts/2))+(cmp.struct>=0.4?1:0),1,10);
+
+    let contentCore=clamp(3+Math.round(5*cmp.score)+Math.round(bm.vocabRich/4),1,10);
+    let persuasion=clamp(3+Math.round(4*cmp.lexCos)+(/[!.]/.test(text)?2:0)+Math.round(bm.vocabRich/5),1,10);
+    let refutation=0, openq=0, foundation=0, listening=0, leading=0, impeach=0, brevity=0, decorum=clamp(8-(/\b(you\u2019re\s+lying|ridiculous|absurd|this\s+is\s+stupid)\b/i.test(text)?3:0),1,10);
+
+    if(isOpen){
+      const lower=text.toLowerCase();
+      const hasTheme=/\b(theme|theory|story)\b/i.test(text);
+      const hasEWS=/\bthe evidence will show\b/i.test(lower);
+      const hasHearSee=/\byou will (hear|see)\b/i.test(lower);
+      const hasRoadmap=/\b(first|second|third|to begin|our roadmap)\b/i.test(lower);
+      const asksVerdict=/\b(ask you to return a verdict|we (ask|will ask) you.*verdict)\b/i.test(lower);
+      const mentionsBurden=/\b(preponderance|burden|more likely than not)\b/i.test(lower);
+      const mentionsElements=/\b(duty|breach|causation|damages)\b/i.test(lower);
+
+      const ms=PATS.opening.must.length?PATS.opening.must.filter(k=>lower.includes(k)).length/PATS.opening.must.length:0;
+      const ns=PATS.opening.nice.length?Math.min(1,PATS.opening.nice.filter(k=>lower.includes(k)).length/(PATS.opening.nice.length*0.7)):0;
+
+      organization=Math.max(organization,clamp(5+(hasRoadmap?2:0)+(hasTheme?1:0)+(hasEWS?1:0)+(hasHearSee?1:0)+(asksVerdict?1:0),1,10));
+      contentCore=clamp(Math.round(10*(0.45*ms+0.20*ns+0.25*cmp.biCos+0.10*cmp.lexCos))+(mentionsElements?1:0)+(mentionsBurden?1:0),1,10);
+      persuasion=clamp(3+Math.round(3*cmp.lexCos)+Math.round(2*cmp.biCos)+(hasTheme?1:0)+(asksVerdict?1:0)+(mentionsBurden?1:0)-Math.min(2,Math.floor(bm.fillers/4)),1,10);
+    }
+
+    if(isDir){
+      const qMd=questionMetrics(text,sec);
+      if(qMd.qCount>0){ const or=qMd.openRatio; openq=or>=0.75?10:or>=0.60?9:or>=0.50?7:or>=0.35?5:3; openq=clamp(openq-Math.min(3,Math.floor(qMd.leadCount/3)),1,10); } else openq=4;
+      foundation=qMd.foundationCount>=3?9:qMd.foundationCount===2?8:qMd.foundationCount===1?6:3;
+
+      /* FIX for the "line 445" ternary \u2192 explicit if/else */
+      if (qMd.followupCount >= 3) {
+        listening = 9;
+      } else if (qMd.followupCount === 2) {
+        listening = 7;
+      } else if (qMd.followupCount === 1) {
+        listening = 6;
+      } else {
+        listening = 4;
+      }
+
+      contentCore=clamp(Math.round(0.45*foundation+0.30*listening+0.15*organization+0.10*(cmp.lexCos*10)),1,10);
+      organization=clamp(organization+(qMd.compoundRate<=0.05?1:0),1,10);
+    }
+
+    if(isCross){
+      const qMc=questionMetrics(text,sec);
+      if(qMc.qCount>0){ const lr=qMc.leadRatio; const density=bandScore(qMc.qPerMin,10,18); let baseLead=lr>=0.75?10:lr>=0.60?9:lr>=0.45?7:lr>=0.30?5:4; leading=clamp(Math.round(0.75*baseLead+0.25*density),1,10); } else leading=4;
+      impeach=qMc.impeachCount>=3?9:qMc.impeachCount===2?7:qMc.impeachCount===1?6:3;
+      let brev=bandScore(qMc.avgTokens||0,4,10); brev-=Math.min(3,Math.floor(qMc.compoundCount/2)); brevity=clamp(brev,1,10);
+      contentCore=clamp(Math.round(0.40*leading+0.30*impeach+0.20*brevity+0.10*(cmp.biCos*10)),1,10);
+      organization=clamp(organization+(brevity>=8?1:0)-(qMc.compoundRate>0.15?1:0),1,10);
+    }
+
+    const det=detectObjections(type,text);
+    const adj={leading:det.counts?.Leading||0,hearsay:det.counts?.Hearsay||0,spec:det.counts?.Speculation||0,narrative:det.counts?.Narrative||0,argumentative:det.counts?.Argumentative||0,compound:det.counts?.Compound||0,asked:det.counts?.["Asked & Answered"]||0};
+
+    if(isDir){
+      openq=clamp(openq-Math.min(3,Math.floor(adj.leading/2)),1,10);
+      foundation=clamp((foundation||6)-Math.min(2,Math.floor((adj.hearsay+adj.spec)/3)),1,10);
+      listening=clamp((listening||6)-Math.min(2,Math.floor(adj.narrative/2)),1,10);
+    }
+    if(isCross){
+      leading=clamp((leading||6)-(Math.min(2,Math.floor(adj.compound/2))+Math.min(2,Math.floor(adj.asked/3))),1,10);
+      brevity=clamp((brevity||6)-Math.min(3,Math.floor((adj.compound+adj.argumentative)/2)),1,10);
+    }
+
+    const totalObj=(adj.leading||0)+(adj.hearsay||0)+(adj.spec||0)+(adj.narrative||0)+(adj.argumentative||0)+(adj.compound||0)+(adj.asked||0);
+    persuasion=clamp(persuasion-Math.min(2,Math.floor(totalObj/6)),1,10);
+
+    const conf=RUBRICS[type]; const pack={};
+    if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
+    else if(isClose){pack.content=contentCore;pack.organization=organization;pack.refutation=refutation;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
+    else if(isDir){pack.content=contentCore;pack.openq=openq;pack.foundation=foundation;pack.listening=listening;pack.delivery=delivery;pack.decorum=decorum;}
+    else {pack.content=contentCore;pack.leading=leading;pack.impeach=impeach;pack.brevity=brevity;pack.delivery=delivery;pack.decorum=decorum;}
+    if((isOpen||isClose) && effWords<200){
+      Object.keys(pack).forEach(k=>{pack[k]=clamp(pack[k]-1,1,10);});
+    } else if(isOpen && effWords>=300 && effWords<=600){
+      Object.keys(pack).forEach(k=>{pack[k]=clamp(pack[k]+1,1,10);});
+    }
+
+    let total=0; conf.cats.forEach(c=>{ total+=clamp(pack[c.key],1,10)*(c.w*10) }); total=Math.round(total);
+    if(isVeryShort) total=Math.min(total,25);
+
+    return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
+  }
+
+  function detectObjections(type, transcript){
+    const lines=sentences(transcript); const ctx={type,qSeen:new Set()}; const found=[];
+    lines.forEach((raw,idx)=>{ const s=raw.trim(); if(!s) return; for(const rule of OBJ_RULES){ try{ if(rule.when(s,ctx)){ found.push({index:idx+1,text:s,name:rule.name,rule:rule.rule,cls:rule.cls}); } }catch(e){} } });
+    const counts={}; found.forEach(f=>{counts[f.name]=(counts[f.name]||0)+1}); return {found,counts,lines};
+  }
+
+  function scorebar(val){const pct=clamp(Math.round((val/10)*100),0,100);return `<div>${val}/10<div class="scorebar"><span style="width:${pct}%"></span></div></div>`}
+
+  function renderReport(type, result, det){
+    const conf=RUBRICS[type], pack=result.cats, m=result.metrics, cmp=result.compare;
+    const comments=result.comments||{};
+    const hasComments=Object.keys(comments).length>0;
+    const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
+    $('videoFeedback').innerHTML=`
+      <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
+      <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
+      <div class="kv" style="margin-top:8px">
+        <div>Final Score</div><div><strong>${result.total}</strong> / 100</div>
+        <div>Words</div><div>${m.wordCount}</div>
+        <div>WPM</div><div>${m.wpm||'N/A'}</div>
+        <div>Fillers</div><div>${m.fillers}</div>
+        <div>Signposts</div><div>${m.signposts}</div>
+        <div>Vocab Richness</div><div>${m.vocabRich.toFixed(1)}/10</div>
+        <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
+        <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
+      </div>`;
+    if(result.explanation){
+      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
+    }
+    if(result.notes){
+      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
+    }
+    $('videoFeedback').innerHTML += `
+      <div style="margin-top:6px">
+        <span class="tag">Leading: ${det.counts?.Leading||0}</span>
+        <span class="tag">Hearsay: ${det.counts?.Hearsay||0}</span>
+        <span class="tag">Speculation: ${det.counts?.Speculation||0}</span>
+        <span class="tag">Narrative: ${det.counts?.Narrative||0}</span>
+        <span class="tag">Argumentative: ${det.counts?.Argumentative||0}</span>
+        <span class="tag">Compound: ${det.counts?.Compound||0}</span>
+        <span class="tag">Asked & Answered: ${det.counts?.["Asked & Answered"]||0}</span>
+      </div>
+    `;
+    if(result.qa && result.qa.length){
+      const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td><td>${qa.objection?escHTML((qa.objection.type||'')+(qa.objection.reason?': '+qa.objection.reason:'')):'N/A'}</td></tr>`).join('');
+      $('videoFeedback').innerHTML+=`<div style="margin-top:8px"><strong>Question/Answer Feedback</strong></div><table class="table"><thead><tr><th>#</th><th>Question</th><th>Q Score</th><th>Answer</th><th>A Score</th><th>Objection</th></tr></thead><tbody>${qaRows}</tbody></table>`;
+    }
+  }
+
+  function highlightTranscriptArea(type, det){
+    const lines=det.lines;
+    const marks=new Map();
+    det.found.forEach(o=>{const arr=marks.get(o.index)||[];arr.push(o.cls);marks.set(o.index,arr);});
+    const html=lines.map((ln,i)=>{
+      const idx=i+1;
+      if(marks.has(idx)){
+        const cls=marks.get(idx).join(' ');
+        return `<div class="${cls}" style="padding:2px 4px;border-radius:4px;margin:2px 0">${ln}</div>`;
+      }
+      return `<div style="padding:2px 4px;margin:2px 0">${ln}</div>`;
+    }).join('');
+    $('videoStatus').innerHTML = (type==='direct'||type==='cross') ? 'Highlighted transcript (objection-prone lines are shaded below).' : 'Scored. Switch to Direct/Cross to see objection highlights.';
+    let preview=document.getElementById('transcriptPreview');
+    if(!preview){
+      preview=document.createElement('div');
+      preview.id='transcriptPreview';
+      preview.className='small';
+      preview.style.cssText='margin-top:8px;padding:8px;background:#0b1324;border-radius:6px;max-height:280px;overflow:auto';
+      $('video').appendChild(preview);
+    }
+    preview.innerHTML=`<div style="margin-bottom:6px"><strong>Transcript Preview (auto-highlight)</strong></div>${html}`;
+  }
+
+  function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
+  function tUpd(){ $('videoTimer').textContent=new Date(sec*1000).toISOString().substr(14,5)}
+
+  async function startCamera(){
+    micOnly=false; uploaded=false; setStatus('Requesting camera/mic\u2026');
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return; }
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
+    catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
+    chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
+    sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
+    try{
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
+        recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
+        recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
+      } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
+    }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+  }
+
+  async function startMicOnly(){
+    micOnly=true; uploaded=false; setStatus('Mic-only transcription\u2026');
+    sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
+    try{
+      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
+        recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
+        recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
+      } else { setStatus('Speech recognition not supported. Paste your transcript.',true); }
+    }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+  }
+
+  function handleUpload(file){
+    if(!file) return; uploaded=true; micOnly=false;
+    if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
+    uploadedURL=URL.createObjectURL(file);
+    const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play();
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
+    setStatus('Playing uploaded video. Recording controls disabled; use transcript box for scoring.');
+    if(timer){ clearInterval(timer); timer=null; }
+  }
+
+  function stop(){
+    if(timer){ clearInterval(timer); timer=null; }
+    if(rec&&rec.state!=='inactive'){ rec.stop(); }
+    if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
+    if(recog){ try{ recog.stop(); }catch(e){} recog=null; }
+    $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
+    setStatus('Stopped. You can Re-score after editing transcript.');
+    setTimeout(scoreNow,250);
+  }
+
+  function buildChatGPTPrompt(type, transcript){
+    return ChatGPTScoring.buildScoringPrompt(transcript);
+  }
+
+  const parseChatGPTScoreResponse = ChatGPTScoring.parseScoreResponse;
+
+  // Hardened: timeout + retry + JSON-safe parsing + logs
+  async function scoreViaChatGPT(type, transcript){
+    const key = EngineState.openaiKey;
+    if(!key){ throw new Error('no_key'); }
+    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const max_tokens = EngineState.openaiMaxTokens || 600;
+
+    const prompt = buildChatGPTPrompt(type, transcript);
+    const messages = [{role:'user',content:prompt}];
+
+    async function callOnce(signal){
+      if(DEBUG_CHATGPT){
+        console.info('[ChatGPT] model=', model, 'max_tokens=', max_tokens);
+        const preview = (prompt || '').slice(0, 400);
+        console.info('[ChatGPT] outbound preview:', preview);
+      }
+      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':`Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0,
+          max_tokens
+        }),
+        signal
+      });
+      if(resp.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
+      if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
+      if(!resp.ok){
+        const t=await resp.text().catch(()=> '');
+        const e=new Error('chatgpt_error'); e.detail=t;
+        if(/insufficient_quota|exceeded.*quota/i.test(t)) e.code='insufficient_quota';
+        throw e;
+      }
+      const data = await resp.json();
+      if(DEBUG_CHATGPT){
+        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', (data?.choices?.[0]?.message?.content||'').length);
+      }
+      const raw = data?.choices?.[0]?.message?.content || '';
+      const parsed = parseChatGPTScoreResponse(raw);
+      const conf = RUBRICS[type] || {cats:[]};
+      const cats = {};
+      conf.cats.forEach(c=>{ cats[c.key] = parsed.score; });
+      return {total:parsed.score*10, explanation:parsed.explanation, categories:cats, comments:{}};
+    }
+
+    const ctrl = new AbortController();
+    const t = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 12000);
+
+    try{
+      try{
+        return await callOnce(ctrl.signal);
+      }catch(firstErr){
+        clearTimeout(t);
+        const ctrl2 = new AbortController();
+        const t2 = setTimeout(()=>{ try{ ctrl2.abort(); }catch(_){} }, 12000);
+        try{
+          return await callOnce(ctrl2.signal);
+        }finally{ clearTimeout(t2); }
+      }
+    }finally{
+      clearTimeout(t);
+    }
+  }
+
+  function scoreWithBuiltin(type, txt){
+    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
+    const det=detectObjections(type,transcript);
+    const engine=score(type,transcript);
+    engine.applyObjectionAdjustments(det);
+    const result=engine.buildScores();
+    const wpm=result.metrics?.wpm||0;
+    if(wpm<95||wpm>125){
+      result.total=Math.max(0,result.total-10);
+    }else if(wpm>=100&&wpm<=115){
+      result.total=Math.min(100,result.total+7);
+    }
+    renderReport(type,result,det);
+    highlightTranscriptArea(type,det);
+  }
+
+  function scoreNow(){
+    const type=$('videoType').value||'opening';
+    const raw=$('videoTranscript').value||'';
+    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+
+    if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+      $('videoStatus').textContent='Scoring via ChatGPT\u2026';
+        scoreViaChatGPT(type, transcript).then(parsed=>{
+          const det=detectObjections(type,transcript);
+          const m = baseMetrics(transcript);
+          const result = {
+            cats: parsed.categories || {},
+            comments: parsed.comments || {},
+            total: Math.max(0, Math.min(100, parseInt(parsed.total||0,10))),
+            explanation: parsed.explanation || '',
+            notes: parsed.notes || '',
+            qa: parsed.qa || [],
+            metrics: m,
+          compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
+          qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
+          effWords: transcript.trim().split(/\s+/).length
+        };
+        const conf = RUBRICS[type];
+        conf.cats.forEach(c=>{ if(typeof result.cats[c.key] !== 'number'){ result.cats[c.key] = 6; } });
+        if ((type==='opening'||type==='closing') && result.effWords<200) {
+          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]-1,1,10); });
+        } else if (type==='opening' && result.effWords>=300 && result.effWords<=600) {
+          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]+1,1,10); });
+        }
+        result.total = Math.round(conf.cats.reduce((sum,c)=>sum + clamp(result.cats[c.key],1,10)*(c.w*10),0));
+        const wpm=m.wpm||0;
+        if(wpm<95||wpm>125){
+          result.total=Math.max(0,result.total-10);
+        }else if(wpm>=100&&wpm<=115){
+          result.total=Math.min(100,result.total+7);
+        }
+        renderReport(type, result, det);
+        highlightTranscriptArea(type, det);
+        $('videoStatus').textContent = 'Scored with ChatGPT.';
+        showProvenance('Scored by ChatGPT (OpenAI API).');
+      }).catch(err=>{
+        let msg='ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
+        if(err?.code===429){ msg='Rate limit on your ChatGPT account \u2014 used built-in for this run. Try again shortly.'; }
+        else if(err?.message==='unauthorized' || err?.code===401){ msg='Your OpenAI API key is invalid/expired. Update it in \u201cChange Scoring Engine\u201d. Used built-in for this run.'; }
+        else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
+        else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
+        else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
+        $('videoStatus').textContent = msg;
+
+        // IMPORTANT: Do NOT flip EngineState.mode
+        scoreWithBuiltin(type, raw);
+        showProvenance('Built-in score used (ChatGPT not reached).', true);
+
+        const badge = $('modeBadge');
+        const banner = $('videoModeBanner');
+        if(badge && /ChatGPT/i.test(badge.textContent)){
+          badge.textContent = 'Mode: ChatGPT (temporary built-in fallback used)';
+        }
+        if(banner && /ChatGPT/i.test(banner.innerHTML)){
+          banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong> (ChatGPT unavailable).';
+        }
+      });
+      return;
+    }
+    scoreWithBuiltin(type, raw);
+    showProvenance('Built-in score used (ChatGPT mode not active).', true);
+  }
+
+  function crit(type){
+    const conf=RUBRICS[type]||RUBRICS.opening;
+    $('videoCriteria').innerHTML=`<strong>${conf.name} \u2014 Criteria</strong><ul style="margin:6px 0 0 18px">${conf.cats.map(c=>`<li><strong>${c.n}</strong> (weight ${(c.w*100).toFixed(0)}%)</li>`).join('')}</ul>
+    <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
+  }
+
+  async function testChatGPT(){
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+      return;
+    }
+    const testMsg = [
+      {role:'system', content:'Return only JSON: {"ok":true}.'},
+      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
+    ];
+    showProvenance('Testing ChatGPT\u2026');
+    try{
+      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{ 'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}` },
+        body: JSON.stringify({ model: EngineState.openaiModel || 'gpt-4o-mini', messages: testMsg, response_format:{type:'json_object'}, max_tokens:30 })
+      });
+      const data = await resp.json();
+      console.info('[ChatGPT][TEST] HTTP', resp.status, 'data=', data);
+      if(resp.ok){ showProvenance('ChatGPT reachable \u2705'); }
+      else{ showProvenance('ChatGPT test failed (see console).', true); }
+    }catch(e){
+      console.error('[ChatGPT][TEST] error', e);
+      showProvenance('ChatGPT test error (see console).', true);
+    }
+  }
+
+  async function gptWrite(){
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+      return;
+    }
+    const type=$('writeType').value;
+    const notes=$('gptWriteInput').value.trim();
+    const goal=$('gptWriteGoal').value.trim();
+    const out=$('gptWriteOutput');
+    out.value='(ChatGPT thinking...)';
+    const messages=[
+      {role:'system',content:'You are an expert high school mock trial coach.'},
+      {role:'user',content:`I am working on a ${type}. Here are my materials:\n${notes}\n\nGoal:\n${goal}\n\nPlease write a polished ${type} for me.`}
+    ];
+    const max_tokens = EngineState.openaiMaxTokens || 600;
+    try{
+      const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+        body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages,max_tokens,temperature:0.7})
+      });
+      const data=await resp.json();
+      const text=data?.choices?.[0]?.message?.content?.trim()||'';
+      out.value=text;
+    }catch(e){
+      console.error('[GPT Write]',e);
+      out.value='ChatGPT error.';
+    }
+  }
+
+  function wire(){
+    $('btnVideoStart').addEventListener('click',startCamera);
+    $('btnStopRecording').addEventListener('click',stop);
+    $('btnScoreVideo').addEventListener('click',scoreNow);
+    $('btnShowRubric')?.addEventListener('click',()=>{ const el=$('videoRubricDetails'); el.style.display=el.style.display==='none'?'block':'none'; });
+    $('btnShowCriteria').addEventListener('click',()=>{ crit($('videoType').value); const el=$('videoCriteria'); el.style.display=el.style.display==='none'?'block':'none'; });
+    $('btnMicOnly').addEventListener('click',startMicOnly);
+    $('btnUploadVideo').addEventListener('click',()=> $('videoFile').click());
+    $('videoFile').addEventListener('change',e=> handleUpload(e.target.files&&e.target.files[0]));
+    $('btnStopRecording').disabled=true;
+    $('btnChangeEngine').addEventListener('click', openVideoGate);
+    $('btnTestChatGPT').addEventListener('click', testChatGPT);
+    $('btnGPTWrite').addEventListener('click', gptWrite);
+    $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
+    renderModeBadge();
+    tUpd(); crit('opening');
+    setStatus('Tip: some browsers block camera in embedded previews. Use Mic Only or Upload Video if needed.');
+  }
+
+  return{wire}
+})();
+
+/* ================= AZ Rules (expanded summaries) ================= */
+const AZ_RULES=[
+ {article:'Article I \u2014 General',rules:[
+ {id:'101',title:'Scope',text:'Rules govern mock trial proceedings (AZ conversion).'},
+ {id:'102',title:'Purpose',text:'Fairness, efficiency, ascertain truth.'},
+  {id:'103',title:'Rulings on Evidence',subs:['Timely object or offer proof to preserve issue.','Court may take notice of plain error.']},
+  {id:'104',title:'Preliminary Questions',subs:['Court decides admissibility and witness qualification.','Conditional relevance requires supporting evidence.']},
+  {id:'105',title:'Limiting Evidence',subs:['Court restricts to proper scope; instructs jury.']},
+  {id:'106',title:'Rule of Completeness',subs:['Adverse party may require related parts at same time.']}
+]},
+{article:'Article II \u2014 Judicial Notice',rules:[
+  {id:'201',title:'Adjudicative Facts',subs:['Facts not subject to reasonable dispute; civil jury must accept; criminal jury may or may not.']}
+]},
+ {article:'Article III \u2014 Presumptions in Civil Cases',rules:[
+  {id:'301',title:'Presumptions in Civil Cases Generally',text:'Burden shifts to party against whom presumption is directed.'},
+  {id:'302',title:'Applying State Law',text:'State law governs presumptions for state-law claims.'}
+ ]},
+{article:'Article IV \u2014 Relevancy',rules:[
+  {id:'401',title:'Relevance Test',text:'Any tendency to make consequential fact more/less probable.'},
+  {id:'402',title:'Admissibility',text:'Relevant admissible unless excluded; irrelevant inadmissible.'},
+  {id:'403',title:'Excluding Relevant',subs:['Exclude if probative value substantially outweighed by prejudice/confusion/waste/cumulative.']},
+  {id:'404',title:'Character',subs:['(a)(1) No propensity.','(a)(2) Criminal exceptions (defendant/victim traits; homicide peacefulness).','(a)(3) Witness character (607\u2013609).','(b)(1) Other-acts not for propensity.','(b)(2) Permitted uses: motive, intent, plan, knowledge, identity, etc.']},
+  {id:'405',title:'Proving Character',subs:['(a) Reputation/opinion; on cross specific instances.','(b) Specific instances if character is essential element.']},
+  {id:'406',title:'Habit',text:'Habit/routine to show conduct; corroboration not required.'},
+  {id:'407',title:'Subsequent Remedial Measures',text:'Not to prove negligence/defect; allowed for ownership/control/feasibility/impeachment.'},
+  {id:'408',title:'Compromise Offers',subs:['(a) Not to prove claim/amount.','(b) Other purposes: bias, negating undue delay, obstruction.']},
+  {id:'409',title:'Medical Payments',text:'Not to prove liability.'},
+  {id:'410',title:'Pleas & Discussions',subs:['(a) Withdrawn plea/nolo/statements inadmissible against defendant.','(b) Exceptions: completeness; perjury/false statement under oath.']},
+  {id:'411',title:'Liability Insurance',text:'Not to prove negligence; may show bias/agency/ownership/control.'},
+  {id:'412',title:'Sex-Offense Cases: Victim\'s Sexual Behavior',subs:['(a) Propensity evidence prohibited.','(b) Limited exceptions.','(c) Procedure: written motion and in camera hearing.']},
+  {id:'413',title:'Similar Crimes in Sexual-Assault Cases',text:'In criminal sexual-assault cases, prior assaults may be admitted.'},
+  {id:'414',title:'Similar Crimes in Child-Molestation Cases',text:'Allows evidence of prior child molestation in criminal cases.'},
+  {id:'415',title:'Similar Acts in Civil Cases of Sexual Assault or Child Molestation',text:'Permits prior similar acts in civil sexual-assault or child-molestation cases.'}
+]},
+ {article:'Article V \u2014 Privileges',rules:[
+  {id:'501',title:'General Rule',subs:['Spousal, attorney\u2013client, medical/mental-health.']},
+  {id:'502',title:'Attorney\u2013Client Privilege',text:'Protects confidential communications between lawyer and client.'},
+  {id:'503',title:'Psychotherapist\u2013Patient Privilege',text:'Confidential mental health communications protected.'},
+  {id:'504',title:'Clergy\u2013Penitent Privilege',text:'Confidential spiritual communications protected.'},
+  {id:'505',title:'Spousal Privilege',text:'Spouse may refuse to testify to confidential marital communications.'},
+  {id:'506',title:'Identity of Informer',text:'Government may withhold informer identity under limited conditions.'}
+ ]},
+{article:'Article VI \u2014 Witnesses',rules:[
+  {id:'601',title:'Competency',text:'Everyone competent.'},
+  {id:'602',title:'Personal Knowledge',text:'Testimony needs support for PK (not experts under 703).'},
+  {id:'607',title:'Who May Impeach',text:'Any party may attack credibility.'},
+  {id:'608',title:'Truthfulness Character',subs:['(a) Reputation/opinion for truthfulness.','(b) Specific instances on cross if probative.']},
+  {id:'609',title:'Convictions',subs:['(a)(1)(A) Felony (non-defendant) \u2014 Rule 403.','(a)(1)(B) Defendant \u2014 probative value outweighs prejudice.','(a)(2) Crimes of dishonesty \u2014 must be admitted.']},
+  {id:'610',title:'Religious Beliefs',text:'Not to attack/support credibility.'},
+  {id:'611',title:'Mode & Order',subs:['(a) Court controls exam.','(b) Cross can cover any relevant matter and credibility.','(c) Leading allowed on cross/hostile; not on direct.','(d) Redirect and recross allowed at judge\'s discretion.']},
+  {id:'612',title:'Refresh Memory',text:'Adverse party may inspect/cross/introduce relevant portions.'},
+  {id:'613',title:'Prior Statement',text:'Show to counsel on request; extrinsic evidence subject to conditions.'},
+  {id:'614',title:'Court\'s Witnesses',text:'Court may call or examine witnesses.'},
+  {id:'615',title:'Sequestering Witnesses',text:'Court may exclude witnesses to prevent hearing others\' testimony.'}
+]},
+{article:'Article VII \u2014 Opinions/Experts',rules:[
+  {id:'701',title:'Lay Opinion',subs:['(a) Rational perception.','(b) Helpful.','(c) Not specialized (that is 702).']},
+  {id:'702',title:'Experts',subs:['(a) Helps trier of fact.','(b) Sufficient facts/data.']},
+  {id:'703',title:'Expert Bases',text:'May rely on reasonably relied-upon facts; disclosure if probative value outweighs prejudice.'},
+  {id:'704',title:'Ultimate Issue',subs:['(a) Not automatically objectionable.','(b) Criminal: no opinion on defendant\u2019s mental state element.']},
+  {id:'705',title:'Facts/Data',text:'Expert may state opinion first; disclose on cross.'},
+  {id:'706',title:'Court-Appointed Expert',text:'Court may appoint expert; parties may cross-examine.'}
+]},
+{article:'Article VIII \u2014 Hearsay',rules:[
+  {id:'801',title:'Definitions',subs:['(a) Statement','(b) Declarant','(c) Hearsay','(d) Not Hearsay: certain prior statements; opposing-party statements (admissions, adoptive, authorized, agent/employee, co-conspirator).']},
+  {id:'802',title:'Hearsay Rule',text:'Hearsay inadmissible unless exception.'},
+  {id:'803',title:'Exceptions (availability immaterial)',subs:['(1) Present Sense Impression.','(2) Excited Utterance.','(3) Then-Existing Mental/Emotional/Physical Condition.','(4) For Medical Diagnosis/Treatment.','(5) Recorded Recollection.','(6) Business Records.','(7) Absence of Business Record.','(8) Public Records.','(10) Absence of Public Record.','(16) Ancient Documents.','(18) Learned Treatises (read into evidence).','(21) Reputation Concerning Character.','(22) Judgment of Prior Conviction.']},
+  {id:'804',title:'Exceptions (declarant unavailable)',subs:['(a) Unavailability: privilege/refusal/no memory/death or illness/absence not procured by proponent.','(b)(1) Former Testimony.','(b)(2) Dying Declaration (homicide/civil).','(b)(3) Statement Against Interest (with corroboration in criminal).','(b)(4) Personal/Family History.','(b)(6) Statement Against Party That Wrongfully Caused Unavailability.']},
+  {id:'805',title:'Hearsay within Hearsay',text:'Each layer must fit an exception.'},
+  {id:'806',title:'Declarant\u2019s Credibility',text:'May attack/support as if testifying.'},
+  {id:'807',title:'Residual Exception',text:'Trustworthy, more probative than alternatives.'}
+ ]},
+ {article:'Article IX \u2014 Authentication and Identification',rules:[
+  {id:'901',title:'Authentication Required',subs:['(a) Proponent must produce evidence to support authenticity.','(b) Examples: witness with knowledge, handwriting, distinctive characteristics, voice, phone conversations, public records, ancient documents, process/system, statutory methods.']},
+  {id:'902',title:'Self-Authenticating',subs:['(1) Domestic public documents under seal.','(2) Domestic public documents not under seal but certified.','(3) Foreign public documents.','(4) Certified copies of public records.','(5) Official publications.','(6) Newspapers and periodicals.','(7) Trade inscriptions.','(8) Acknowledged documents.','(9) Commercial paper.','(10) Presumptions under Act of Congress.','(11) Certified domestic records of regularly conducted activity.','(12) Certified foreign records of regularly conducted activity.']},
+  {id:'903',title:'Subscribing Witness',text:'Testimony of subscribing witness unnecessary unless statute requires.'}
+ ]},
+ {article:'Article X \u2014 Contents of Writings, Recordings, and Photographs',rules:[
+  {id:'1001',title:'Definitions',text:'Defines writings, recordings, photographs, originals, and duplicates.'},
+  {id:'1002',title:'Requirement of the Original',text:'Original required to prove content unless otherwise allowed.'},
+  {id:'1003',title:'Admissibility of Duplicates',text:'Duplicate admissible unless genuine question or unfairness.'},
+  {id:'1004',title:'Other Evidence of Content',subs:['Original lost or destroyed.','Original not obtainable.','Original in opponent\'s control.','Collateral matters.']},
+  {id:'1005',title:'Copies of Public Records',text:'Certified copies may prove content of public records.'},
+  {id:'1006',title:'Summaries to Prove Content',text:'Summaries admissible when originals voluminous and available.'},
+  {id:'1007',title:'Testimony or Statement of a Party',text:'Party testimony can prove content without original.'},
+  {id:'1008',title:'Functions of Court and Jury',text:'Court decides admissibility; jury decides questions about originals.'}
+ ]},
+ {article:'Article XI \u2014 Miscellaneous',rules:[
+  {id:'1101',title:'Applicability',text:'Rules apply to courts unless exceptions for preliminary questions, grand jury, etc.'},
+  {id:'1102',title:'Title',text:'These rules may be cited as the Rules of Evidence.'},
+  {id:'1103',title:'Rule Revocation',text:'Existing privileges or statutes are not repealed by these rules.'}
+ ]}
+];
+
+/* Additional state rules (simplified) */
+const CA_RULES=[
+ {article:'Article I \u2014 General',rules:[
+  {id:'101',title:'Scope',text:'Rules govern California mock trial proceedings.'},
+  {id:'102',title:'Purpose',text:'Fairness, efficiency, ascertain truth.'}
+ ]}
+];
+
+/* State configuration */
+const STATES={
+  AZ:{name:'Arizona',abbr:'AZ',rules:AZ_RULES,judgePrompt:'You are an Arizona High School Mock Trial judge.',rubricMap:makeRubricMap('Arizona','AZ')},
+  CA:{name:'California',abbr:'CA',rules:CA_RULES,judgePrompt:'You are a California High School Mock Trial judge.',rubricMap:makeRubricMap('California','CA')}
+};
+
+/* Rules Explorer (full) */
+const RulesExplorer=(function(){
+  function item(r){
+    // `rule-full` and `meaning-text` are populated on demand when the title is
+    // clicked so that the exact rule text is shown word for word. This avoids
+    // embedding large rule content in the initial HTML while still allowing
+    // instant display when requested.
+    const usage=r.subs?`<ul>${r.subs.map(s=>`<li>${escHTML(s)}</li>`).join('')}</ul>`:(r.text?`<div>${escHTML(r.text)}</div>`:'');
+    return `<div class="rule-item"><div class="rule-title" data-id="${r.id}">Rule ${r.id}: ${escHTML(r.title)}</div><div class="rule-body" style="display:none"><div class="rule-full"></div><button class="btn secondary meaning-toggle" style="margin:6px 0">What it means and how to use it</button><div class="rule-meaning" style="display:none"><div class="meaning-text"></div>${usage}</div></div></div>`;
+  }
+  function render(){
+    const q=($('rulesSearch').value||'').toLowerCase();
+    const out=[];
+    for(const g of STATES[CURRENT_STATE].rules){
+      const list=g.rules.filter(r=>{
+        const hay=`${r.id} ${r.title} ${(r.text||'')} ${(r.subs||[]).join(' ')}`.toLowerCase();
+        return !q||hay.includes(q)
+      });
+      if(q&&list.length===0) continue;
+      out.push(`<div class="small" style="margin-top:6px"><span class="badge">${g.article}</span></div>`);
+      out.push(list.length?list.map(item).join(''):'<div class="small">(No specific rules in this article)</div>');
+    }
+    $('rulesList').innerHTML=out.join('');
+    document.querySelectorAll('.rule-title').forEach(t=>{
+      t.addEventListener('click',()=>{
+        const b=t.nextElementSibling;
+        // Populate the rule text and plain-language meaning only once.
+        const id=t.dataset.id;
+        const fullEl=b.querySelector('.rule-full');
+        if(!fullEl.dataset.loaded){
+          const detail=(globalThis.AZ_RULES_DETAIL && globalThis.AZ_RULES_DETAIL[id])||null;
+          fullEl.innerHTML=detail&&detail.full?escHTML(detail.full).replace(/\n/g,'<br>'):'<div class="small">(Full text not available)</div>';
+          b.querySelector('.meaning-text').innerHTML=detail&&detail.meaning?escHTML(detail.meaning).replace(/\n/g,'<br>'):'';
+          fullEl.dataset.loaded='1';
+        }
+        b.style.display=b.style.display==='none'?'block':'none';
+      });
+    });
+    document.querySelectorAll('.meaning-toggle').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const m=btn.nextElementSibling; m.style.display=m.style.display==='none'?'block':'none';
+      });
+    });
+  }
+  function wire(){
+    const s=$('rulesSearch');
+    s.addEventListener('input',()=>{render();save('mtpl.rulesSearch',s.value)});
+    $('btnClearSearch').addEventListener('click',()=>{s.value='';save('mtpl.rulesSearch','');render()});
+    s.value=load('mtpl.rulesSearch','');render();
+  }
+  return{wire,render}
+})();
+
+/* Rules Quiz (full with subsections option) */
+const RulesQuiz=(function(){
+ let idx=0,score=0,total=0,current=null,mode='mix',difficulty=1,queue=[],section='all';
+ let ALL=[],HEAR=[],CHAR=[],WIT=[],ALLS=[],HEARS=[],CHARS=[],WITS=[];
+ function sh(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+ function rn(n){return Math.floor(Math.random()*(n))}
+ function pick(a,n){return sh(a).slice(0,n)}
+ function uniqOpts(correct, pool, fallback){
+   const seen=new Set([correct]);
+   const out=[correct];
+   function fill(arr){
+     for(const opt of sh(arr)){
+       if(out.length>=4) break;
+       if(!seen.has(opt)){ out.push(opt); seen.add(opt); }
+     }
+   }
+   fill(pool);
+   if(out.length<4 && fallback) fill(fallback);
+   return sh(out)
+ }
+ function subsOf(r){
+   const out=[];
+   (r.subs||[]).forEach(s=>{
+     const m=String(s).match(/^\s*((\([^)]*\))+?)\s*(.*)$/);
+     if(m){
+       const code=`${r.id}${m[1].replace(/\s+/g,'')}`;
+       const title=(m[3]||'').replace(/^[\u2013\-:\s]+/,'')||String(s).replace(/^\s*\([^)]*\)\s*/,'');
+       out.push({code,title,parentId:r.id,parentTitle:r.title})
+     }
+   });
+   return out
+ }
+ function refresh(){
+   function flat(){const out=[];for(const g of STATES[CURRENT_STATE].rules){for(const r of g.rules){out.push({id:r.id,title:r.title,article:g.article,subs:r.subs||[],text:r.text||''})}}return out}
+  ALL=flat();
+  HEAR=ALL.filter(r=>+r.id>=801&&+r.id<=807);
+  CHAR=ALL.filter(r=>+r.id>=404&&+r.id<=406);
+  WIT=ALL.filter(r=>+r.id>=601&&+r.id<=613);
+  ALLS=ALL.flatMap(subsOf);
+  HEARS=ALLS.filter(x=>+x.parentId>=801&&+x.parentId<=807);
+  CHARS=ALLS.filter(x=>+x.parentId>=404&&+x.parentId<=406);
+  WITS=ALLS.filter(x=>+x.parentId>=601&&+x.parentId<=613);
+}
+refresh();
+
+function qBasic(){
+  const set=(section==='hearsay')?HEAR:(section==='character')?CHAR:(section==='witness')?WIT:ALL;
+  const base=set[rn(set.length)];
+  const types=(mode==='mix')?['titleFromNumber','numberFromTitle']:[mode];
+  const type=types[rn(types.length)];
+  if(type==='titleFromNumber'){
+    const wrongPool=set.filter(x=>x.id!==base.id);
+    const wrong=(wrongPool.length>=3?wrongPool:ALL.filter(x=>x.id!==base.id));
+    const opts=uniqOpts(base.title, wrong.map(x=>x.title), ALL.map(x=>x.title));
+    return{type,q:`Rule ${base.id} is titled:`,options:opts,answer:base.title,explain:`Rule ${base.id}: ${base.title}. ${base.text||''}`}
+  }
+  const wrongPool=set.filter(x=>x.id!==base.id);
+  const wrong=(wrongPool.length>=3?wrongPool:ALL.filter(x=>x.id!==base.id));
+  const opts=uniqOpts(base.id, wrong.map(x=>x.id), ALL.map(x=>x.id));
+  return{type:'numberFromTitle',q:`Which rule number covers \u201c${base.title}\u201d?`,options:opts,answer:base.id,explain:`\u201c${base.title}\u201d is Rule ${base.id}.`}
+}
+
+function qSub(){
+  const set=(section==='hearsay')?HEARS:(section==='character')?CHARS:(section==='witness')?WITS:ALLS;
+  const base=set[rn(set.length)];
+  if(rn(2)===0){
+    const pool=set.filter(x=>x.parentId===base.parentId&&x.code!==base.code);
+    const wrong=(pool.length>=3?pool:set.filter(x=>x.code!==base.code));
+    const opts=uniqOpts(base.title, wrong.map(x=>x.title), ALLS.map(x=>x.title));
+     return{type:'subTitleFromCode',q:`What does Rule ${base.code} cover?`,options:opts,answer:base.title,explain:`Rule ${base.code}: ${base.title} (under ${base.parentTitle}).`}
+   }
+   const pool=set.filter(x=>x.parentId===base.parentId&&x.code!==base.code);
+   const wrong=(pool.length>=3?pool:set.filter(x=>x.code!==base.code));
+   const opts=uniqOpts(base.code, wrong.map(x=>x.code), ALLS.map(x=>x.code));
+   return{type:'subCodeFromTitle',q:`Which subsection covers \u201c${base.title}\u201d?`,options:opts,answer:base.code,explain:`\u201c${base.title}\u201d is at Rule ${base.code}.`}
+}
+
+function show(){
+ $('quizBody').innerHTML=''; $('quizExplain').textContent='';
+  mode=$('quizMode').value; section=$('quizScope')?$('quizScope').value:'all'; difficulty=parseInt(($('quizDifficulty')?.value||'1'),10);
+  current=(difficulty===2)?qSub():qBasic();
+  const wrap=document.createElement('div');
+   const q=document.createElement('div'); q.className='quiz-q'; q.textContent=current.q; wrap.appendChild(q);
+   const form=document.createElement('div');
+   current.options.forEach(opt=>{
+     const b=document.createElement('button'); b.className='quiz-opt'; b.textContent=opt; b.type='button';
+     b.addEventListener('click',()=>grade(opt,b)); form.appendChild(b)
+   });
+   wrap.appendChild(form); $('quizBody').appendChild(wrap)
+ }
+
+ function grade(choice,btn){
+   if(!current)return; total++;
+   if(choice===current.answer){score++;btn.classList.add('quiz-correct')}
+   else{btn.classList.add('quiz-wrong')}
+   $('quizScore').textContent=String(score); $('quizTotal').textContent=String(total);
+   $('quizExplain').innerHTML=`<strong>Explanation:</strong> ${current.explain}`;
+   const best=load('mtpl.quizBest',0); if(score>best){save('mtpl.quizBest',score);$('quizBest').textContent=String(score)}
+   $('btnNextQ').disabled=false
+ }
+
+ function start(){
+   score=0;total=0;$('quizScore').textContent='0';$('quizTotal').textContent='0';
+   $('quizExplain').textContent='';$('btnNextQ').disabled=true;
+   const count=parseInt(($('quizCount')?.value||'5'),10); queue=Array.from({length:count},()=>null); idx=0; show()
+ }
+ function next(){ if(idx<queue.length-1){ idx++; $('btnNextQ').disabled=true; show() } else { $('quizExplain').innerHTML+='<br><strong>Quiz complete.</strong>' } }
+function wire(){ $('btnStartQuiz').addEventListener('click',start); $('btnNextQ').addEventListener('click',next); $('quizBest').textContent=String(load('mtpl.quizBest',0)||0) }
+return{wire,refresh}
+})();
+
+/* Init + environment warnings */
+function envWarnInit(){envWarn();}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  try{
+    Objections.wire();
+    VideoCoach.wire();
+    RulesExplorer.wire();
+    RulesQuiz.wire();
+    envWarnInit();
+    renderModeBadge();
+    $('rulesTab').textContent=`${STATES[CURRENT_STATE].abbr} Rules`;
+    $('rulesHeading').textContent=`${STATES[CURRENT_STATE].abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
+    RulesExplorer.render();
+    RulesQuiz.refresh();
+    $('menuToggle').addEventListener('click',()=>{
+      const nav=$('navMenu');
+      const isOpen=nav.classList.toggle('open');
+      $('menuToggle').setAttribute('aria-expanded',isOpen);
+    });
+    document.addEventListener('click',e=>{
+      const nav=$('navMenu');
+      const toggle=$('menuToggle');
+      if(nav.classList.contains('open') && !nav.contains(e.target) && !toggle.contains(e.target)){
+        nav.classList.remove('open');
+        toggle.setAttribute('aria-expanded','false');
+      }
+    });
+  }catch(e){ console.error(e) }
+});
+} // end browser check
+</script>
+</body>
+</html>
