@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="https://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Homepage -->
+  <url>
+    <loc>https://mocktrialacademy.com/</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Objection Practice for Mock Trial Students -->
+  <url>
+    <loc>https://mocktrialacademy.com/mock-trial-objection-practice.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Video Coaching for Mock Trial Objections -->
+  <url>
+    <loc>https://mocktrialacademy.com/mock-trial-objections-video-coach.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Writing New Mock Trial Materials -->
+  <url>
+    <loc>https://mocktrialacademy.com/writing-new-mock-trial-materials.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Arizona High School Mock Trial Rules of Evidence -->
+  <url>
+    <loc>https://mocktrialacademy.com/arizona-hs-mock-trial-rules-of-evidence.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Mock Trial Rules Quiz for Students -->
+  <url>
+    <loc>https://mocktrialacademy.com/mock-trial-rules-quiz.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Contact Page for Mock Trial Guidance -->
+  <url>
+    <loc>https://mocktrialacademy.com/contact.html</loc>
+    <lastmod>2025-08-30</lastmod>
+    <priority>0.7</priority>
+  </url>
+
+</urlset>
