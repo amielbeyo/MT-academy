@@ -156,7 +156,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger; “gpt-5-preview” is top-tier.</li>
+            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger; “gpt-5” is top-tier; “gpt-5-mini” is fast; “gpt-5-nano” is cheapest.</li>
           </ol>
           <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
           <label class="small">OpenAI API Key
@@ -167,7 +167,9 @@ a.inline{color:var(--accent);text-decoration:underline}
               <select id="openaiModel" class="input">
                 <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
                 <option value="gpt-4o">gpt-4o (better)</option>
-                <option value="gpt-5-preview">gpt-5-preview (strongest)</option>
+                <option value="gpt-5">gpt-5 (strongest)</option>
+                <option value="gpt-5-mini">gpt-5-mini (fast)</option>
+                <option value="gpt-5-nano">gpt-5-nano (cheapest)</option>
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
@@ -951,7 +953,6 @@ async function openAIChat(body, signal){
   function normalizeResponseFormatForResponses(rf){
     if (!rf || typeof rf !== 'object') return undefined;
     if (rf.type && rf.type !== 'json_object') return rf; // assume already valid (e.g., json_schema)
-    // Convert generic "json_object" into permissive schema so GPT-5 can emit JSON cleanly
     return {
       type: "json_schema",
       json_schema: {
@@ -996,11 +997,20 @@ async function openAIChat(body, signal){
     signal
   });
 
-  if (!usingResponses) return resp; // Chat Completions path
-
-  // Responses API → adapt to Chat-like shape
   const txt = await resp.text();
   if (!resp.ok) {
+    if (/model_not_found|does not exist/i.test(txt)) {
+      EngineState.openaiModel = 'gpt-4o';
+      const sel = document.getElementById('openaiModel');
+      if (sel) sel.value = 'gpt-4o';
+      surfaceHttpError(resp, txt);
+      alert('That model is not available to your API key. Switched to gpt-4o.');
+      return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
+    }
+    return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
+  }
+
+  if (!usingResponses) {
     return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
   }
 
