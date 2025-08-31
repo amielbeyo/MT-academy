@@ -55,6 +55,7 @@
 .tab{background:transparent;border:1px solid rgba(0,0,0,.1);padding:8px 12px;border-radius:6px;color:var(--text);cursor:pointer}
 .tab.active{background:var(--secondary)}
 .card{background:var(--card);padding:14px;border-radius:8px;margin-bottom:12px}
+section.card{display:none}
 .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;justify-content:flex-start;flex-direction:column}
 .btn{padding:8px 12px;border-radius:6px;border:1px solid rgba(0,0,0,.1);background:var(--secondary);color:var(--text);cursor:pointer}
 .btn.primary{background:var(--accent);color:#fff}.btn.secondary{background:var(--secondary);color:var(--text)}
@@ -2388,8 +2389,31 @@ document.addEventListener('DOMContentLoaded',()=>{
     $('rulesHeading').textContent=`${STATES[CURRENT_STATE].abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
     RulesExplorer.render();
     RulesQuiz.refresh();
+
+    const sections=Array.from(document.querySelectorAll('section.card'));
+    function showSection(id){
+      sections.forEach(sec=>sec.style.display=sec.id===id?'block':'none');
+      document.querySelectorAll('#navMenu .tab').forEach(link=>{
+        if(link.getAttribute('href')===`#${id}`){link.classList.add('active');}
+        else{link.classList.remove('active');}
+      });
+      location.hash=id;
+      if(id==='video'){ maybeShowVideoGate(); }
+    }
+
+    document.querySelectorAll('#navMenu .tab').forEach(link=>{
+      link.addEventListener('click',e=>{
+        e.preventDefault();
+        showSection(link.getAttribute('href').slice(1));
+        const nav=$('navMenu');
+        nav.classList.remove('open');
+        $('menuToggle').setAttribute('aria-expanded','false');
+      });
+    });
+
     const initialHash=location.hash.slice(1);
-    if(initialHash==='video'){ maybeShowVideoGate(); }
+    if(initialHash){ showSection(initialHash); }
+
     $('menuToggle').addEventListener('click',()=>{
       const nav=$('navMenu');
       const isOpen=nav.classList.toggle('open');
