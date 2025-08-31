@@ -684,13 +684,11 @@ const ChatGPTScoring = (() => {
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
 `6. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript.\n`+
-`7. Suggest where the participant can improve and what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10>\n`+
-`Explanation: <short paragraph>\n`+
-`Improvements: <specific, actionable suggestions referencing where to change the argument>`;
+`Explanation: <short paragraph including specific, actionable suggestions>`;
 
   const PROMPT_TEMPLATE_RULING =
 `You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
@@ -708,14 +706,12 @@ const ChatGPTScoring = (() => {
 `5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
 `6. Decide whether the objection should be sustained or overruled.\n`+
 `7. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript.\n`+
-`8. Suggest where the participant can improve and what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10>\n`+
-`Explanation: <short paragraph>\n`+
-`Improvements: <specific, actionable suggestions referencing where to change the argument>`;
+`Explanation: <short paragraph including specific, actionable suggestions>`;
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1153,14 +1149,10 @@ function appendJudgeDecision(res){
  const score=document.createElement('div');
  score.innerHTML=`<strong>Score:</strong> ${escHTML(res.score)}`;
  div.appendChild(score);
+ const explanationText = res.improvement ? `${res.explanation} ${res.improvement}` : res.explanation;
  const explain=document.createElement('div');
- explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
+ explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(explanationText)}`;
  div.appendChild(explain);
- if(res.improvement){
-  const impr=document.createElement('div');
-  impr.innerHTML=`<strong>Improvements:</strong> ${escHTML(res.improvement)}`;
-  div.appendChild(impr);
- }
  out.appendChild(div);
  out.scrollTop=out.scrollHeight;
 }
