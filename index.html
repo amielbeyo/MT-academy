@@ -89,12 +89,12 @@ textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);bo
 /* Gateway modal */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9999}
 .modal{width:min(740px,94vw);background:var(--card);border:1px solid rgba(0,0,0,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:16px}
-.modal h3{margin:0 0 6px}
+.modal h2{margin:0 0 6px}
 .modal .note{font-size:calc(13px*1.25);color:var(--muted);margin-bottom:10px}
 .input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.1);background:var(--secondary);color:var(--text)}
 .row{display:flex;gap:10px;flex-wrap:wrap}
 .choice{flex:1;border:1px solid rgba(0,0,0,.1);border-radius:10px;padding:12px;background:var(--secondary)}
-.choice h4{margin:0 0 6px}
+.choice h3{margin:0 0 6px}
 .warn{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;padding:6px 8px;border-radius:8px;font-size:calc(12px*1.25)}
 .ok{background:#f0fdf4;color:#166534;border:1px solid #6ee7b7;padding:6px 8px;border-radius:8px}
 .badge-mode{font-size:calc(12px*1.25);padding:2px 6px;border-radius:999px;background:var(--secondary);color:var(--text);margin-left:6px}
@@ -137,11 +137,11 @@ a.inline{color:var(--accent);text-decoration:underline}
   <!-- Gateway -->
   <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
     <div class="modal">
-      <h3 id="videoGateTitle">Choose how to score your performance</h3>
+      <h2 id="videoGateTitle">Choose how to score your performance</h2>
       <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring, or continue with the built-in scorer.</div>
       <div class="row">
         <div class="choice">
-          <h4>Option A — Use my ChatGPT account (recommended)</h4>
+          <h3>Option A — Use my ChatGPT account (recommended)</h3>
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
@@ -168,7 +168,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           </div>
         </div>
         <div class="choice">
-          <h4>Option B — Built-in scoring (faster, <em>less accurate</em>)</h4>
+          <h3>Option B — Built-in scoring (faster, <em>less accurate</em>)</h3>
           <p class="small">On-device heuristics. Scores structure, delivery, common cues—not as nuanced as a judge.</p>
           <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
@@ -183,7 +183,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Objections -->
   <section id="objections" class="card" hidden>
-    <h3>Objections Drill</h3>
+    <h2>Objections Drill</h2>
     <div class="controls small">
       <label>Filter: <select id="objFilter"><option value="all">All</option><option>Hearsay</option><option>611 Control</option><option>Foundation</option><option>Opinion/Experts</option><option>Character/404</option><option>Relevance/403</option><option>Policy Exclusions</option></select></label>
       <label>Difficulty: <select id="objDiff"><option value="both">Both</option><option value="core">Core</option><option value="advanced">Advanced</option></select></label>
@@ -234,7 +234,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Video Coach -->
   <section id="video" class="card" hidden>
-    <h3>Video Coach (Transcribe & Type-Specific Rubric + Objection Finder)</h3>
+    <h2>Video Coach (Transcribe & Type-Specific Rubric + Objection Finder)</h2>
     <div class="small" id="videoModeBanner"></div>
     <div class="controls small">
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
@@ -265,7 +265,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Writing -->
   <section id="writing" class="card" hidden>
-    <h3>Writing New Materials (ChatGPT)</h3>
+    <h2>Writing New Materials (ChatGPT)</h2>
     <div class="controls small">
       <label>Type:
         <select id="writeType">
@@ -287,7 +287,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Rules -->
   <section id="rules" class="card" hidden>
-    <h3 id="rulesHeading">AZ HS Mock Trial Rules of Evidence — Explorer</h3>
+    <h2 id="rulesHeading">AZ HS Mock Trial Rules of Evidence — Explorer</h2>
     <div class="controls small">
       <input id="rulesSearch" placeholder="Search by number or topic (e.g., 403, hearsay)" style="width:320px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:#061122;color:#e6eef6">
       <button id="btnClearSearch" class="btn secondary">Clear</button>
@@ -299,7 +299,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Rules Quiz -->
   <section id="quiz" class="card" hidden>
-    <h3>Rules Quiz</h3>
+    <h2>Rules Quiz</h2>
     <div class="controls small">
       <label>Mode: <select id="quizMode"><option value="mix">Mixed</option><option value="titleFromNumber">Title from Number</option><option value="numberFromTitle">Number from Title</option></select></label>
       <label>Rules: <select id="quizScope"><option value="all">All</option><option value="hearsay">Hearsay</option><option value="character">Character Evidence</option><option value="witness">Witness Testimony</option></select></label>
@@ -314,7 +314,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
   <!-- How To -->
   <section id="howto" class="card">
-    <h3>How to Use</h3>
+    <h2>How to Use</h2>
     <p class="small">Use the tabs above to explore the different practice tools.</p>
     <ul class="small">
       <li><strong>Objections:</strong> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em> or <em>Show Model</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
@@ -323,7 +323,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <li><strong>Rules:</strong> search by number or topic, then tap a rule to see the text and a plain-language <em>What it means</em> explanation.</li>
       <li><strong>Rules Quiz:</strong> choose mode, rule set, question count and difficulty, then hit <em>Start Quiz</em>. Use <em>Next</em> to advance; the top shows your score and best.</li>
     </ul>
-    <h4>Upload an API Key</h4>
+    <h3>Upload an API Key</h3>
     <ol class="small" style="margin-top:6px">
       <li>Visit <strong>platform.openai.com</strong> and create an API key.</li>
       <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
@@ -334,7 +334,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
   <!-- Contact -->
   <section id="contact" class="card" hidden>
-    <h3>Contact</h3>
+    <h2>Contact</h2>
     <p class="small">For recommendations, contact the creator at <a href="mailto:amielbeyo1@gmail.com">amielbeyo1@gmail.com</a>.</p>
   </section>
 </div>
