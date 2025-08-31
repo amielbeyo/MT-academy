@@ -123,7 +123,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="logo">MT</div>
     <div class="title-block">
         <h1 style="margin:0">MT academy
-        <span id="modeBadge" class="badge-mode" title="Scoring Engine">Mode: Built-in (less accurate)</span>
+        <span id="modeBadge" class="badge-mode" title="Scoring Engine" style="display:none">Mode: Built-in (less accurate)</span>
       </h1>
       <div class="small">Mock Trial Objection Practice</div>
       <p class="small">Interactive mock trial practice tools, objection drills, rule explanations, and quizzes to help students and coaches sharpen courtroom skills.</p>
@@ -2426,6 +2426,12 @@ document.addEventListener('DOMContentLoaded',()=>{
         else{link.classList.remove('active');}
       });
       location.hash=id;
+      const usesMode = id==='objections' || id==='video' || id==='writing';
+      const badge=$('modeBadge');
+      if(badge){
+        badge.style.display = usesMode ? 'inline-block' : 'none';
+        if(usesMode) renderModeBadge();
+      }
       if(id==='video'){ maybeShowVideoGate(); }
     }
 
