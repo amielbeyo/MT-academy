@@ -922,97 +922,85 @@ const EngineState = {
 
 // --- unified OpenAI caller with robust GPT-5 (Responses API) handling + diagnostics
 async function openAIChat(body, signal){
-  // figure out the effective model for THIS call
-  const effModel = (body && body.model) || EngineState.openaiModel || 'gpt-4o-mini';
-  const isResponses = /\bgpt-5\b/i.test(effModel);        // gpt-5, gpt-5-preview, etc.
+  // Detect Responses API models
+  const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
 
-  // Clean clone so we can mutate safely
-  const payload = { ...body, model: effModel };
-
-  // Some older chat models can choke on response_format, so only keep it when we know it's supported
-  const chatSupportsJSON = /^gpt-4o(?:-mini)?/i.test(effModel);
-  if (!isResponses && payload.response_format && !chatSupportsJSON) {
-    delete payload.response_format;
+  // Helper: convert Chat Completions "messages" into Responses "input"
+  function chatToResponsesInput(messages){
+    // Responses API expects: [{ role, content: [{ type:"input_text", text:"..." }, ...] }, ...]
+    return (messages || []).map(m => ({
+      role: m.role, // "system" | "user" | "assistant"
+      content: Array.isArray(m.content)
+        ? m.content.map(part => (
+            typeof part === 'string'
+              ? { type: 'input_text', text: part }
+              : (part.type ? part : { type: 'input_text', text: String(part) })
+          ))
+        : [{ type: 'input_text', text: String(m.content ?? '') }]
+    }));
   }
 
-  // Convert Chat "messages" → Responses "input" only for GPT-5 models
-  if (isResponses) {
-    function toResponsesInput(messages){
-      return (messages || []).map(m => ({
-        role: m.role, // "system" | "user" | "assistant"
-        content: Array.isArray(m.content)
-          ? m.content.map(part =>
-              typeof part === 'string'
-                ? { type: 'input_text', text: part }
-                : (part && typeof part === 'object' && part.type
-                    ? part
-                    : { type: 'input_text', text: String(part) }
-                  )
-            )
-          : [{ type: 'input_text', text: String(m.content ?? '') }]
-      }));
-    }
+  // Choose endpoint and normalize payload
+  const endpoint = usingResponses
+    ? 'https://api.openai.com/v1/responses'
+    : 'https://api.openai.com/v1/chat/completions';
+
+  // Shallow clone so we can rewrite fields safely
+  const payload = { ...body, model: EngineState.openaiModel || body.model };
+
+  if (usingResponses) {
+    // Map Chat → Responses
     if (payload.messages) {
-      payload.input = toResponsesInput(payload.messages);
+      payload.input = chatToResponsesInput(payload.messages);
       delete payload.messages;
     }
+    // max_tokens → max_output_tokens
     if (payload.max_tokens != null) {
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
+    // `response_format: {type: "json_object"}` is valid for Responses as-is.
   }
 
-  const endpoint = isResponses
-    ? 'https://api.openai.com/v1/responses'
-    : 'https://api.openai.com/v1/chat/completions';
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${EngineState.openaiKey}`
+    },
+    body: JSON.stringify(payload),
+    signal
+  });
 
-  let resp;
-  try {
-    resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${EngineState.openaiKey}`
-      },
-      body: JSON.stringify(payload),
-      signal
-    });
-  } catch (netErr) {
-    // Network/CORS error – bubble up to UI
-    const msg = '[Network] ' + (netErr?.message || String(netErr));
-    showProvenance(msg, true);
-    // Return a faux Response so callers keep working
-    return new Response(JSON.stringify({ error: { message: msg } }), { status: 0 });
-  }
+  // For Chat Completions, return directly
+  if (!usingResponses) return resp;
 
-  // For Chat Completions, just return as-is
-  if (!isResponses) return resp;
-
-  // Responses API → normalize to Chat-like shape for the rest of your app
+  // For Responses API, adapt the response to look like a Chat Completions result
   const txt = await resp.text();
   if (!resp.ok) {
-    // Surface the exact error in the UI
-    try {
-      const errJson = JSON.parse(txt);
-      showProvenance(`HTTP ${resp.status}: ${errJson?.error?.message || 'Responses API error'}`, true);
-    } catch {
-      showProvenance(`HTTP ${resp.status}: ${txt.slice(0,140)}`, true);
-    }
+    // Preserve error details so callers can branch on status/message
     return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
   }
 
   let data = {};
   try { data = JSON.parse(txt); } catch {}
 
-  // Pull text from either output_text or content[].text
-  const out =
+  // Robust extraction (supports output_text or structured output)
+  const outputText =
     data?.output_text ??
-    (Array.isArray(data?.output)
-      ? data.output.map(o => (o?.content || []).map(c => c?.text || '').join('')).join('\n')
-      : '');
+    data?.output?.map(o =>
+      (o?.content || [])
+        .map(c => (
+          typeof c?.text === 'string'
+            ? c.text
+            : (c?.json ? JSON.stringify(c.json) : '')
+        ))
+        .join('')
+    ).join('\n') ??
+    '';
 
   const mapped = {
-    choices: [{ message: { role: 'assistant', content: out || '' } }],
+    choices: [{ message: { role: 'assistant', content: outputText } }],
     usage: {
       prompt_tokens: data?.usage?.input_tokens ?? data?.usage?.prompt_tokens,
       completion_tokens: data?.usage?.output_tokens ?? data?.usage?.completion_tokens,
@@ -1396,7 +1384,20 @@ Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION
 
   try{
     const resp = await openAIChat(body);
+    if (!resp.ok) {
+      const errTxt = await resp.text();
+      showProvenance('OpenAI error: ' + errTxt.slice(0,150), true);
+      alert('ChatGPT error (see status line).');
+      return;
+    }
+
     const data = await resp.json();
+    if (data?.error?.message) {
+      showProvenance('OpenAI error: ' + data.error.message, true);
+      alert('ChatGPT error (see status line).');
+      return;
+    }
+
     const raw  = data?.choices?.[0]?.message?.content || '';
 
     // Try to parse JSON from the returned string
