@@ -922,22 +922,35 @@ const EngineState = {
 
 // --- unified OpenAI caller with robust GPT-5 (Responses API) handling + diagnostics
 async function openAIChat(body, signal){
-  // Detect Responses API models
-  const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
+  // Treat anything starting with "gpt-5" as Responses API
+  const usingResponses = /^gpt-5/i.test((body.model || EngineState.openaiModel || ''));
 
-  // Helper: convert Chat Completions "messages" into Responses "input"
+  // Helper: convert Chat Completions "messages" → Responses "input"
   function chatToResponsesInput(messages){
-    // Responses API expects: [{ role, content: [{ type:"input_text", text:"..." }, ...] }, ...]
     return (messages || []).map(m => ({
-      role: m.role, // "system" | "user" | "assistant"
+      role: m.role,
       content: Array.isArray(m.content)
-        ? m.content.map(part => (
+        ? m.content.map(part =>
             typeof part === 'string'
               ? { type: 'input_text', text: part }
               : (part.type ? part : { type: 'input_text', text: String(part) })
-          ))
+          )
         : [{ type: 'input_text', text: String(m.content ?? '') }]
     }));
+  }
+
+  // Helper: if caller passed response_format:{type:"json_object"} for GPT-5, convert it to a minimal json_schema
+  function normalizeResponseFormatForResponses(rf){
+    if (!rf || typeof rf !== 'object') return undefined;
+    if (rf.type && rf.type !== 'json_object') return rf; // assume already valid (e.g., json_schema)
+    // Convert generic "json_object" into permissive schema so GPT-5 can emit JSON cleanly
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "generic_json_object",
+        schema: { type: "object", additionalProperties: true }
+      }
+    };
   }
 
   // Choose endpoint and normalize payload
@@ -945,21 +958,20 @@ async function openAIChat(body, signal){
     ? 'https://api.openai.com/v1/responses'
     : 'https://api.openai.com/v1/chat/completions';
 
-  // Shallow clone so we can rewrite fields safely
   const payload = { ...body, model: EngineState.openaiModel || body.model };
 
   if (usingResponses) {
-    // Map Chat → Responses
     if (payload.messages) {
       payload.input = chatToResponsesInput(payload.messages);
       delete payload.messages;
     }
-    // max_tokens → max_output_tokens
     if (payload.max_tokens != null) {
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
-    // `response_format: {type: "json_object"}` is valid for Responses as-is.
+    if (payload.response_format) {
+      payload.response_format = normalizeResponseFormatForResponses(payload.response_format);
+    }
   }
 
   const resp = await fetch(endpoint, {
@@ -972,32 +984,26 @@ async function openAIChat(body, signal){
     signal
   });
 
-  // For Chat Completions, return directly
-  if (!usingResponses) return resp;
+  if (!usingResponses) return resp; // Chat Completions path
 
-  // For Responses API, adapt the response to look like a Chat Completions result
+  // Responses API → adapt to Chat-like shape
   const txt = await resp.text();
   if (!resp.ok) {
-    // Preserve error details so callers can branch on status/message
     return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
   }
 
   let data = {};
   try { data = JSON.parse(txt); } catch {}
 
-  // Robust extraction (supports output_text or structured output)
   const outputText =
     data?.output_text ??
-    data?.output?.map(o =>
-      (o?.content || [])
-        .map(c => (
-          typeof c?.text === 'string'
-            ? c.text
-            : (c?.json ? JSON.stringify(c.json) : '')
-        ))
-        .join('')
-    ).join('\n') ??
-    '';
+    (Array.isArray(data?.output) ? data.output.map(o =>
+      (o?.content || []).map(c =>
+        typeof c?.text === 'string'
+          ? c.text
+          : (c?.json ? JSON.stringify(c.json) : '')
+      ).join('')
+    ).join('\n') : '');
 
   const mapped = {
     choices: [{ message: { role: 'assistant', content: outputText } }],
@@ -2107,34 +2113,101 @@ const VideoCoach=(function(){
     return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
   }
 
-  function parseChatGPTScoreResponse(text){
-    const obj = extractFirstJson(text);
-    if(!obj) throw new Error('bad_json');
-    return obj;
+  function makeRubricJsonSchema(type){
+    // One permissive schema used for all four types; category keys vary by type and that's OK.
+    return {
+      name: "rubric_score",
+      schema: {
+        type: "object",
+        required: ["total","categories"],
+        additionalProperties: true,
+        properties: {
+          total: { type: "number" },
+          categories: {
+            type: "object",
+            additionalProperties: { type: "number" }
+          },
+          comments: {
+            type: "object",
+            additionalProperties: { type: "string" }
+          },
+          explanation: { type: "string" },
+          notes: { type: "string" },
+          qa: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: true,
+              properties: {
+                q: { type: "string" },
+                a: { type: "string" },
+                qScore: { type: "number" },
+                aScore: { type: "number" },
+                qReason: { type: "string" },
+                aReason: { type: "string" },
+                objection: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    type: { type: "string" },
+                    reason: { type: "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
   }
 
-  // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     const key = EngineState.openaiKey;
     if(!key){ throw new Error('no_key'); }
     const model = EngineState.openaiModel || 'gpt-4o-mini';
     const max_tokens = EngineState.openaiMaxTokens || 600;
+    const usingResponses = /^gpt-5/i.test(model);
 
-    const prompt = buildChatGPTPrompt(type, transcript);
-    const messages = [{role:'user',content:prompt}];
+    // Short, schema-aligned instructions—no prose format requests that conflict with JSON
+    const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
+    const rubricDesc = rubricMap[type] || rubricMap.opening || '';
+
+    const messages = [
+      { role:'system',
+        content: `You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include any extra keys, commentary, markdown, or text outside JSON.` },
+      { role:'user',
+        content:
+`Transcript:
+${transcript}
+
+Scoring notes (guidance, not an output format):
+${rubricDesc}
+
+Return ONLY JSON with:
+- "total" (0–100, integer),
+- "categories" (object of 1–10 numbers),
+- optional "comments" (object of strings),
+- optional "explanation" (short string),
+- optional "notes" (string with tips, '\n' for new lines),
+- optional "qa" (array with question/answer feedback objects).`
+      }
+    ];
 
     async function callOnce(signal){
-      if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] model=', model, 'max_tokens=', max_tokens);
-        const preview = (prompt || '').slice(0, 400);
-        console.info('[ChatGPT] outbound preview:', preview);
-      }
-      const resp = await openAIChat({
+      const req = {
         model,
         messages,
         temperature: 0,
         max_tokens
-      }, signal);
+      };
+      // Enforce JSON for GPT-5 via json_schema; for 4o let json_object hint ride
+      if (usingResponses) {
+        req.response_format = { type: "json_schema", json_schema: makeRubricJsonSchema(type) };
+      } else {
+        req.response_format = { type: "json_object" };
+      }
+
+      const resp = await openAIChat(req, signal);
       if(resp.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
       if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
       if(!resp.ok){
@@ -2144,25 +2217,25 @@ const VideoCoach=(function(){
         throw e;
       }
       const data = await resp.json();
-      if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', (data?.choices?.[0]?.message?.content||'').length);
-      }
       const raw = data?.choices?.[0]?.message?.content || '';
-      const parsed = parseChatGPTScoreResponse(raw);
-      const conf = RUBRICS[type] || {cats:[]};
-      const cats = {}, comments = {};
-      conf.cats.forEach(c=>{
-        const cv = parsed?.categories?.[c.key];
-        cats[c.key] = typeof cv === 'number' ? cv : 6;
-        const cm = parsed?.comments?.[c.key];
-        if(typeof cm === 'string') comments[c.key] = cm;
-      });
+      const parsed = extractFirstJson(raw);
+      if (!parsed) { const e=new Error('bad_json'); e.detail=raw.slice(0,200); throw e; }
+      const conf = (function(){
+        if(type==='opening') return {cats:['content','organization','persuasion','delivery','decorum']};
+        if(type==='closing') return {cats:['content','organization','refutation','persuasion','delivery','decorum']};
+        if(type==='direct')  return {cats:['content','openq','foundation','listening','delivery','decorum']};
+        return {cats:['content','leading','impeach','brevity','delivery','decorum']};
+      })();
+
+      const cats = {};
+      conf.cats.forEach(k => cats[k] = typeof parsed?.categories?.[k] === 'number' ? parsed.categories[k] : 6);
+
       return {
-        total: Number(parsed.total ?? (parsed.score * 10)) || 0,
+        total: Number.isFinite(parsed.total) ? Math.round(parsed.total) : 0,
+        categories: cats,
+        comments: parsed.comments || {},
         explanation: parsed.explanation || '',
         notes: parsed.notes || '',
-        categories: cats,
-        comments,
         qa: Array.isArray(parsed.qa) ? parsed.qa : []
       };
     }
@@ -2181,9 +2254,7 @@ const VideoCoach=(function(){
           return await callOnce(ctrl2.signal);
         }finally{ clearTimeout(t2); }
       }
-    }finally{
-      clearTimeout(t);
-    }
+    }finally{ clearTimeout(t); }
   }
 
   function scoreWithBuiltin(type, txt){
@@ -2281,17 +2352,45 @@ const VideoCoach=(function(){
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
-    const testMsg = [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
+    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const usingResponses = /^gpt-5/i.test(model);
+
+    const messages = [
+      { role:'system', content:'Return STRICT JSON ONLY that matches the schema.' },
+      { role:'user', content:'Say ok:true.' }
     ];
+
+    const body = {
+      model,
+      messages,
+      max_tokens: 20,
+      temperature: 0
+    };
+
+    if (usingResponses) {
+      body.response_format = {
+        type: "json_schema",
+        json_schema: {
+          name: "ok_check",
+          schema: { type: "object", required:["ok"], properties: { ok: { type: "boolean", const: true } } }
+        }
+      };
+    } else {
+      body.response_format = { type: "json_object" };
+    }
+
     showProvenance('Testing ChatGPT\u2026');
     try{
-      const resp = await openAIChat({ model: EngineState.openaiModel || 'gpt-4o-mini', messages: testMsg, response_format:{type:'json_object'}, max_tokens:30 });
+      const resp = await openAIChat(body);
       const data = await resp.json();
-      console.info('[ChatGPT][TEST] HTTP', resp.status, 'data=', data);
-      if(resp.ok){ showProvenance('ChatGPT reachable \u2705'); }
-      else{ showProvenance('ChatGPT test failed (see console).', true); }
+      const raw = data?.choices?.[0]?.message?.content || '';
+      const obj = extractFirstJson(raw);
+      if (obj && obj.ok === true) {
+        showProvenance('ChatGPT reachable \u2705');
+      } else {
+        showProvenance('ChatGPT responded but not JSON-ok. See console.', true);
+        console.warn('[TEST RAW]', raw);
+      }
     }catch(e){
       console.error('[ChatGPT][TEST] error', e);
       showProvenance('ChatGPT test error (see console).', true);
