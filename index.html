@@ -1870,10 +1870,16 @@ const VideoCoach=(function(){
   }
 
   function buildChatGPTPrompt(type, transcript){
-    return ChatGPTScoring.buildScoringPrompt(transcript);
+    const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
+    const rubric = rubricMap[type] || rubricMap.opening;
+    return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
   }
 
-  const parseChatGPTScoreResponse = ChatGPTScoring.parseScoreResponse;
+  function parseChatGPTScoreResponse(text){
+    const obj = extractFirstJson(text);
+    if(!obj) throw new Error('bad_json');
+    return obj;
+  }
 
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
@@ -1920,9 +1926,21 @@ const VideoCoach=(function(){
       const raw = data?.choices?.[0]?.message?.content || '';
       const parsed = parseChatGPTScoreResponse(raw);
       const conf = RUBRICS[type] || {cats:[]};
-      const cats = {};
-      conf.cats.forEach(c=>{ cats[c.key] = parsed.score; });
-      return {total:parsed.score*10, explanation:parsed.explanation, categories:cats, comments:{}};
+      const cats = {}, comments = {};
+      conf.cats.forEach(c=>{
+        const cv = parsed?.categories?.[c.key];
+        cats[c.key] = typeof cv === 'number' ? cv : 6;
+        const cm = parsed?.comments?.[c.key];
+        if(typeof cm === 'string') comments[c.key] = cm;
+      });
+      return {
+        total: Number(parsed.total ?? (parsed.score * 10)) || 0,
+        explanation: parsed.explanation || '',
+        notes: parsed.notes || '',
+        categories: cats,
+        comments,
+        qa: Array.isArray(parsed.qa) ? parsed.qa : []
+      };
     }
 
     const ctrl = new AbortController();
