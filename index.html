@@ -2839,25 +2839,36 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!key){ s.textContent = 'DIAG: No API key set. Click “API Key / Engine”.'; s.style.color='#ef9a9a'; return; }
 
     const usingResponses = /^gpt-5/i.test(model);
-    const endpoint = usingResponses ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+    const endpoint = usingResponses ? 'https://api.openai.com/v1/responses'
+                                    : 'https://api.openai.com/v1/chat/completions';
 
-    // Build bodies with safe token minimums
+    // Ask for the tiniest possible JSON so we don't waste output tokens
     const body = usingResponses ? {
       model,
-      input: [{ role:'user', content:[{ type:'input_text', text:'ping' }]}],
-      max_output_tokens: 64
+      input: [{ role:'user', content:[{ type:'input_text', text:'Return ONLY this JSON: {"ok":true}' }]}],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
+      },
+      max_output_tokens: 128,
+      temperature: 0
     } : {
       model,
-      messages: [{ role:'user', content:'ping' }],
-      max_tokens: 32
+      messages: [
+        { role:'system', content:'Return STRICT JSON only.' },
+        { role:'user', content:'Say {"ok":true} exactly as JSON.' }
+      ],
+      response_format: { type:"json_object" },
+      max_tokens: 64,
+      temperature: 0
     };
 
-    // extra safety clamp for Responses API
+    // extra guard (Responses API requires >=16)
     if (usingResponses && typeof body.max_output_tokens === 'number' && body.max_output_tokens < 16) {
       body.max_output_tokens = 16;
     }
 
-    console.log('[DIAG2 SEND]', endpoint, JSON.stringify(body, null, 2));
+    console.log('[DIAG SEND]', endpoint, JSON.stringify(body, null, 2));
     s.textContent = 'DIAG: contacting OpenAI…'; s.style.color='#9aa4b2';
 
     try{
@@ -2867,14 +2878,14 @@ document.addEventListener('DOMContentLoaded',()=>{
         body: JSON.stringify(body)
       });
       const txt = await resp.text();
-      const head = txt.slice(0, 500).replace(/\s+/g,' ').trim();
-      s.innerHTML = `DIAG: HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`
+      // show a concise status
+      s.innerHTML = resp.ok ? 'DIAG OK ✅' : `DIAG: HTTP ${resp.status} ${resp.statusText}`;
       s.style.color = resp.ok ? '#9aa4b2' : '#ef9a9a';
-      console.log('[DIAG2 RAW]', resp.status, resp.statusText, txt);
+      console.log('[DIAG RAW]', resp.status, resp.statusText, txt);
     }catch(e){
       s.textContent = 'DIAG: fetch failed — ' + (e?.message || e);
       s.style.color='#ef9a9a';
-      console.error('[DIAG2 ERROR]', e);
+      console.error('[DIAG ERROR]', e);
     }
   }
 
