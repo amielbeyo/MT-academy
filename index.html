@@ -2804,17 +2804,24 @@ document.addEventListener('DOMContentLoaded',()=>{
 (function(){
   function addDiagButton(){
     const bar = document.querySelector('#video .controls');
-    if(!bar || document.getElementById('btnDiag')) return;
+    if (!bar) return;
+
+    // Remove any old DIAG button so we don't keep stale onClick handlers
+    const old = document.getElementById('btnDiag');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    const old2 = document.getElementById('btnDiag2');
+    if (old2 && old2.parentNode) old2.parentNode.removeChild(old2);
+
     const btn = document.createElement('button');
-    btn.id = 'btnDiag';
+    btn.id = 'btnDiag2';
     btn.className = 'btn secondary';
     btn.textContent = 'Diagnostics (API)';
     btn.title = 'Runs a 1-line test to OpenAI and prints exact HTTP status/body.';
-    btn.onclick = runDiag;
+    btn.onclick = runDiag2;
     bar.appendChild(btn);
   }
 
-  async function runDiag(){
+  async function runDiag2(){
     const s = document.getElementById('videoStatus');
     const key = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiKey')||'""')) || '';
     const model = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiModel')||'"gpt-4o-mini"')) || 'gpt-4o-mini';
@@ -2823,17 +2830,26 @@ document.addEventListener('DOMContentLoaded',()=>{
 
     const usingResponses = /^gpt-5/i.test(model);
     const endpoint = usingResponses ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+
+    // Build bodies with safe token minimums
     const body = usingResponses ? {
       model,
       input: [{ role:'user', content:[{ type:'input_text', text:'ping' }]}],
-      max_output_tokens: 32
+      max_output_tokens: 64
     } : {
       model,
       messages: [{ role:'user', content:'ping' }],
-      max_tokens: 10
+      max_tokens: 32
     };
 
+    // extra safety clamp for Responses API
+    if (usingResponses && typeof body.max_output_tokens === 'number' && body.max_output_tokens < 16) {
+      body.max_output_tokens = 16;
+    }
+
+    console.log('[DIAG2 SEND]', endpoint, JSON.stringify(body, null, 2));
     s.textContent = 'DIAG: contacting OpenAI…'; s.style.color='#9aa4b2';
+
     try{
       const resp = await fetch(endpoint, {
         method:'POST',
@@ -2844,11 +2860,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       const head = txt.slice(0, 500).replace(/\s+/g,' ').trim();
       s.innerHTML = `DIAG: HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`
       s.style.color = resp.ok ? '#9aa4b2' : '#ef9a9a';
-      console.log('[DIAG RAW]', resp.status, resp.statusText, txt);
+      console.log('[DIAG2 RAW]', resp.status, resp.statusText, txt);
     }catch(e){
       s.textContent = 'DIAG: fetch failed — ' + (e?.message || e);
       s.style.color='#ef9a9a';
-      console.error('[DIAG ERROR]', e);
+      console.error('[DIAG2 ERROR]', e);
     }
   }
 
