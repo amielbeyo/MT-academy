@@ -2834,58 +2834,105 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function runDiag2(){
     const s = document.getElementById('videoStatus');
     const key = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiKey')||'""')) || '';
-    const model = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiModel')||'"gpt-4o-mini"')) || 'gpt-4o-mini';
-
+    let   model = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiModel')||'"gpt-4o-mini"')) || 'gpt-4o-mini';
     if(!key){ s.textContent = 'DIAG: No API key set. Click “API Key / Engine”.'; s.style.color='#ef9a9a'; return; }
 
-    const usingResponses = /^gpt-5/i.test(model);
-    const endpoint = usingResponses ? 'https://api.openai.com/v1/responses'
-                                    : 'https://api.openai.com/v1/chat/completions';
-
-    // Ask for the tiniest possible JSON so we don't waste output tokens
-    const body = usingResponses ? {
-      model,
-      input: [{ role:'user', content:[{ type:'input_text', text:'Return ONLY this JSON: {"ok":true}' }]}],
-      response_format: {
-        type: "json_schema",
-        json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
-      },
-      max_output_tokens: 128,
-      temperature: 0
-    } : {
-      model,
-      messages: [
-        { role:'system', content:'Return STRICT JSON only.' },
-        { role:'user', content:'Say {"ok":true} exactly as JSON.' }
-      ],
-      response_format: { type:"json_object" },
-      max_tokens: 64,
-      temperature: 0
-    };
-
-    // extra guard (Responses API requires >=16)
-    if (usingResponses && typeof body.max_output_tokens === 'number' && body.max_output_tokens < 16) {
-      body.max_output_tokens = 16;
+    function setModelSafe(newModel){
+      model = newModel;
+      try {
+        localStorage.setItem('mtpl.openaiModel', JSON.stringify(newModel));
+        const sel = document.getElementById('openaiModel');
+        if (sel) sel.value = newModel;
+      } catch(_) {}
     }
 
-    console.log('[DIAG SEND]', endpoint, JSON.stringify(body, null, 2));
-    s.textContent = 'DIAG: contacting OpenAI…'; s.style.color='#9aa4b2';
+    async function callOnce(m, opts={}){
+      const usingResponses = /^gpt-5/i.test(m);
+      const endpoint = usingResponses ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+      const body = usingResponses ? {
+        model: m,
+        input: [{ role:'user', content:[{ type:'input_text', text: opts.prompt || 'Return ONLY this JSON: {"ok":true}' }]}],
+        max_output_tokens: Math.max(16, opts.maxOut || 128),
+        temperature: 0
+      } : {
+        model: m,
+        messages: [
+          { role:'system', content:'Return STRICT JSON only.' },
+          { role:'user', content: opts.prompt || 'Say {"ok":true} exactly as JSON.' }
+        ],
+        response_format: { type:"json_object" },
+        max_tokens: opts.maxOut || 64,
+        temperature: 0
+      };
 
-    try{
+      // For GPT-5, allow json_schema if requested
+      if (/^gpt-5/i.test(m) && opts.useSchema !== false) {
+        body.response_format = {
+          type: "json_schema",
+          json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
+        };
+      }
+
+      s.textContent = `DIAG: contacting OpenAI (${m})…`; s.style.color='#9aa4b2';
       const resp = await fetch(endpoint, {
         method:'POST',
         headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
         body: JSON.stringify(body)
       });
       const txt = await resp.text();
-      // show a concise status
-      s.innerHTML = resp.ok ? 'DIAG OK ✅' : `DIAG: HTTP ${resp.status} ${resp.statusText}`;
-      s.style.color = resp.ok ? '#9aa4b2' : '#ef9a9a';
-      console.log('[DIAG RAW]', resp.status, resp.statusText, txt);
+      return { resp, txt, endpoint, body };
+    }
+
+    // Pretty-print a concise error to the status line
+    function showErr(resp, txt, label='OpenAI'){
+      const head = (txt || '').slice(0, 600).replace(/\s+/g,' ').trim();
+      s.innerHTML = `⚠️ ${label} HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`;
+      s.style.color = '#ef9a9a';
+      console.warn('[DIAG ERROR]', resp.status, resp.statusText, txt);
+    }
+
+    // 1) First attempt
+    try{
+      let {resp, txt} = await callOnce(model, { maxOut:128 });
+
+      if (resp.ok){
+        s.textContent = 'DIAG OK ✅'; s.style.color='#9aa4b2';
+        console.log('[DIAG OK]', txt);
+        return;
+      }
+
+      // Parse error JSON if possible
+      let j=null; try{ j = JSON.parse(txt); }catch(_){ }
+      const msg = j?.error?.message || '';
+      const code = j?.error?.code || '';
+
+      // 2) Smart retries:
+      // a) model not found -> fallback to gpt-4o
+      if (/model_not_found|does not exist/i.test(msg) || /Unknown model/i.test(msg)) {
+        setModelSafe('gpt-4o');
+        ({resp, txt} = await callOnce('gpt-4o', { maxOut:128 }));
+        if (resp.ok){ s.textContent='DIAG OK ✅ (auto-switched to gpt-4o)'; s.style.color='#9aa4b2'; return; }
+        showErr(resp, txt, 'OpenAI (fallback gpt-4o)'); return;
+      }
+
+      // b) max_output_tokens too small -> bump and retry once
+      if (/max_output_tokens/i.test(msg) || /integer.*minimum/i.test(msg)) {
+        ({resp, txt} = await callOnce(model, { maxOut:256 }));
+        if (resp.ok){ s.textContent='DIAG OK ✅'; s.style.color='#9aa4b2'; return; }
+      }
+
+      // c) response_format not supported complaint -> retry w/o schema/json_object
+      if (/response_format|json_schema|json_object/i.test(msg)) {
+        ({resp, txt} = await callOnce(model, { useSchema:false, maxOut:128, prompt:'ok' }));
+        if (resp.ok){ s.textContent='DIAG OK ✅'; s.style.color='#9aa4b2'; return; }
+      }
+
+      // d) generic 400 — show full head
+      showErr(resp, txt);
     }catch(e){
       s.textContent = 'DIAG: fetch failed — ' + (e?.message || e);
       s.style.color='#ef9a9a';
-      console.error('[DIAG ERROR]', e);
+      console.error('[DIAG FATAL]', e);
     }
   }
 
