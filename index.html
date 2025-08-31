@@ -797,6 +797,14 @@ function showProvenance(msg, isErr=false){
   s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
 }
 
+function surfaceHttpError(resp, rawText){
+  const s = document.getElementById('videoStatus');
+  if(!s) return;
+  const head = (rawText || '').slice(0, 220).replace(/\s+/g, ' ').trim();
+  s.innerHTML = `⚠️ OpenAI HTTP ${resp.status} ${resp.statusText} • ${head}`;
+  s.style.color = '#ef9a9a';
+}
+
 /* Utilities */
 const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -1059,7 +1067,7 @@ function attachVideoGateHandlers(){
     const key=$('openaiKey').value.trim();
     const model=$('openaiModel').value;
     const maxt=Number($('openaiMaxTokens').value)||600;
-    if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
+    if(!/^sk-[A-Za-z0-9_-]+/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
@@ -1392,14 +1400,14 @@ Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION
     const resp = await openAIChat(body);
     if (!resp.ok) {
       const errTxt = await resp.text();
-      showProvenance('OpenAI error: ' + errTxt.slice(0,150), true);
+      surfaceHttpError(resp, errTxt);
       alert('ChatGPT error (see status line).');
       return;
     }
 
     const data = await resp.json();
     if (data?.error?.message) {
-      showProvenance('OpenAI error: ' + data.error.message, true);
+      surfaceHttpError({status:200,statusText:'OK'}, data.error.message);
       alert('ChatGPT error (see status line).');
       return;
     }
@@ -2212,6 +2220,7 @@ Return ONLY JSON with:
       if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
       if(!resp.ok){
         const t=await resp.text().catch(()=> '');
+        surfaceHttpError(resp, t);
         const e=new Error('chatgpt_error'); e.detail=t;
         if(/insufficient_quota|exceeded.*quota/i.test(t)) e.code='insufficient_quota';
         throw e;
@@ -2786,6 +2795,61 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch(e){ console.error(e) }
 });
 } // end browser check
+</script>
+<script>
+(function(){
+  function addDiagButton(){
+    const bar = document.querySelector('#video .controls');
+    if(!bar || document.getElementById('btnDiag')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btnDiag';
+    btn.className = 'btn secondary';
+    btn.textContent = 'Diagnostics (API)';
+    btn.title = 'Runs a 1-line test to OpenAI and prints exact HTTP status/body.';
+    btn.onclick = runDiag;
+    bar.appendChild(btn);
+  }
+
+  async function runDiag(){
+    const s = document.getElementById('videoStatus');
+    const key = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiKey')||'""')) || '';
+    const model = (window.localStorage && JSON.parse(localStorage.getItem('mtpl.openaiModel')||'"gpt-4o-mini"')) || 'gpt-4o-mini';
+
+    if(!key){ s.textContent = 'DIAG: No API key set. Click “API Key / Engine”.'; s.style.color='#ef9a9a'; return; }
+
+    const usingResponses = /^gpt-5/i.test(model);
+    const endpoint = usingResponses ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+    const body = usingResponses ? {
+      model,
+      input: [{ role:'user', content:[{ type:'input_text', text:'ping' }]}],
+      max_output_tokens: 10
+    } : {
+      model,
+      messages: [{ role:'user', content:'ping' }],
+      max_tokens: 10
+    };
+
+    s.textContent = 'DIAG: contacting OpenAI…'; s.style.color='#9aa4b2';
+    try{
+      const resp = await fetch(endpoint, {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify(body)
+      });
+      const txt = await resp.text();
+      const head = txt.slice(0, 500).replace(/\s+/g,' ').trim();
+      s.innerHTML = `DIAG: HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`
+      s.style.color = resp.ok ? '#9aa4b2' : '#ef9a9a';
+      console.log('[DIAG RAW]', resp.status, resp.statusText, txt);
+    }catch(e){
+      s.textContent = 'DIAG: fetch failed — ' + (e?.message || e);
+      s.style.color='#ef9a9a';
+      console.error('[DIAG ERROR]', e);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', addDiagButton);
+})();
 </script>
 </body>
 </html>
