@@ -977,6 +977,10 @@ async function openAIChat(body, signal){
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
+    // Safety: Responses API requires >= 16
+    if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
+      payload.max_output_tokens = 16;
+    }
     if (payload.response_format) {
       payload.response_format = normalizeResponseFormatForResponses(payload.response_format);
     }
@@ -2822,7 +2826,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const body = usingResponses ? {
       model,
       input: [{ role:'user', content:[{ type:'input_text', text:'ping' }]}],
-      max_output_tokens: 10
+      max_output_tokens: 32
     } : {
       model,
       messages: [{ role:'user', content:'ping' }],
