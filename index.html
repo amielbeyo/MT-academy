@@ -125,13 +125,13 @@ a.inline{color:var(--accent);text-decoration:underline}
   </div>
 
   <nav id="navMenu" class="nav-menu">
-    <button class="tab" data-tab="objections">Objections</button>
-    <button class="tab" data-tab="video">Video Coach</button>
-    <button class="tab" data-tab="writing">Writing</button>
-    <button class="tab" data-tab="rules" id="rulesTab">AZ Rules</button>
-    <button class="tab" data-tab="quiz">Rules Quiz</button>
-    <button class="tab active" data-tab="howto">How To Use</button>
-    <button class="tab" data-tab="contact">Contact</button>
+    <a class="tab" href="#objections">Objections</a>
+    <a class="tab" href="#video">Video Coach</a>
+    <a class="tab" href="#writing">Writing</a>
+    <a class="tab" href="#rules" id="rulesTab">AZ Rules</a>
+    <a class="tab" href="#quiz">Rules Quiz</a>
+    <a class="tab" href="#howto">How To Use</a>
+    <a class="tab" href="#contact">Contact</a>
   </nav>
 
   <!-- Gateway -->
@@ -182,7 +182,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </div>
 
   <!-- Objections -->
-  <section id="objections" class="card" hidden>
+  <section id="objections" class="card">
     <h2>Objections Drill</h2>
     <div class="controls small">
       <label>Filter: <select id="objFilter"><option value="all">All</option><option>Hearsay</option><option>611 Control</option><option>Foundation</option><option>Opinion/Experts</option><option>Character/404</option><option>Relevance/403</option><option>Policy Exclusions</option></select></label>
@@ -233,7 +233,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
 
   <!-- Video Coach -->
-  <section id="video" class="card" hidden>
+  <section id="video" class="card">
     <h2>Video Coach (Transcribe & Type-Specific Rubric + Objection Finder)</h2>
     <div class="small" id="videoModeBanner"></div>
     <div class="controls small">
@@ -264,7 +264,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
 
   <!-- Writing -->
-  <section id="writing" class="card" hidden>
+  <section id="writing" class="card">
     <h2>Writing New Materials (ChatGPT)</h2>
     <div class="controls small">
       <label>Type:
@@ -286,7 +286,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
 
   <!-- Rules -->
-  <section id="rules" class="card" hidden>
+  <section id="rules" class="card">
     <h2 id="rulesHeading">AZ HS Mock Trial Rules of Evidence — Explorer</h2>
     <div class="controls small">
       <input id="rulesSearch" placeholder="Search by number or topic (e.g., 403, hearsay)" style="width:320px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:#061122;color:#e6eef6">
@@ -298,7 +298,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
 
   <!-- Rules Quiz -->
-  <section id="quiz" class="card" hidden>
+  <section id="quiz" class="card">
     <h2>Rules Quiz</h2>
     <div class="controls small">
       <label>Mode: <select id="quizMode"><option value="mix">Mixed</option><option value="titleFromNumber">Title from Number</option><option value="numberFromTitle">Number from Title</option></select></label>
@@ -333,7 +333,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     </ol>
   </section>
   <!-- Contact -->
-  <section id="contact" class="card" hidden>
+  <section id="contact" class="card">
     <h2>Contact</h2>
     <p class="small">For recommendations, contact the creator at <a href="mailto:amielbeyo1@gmail.com">amielbeyo1@gmail.com</a>.</p>
   </section>
@@ -924,23 +924,17 @@ function renderModeBadge(){
   }
 }
 
-/* Navigation menu + tabs */
-(function(){
+/* Navigation menu links */
+document.addEventListener('DOMContentLoaded',()=>{
   const navMenu=$('navMenu');
-  function btns(){return Q('#navMenu button.tab[data-tab]')}
-  function names(){return btns().map(b=>b.dataset.tab)}
-  function show(n){
-    btns().forEach(b=>b.classList.toggle('active',b.dataset.tab===n));
-    names().forEach(t=>{const el=$(t);if(el) el.hidden=(t!==n)});
-    save('mtpl.tab',n);
-    if(n==='video'){ maybeShowVideoGate(); renderModeBadge(); }
-  }
   navMenu.addEventListener('click',e=>{
-    const t=e.target.closest('button.tab[data-tab]');
-    if(t){ e.preventDefault(); show(t.dataset.tab); }
+    const link=e.target.closest('a.tab');
+    if(link){
+      navMenu.classList.remove('open');
+      $('menuToggle').setAttribute('aria-expanded','false');
+    }
   });
-  document.addEventListener('DOMContentLoaded',()=>{ show('howto') })
-})();
+});
 
 /* Gateway wiring */
 function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
@@ -2402,6 +2396,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     $('rulesHeading').textContent=`${STATES[CURRENT_STATE].abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
     RulesExplorer.render();
     RulesQuiz.refresh();
+    const initialHash=location.hash.slice(1);
+    if(initialHash==='video'){ maybeShowVideoGate(); }
     $('menuToggle').addEventListener('click',()=>{
       const nav=$('navMenu');
       const isOpen=nav.classList.toggle('open');
