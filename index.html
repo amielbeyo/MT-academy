@@ -1276,44 +1276,168 @@ function newQ(){const p=pool();cur=p.length?p[Math.floor(Math.random()*(p.length
  function renderStats(){const cats=['Hearsay','611 Control','Foundation','Opinion/Experts','Character/404','Relevance/403','Policy Exclusions'];$('objStats').textContent=cats.map(k=>{const s=stats[k]||{attempts:0,correct:0};const pct=s.attempts?Math.round(100*s.correct/s.attempts):0;return `${k.split('/')[0]} ${pct}% (${s.correct}/${s.attempts})`}).join(' \u00b7 ')}
 function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
- async function gptNew(){
+
+// Allowed objection names (already defined as OBJECTION_CHOICES)
+// Normalizer to map common variants to your canonical names
+function normalizeObjectionName(s){
+  if(!s) return s;
+  const x = String(s).trim().toLowerCase();
+  const map = new Map([
+    ['leading question','Leading'],
+    ['leading', 'Leading'],
+    ['compound question','Compound'],
+    ['compound','Compound'],
+    ['argumentative question','Argumentative'],
+    ['argumentative','Argumentative'],
+    ['asked and answered','Asked & Answered'],
+    ['asked & answered','Asked & Answered'],
+    ['vague', 'Vague/Ambiguous'],
+    ['vague/ambiguous','Vague/Ambiguous'],
+    ['ambiguous','Vague/Ambiguous'],
+    ['non-responsive','Nonresponsive'],
+    ['nonresponsive', 'Nonresponsive'],
+    ['lack of foundation','Lack of Foundation'],
+    ['foundation','Lack of Foundation'],
+    ['lack of personal knowledge','Lack of Personal Knowledge'],
+    ['personal knowledge','Lack of Personal Knowledge'],
+    ['assumes facts not in evidence','Assumes Facts Not in Evidence'],
+    ['misstates evidence','Misstates Evidence'],
+    ['beyond the scope','Beyond Scope'],
+    ['beyond scope','Beyond Scope'],
+    ['cumulative','Cumulative'],
+    ['narrative','Narrative'],
+    ['character','Improper Character'],
+    ['improper character','Improper Character'],
+    ['opinion','Improper Opinion'],
+    ['improper opinion','Improper Opinion'],
+    ['relevance','Relevance'],
+    ['irrelevant','Relevance'],
+    ['hearsay','Hearsay'],
+    ['hearsay within hearsay','Hearsay within Hearsay'],
+    ['subsequent remedial measures','Subsequent Remedial Measures'],
+    ['compromise','Compromise/Offers'],
+    ['offers to compromise','Compromise/Offers'],
+    ['medical payments','Medical Payments'],
+    ['plea discussions','Plea Discussions'],
+    ['insurance','Insurance'],
+    ['speculation','Speculation'],
+  ]);
+  if (map.has(x)) return map.get(x);
+  // try a loose contains match
+  const hit = OBJECTION_CHOICES.find(c => x.includes(c.toLowerCase()));
+  return hit || s;
+}
+
+// JSON schema used for GPT-5 strict output
+const OBJECTION_JSON_SCHEMA = {
+  name: "objection_drill",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      fact: { type: "string" },
+      q:    { type: "string" },
+      ans:  { type: "string", enum: OBJECTION_CHOICES },
+      rule: { type: "string" },
+      why:  { type: "string" }
+    },
+    required: ["fact","q","ans","rule","why"]
+  },
+  strict: true
+};
+
+async function gptNew(){
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
-   return;
+    alert('ChatGPT mode not enabled or API key missing.');
+    return;
   }
-  const diff=$('objGPTDiff').value||'easy';
-  $('objGPTChat').hidden=true;
-  let userPrompt=`Generate a ${diff} difficulty objection drill.`;
-  if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
-  try{
-   const messages=[
-    {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
-    {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
-   ];
-   const resp=await openAIChat({
-    model:EngineState.openaiModel||'gpt-4o-mini',
+
+  const diff = $('objGPTDiff').value || 'easy';
+  $('objGPTChat').hidden = true;
+
+  const model = EngineState.openaiModel || 'gpt-4o-mini';
+  const isG5  = /\bgpt-5\b/i.test(model);
+
+  // Clearer/shorter user ask; keep difficulty knob
+  let userPrompt = `Generate a ${diff} difficulty single mock-trial objection drill. 
+Return only the JSON object for: fact (one sentence witness/record line), q (exact question counsel asks), 
+ans (one of: ${OBJECTION_CHOICES.join(', ')}), rule (rule number or short tag), why (1–2 sentences). 
+There must be exactly one best objection and it must be supported by the transcript.`;
+
+  // System message – narrow and enforce enum list explicitly
+  const systemMsg = {
+    role: 'system',
+    content:
+`You are an Arizona High School Mock Trial judge.
+Output must contain a short fact pattern and a SINGLE question that triggers exactly ONE correct objection.
+Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION_CHOICES.join(', ')}.`
+  };
+
+  const messages = [
+    systemMsg,
+    { role: 'user', content: userPrompt }
+  ];
+
+  // Build request body with strict JSON control:
+  const body = {
+    model,
     messages,
-    response_format:{type:'json_object'},
-    max_tokens:250
-   });
-   const data=await resp.json();
-   const raw=data?.choices?.[0]?.message?.content||'';
-   const obj=extractFirstJson(raw);
-   if(obj&&obj.fact&&obj.q&&obj.ans){
-    cur=obj;
-    $('objFact').textContent=obj.fact;
-    $('objQ').textContent=obj.q;
-    const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');
-    $('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';
-    if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
-   } else {
-    alert('Bad response from ChatGPT.');
-   }
-  }catch(e){
-   console.error('[GPT Prompt]',e);
-   alert('ChatGPT error');
+    temperature: 0,
+    max_tokens: 300
+  };
+
+  if (isG5) {
+    // Responses API: use strict json_schema (prevents chatty text)
+    body.response_format = { type: "json_schema", json_schema: OBJECTION_JSON_SCHEMA };
+  } else {
+    // Chat Completions: stick to json_object & reiterate in the prompt
+    body.response_format = { type: "json_object" };
   }
- }
+
+  try{
+    const resp = await openAIChat(body);
+    const data = await resp.json();
+    const raw  = data?.choices?.[0]?.message?.content || '';
+
+    // Try to parse JSON from the returned string
+    const obj = extractFirstJson(raw);
+
+    if (!obj || !obj.fact || !obj.q || !obj.ans) {
+      showProvenance('Bad JSON from model: ' + String(raw).slice(0,150), true);
+      alert('Bad response from ChatGPT. See status line for details.');
+      return;
+    }
+
+    // Normalize ans to your canonical enum list
+    obj.ans = normalizeObjectionName(obj.ans);
+    if (!OBJECTION_CHOICES.includes(obj.ans)) {
+      // last-resort guard: if the model drifted, hard fail visibly
+      showProvenance('Model returned non-canonical objection: ' + obj.ans, true);
+      alert('Bad response from ChatGPT (invalid objection name).');
+      return;
+    }
+
+    // Success → load into UI
+    cur = obj;
+    $('objFact').textContent = obj.fact;
+    $('objQ').textContent    = obj.q;
+
+    const r = $('objResult');
+    r.hidden = true;
+    r.classList.remove('ok','bad');
+    $('objRule').textContent   = '';
+    $('objWhy').textContent    = '';
+    $('objRuling').textContent = '';
+
+    if (OBJECTION_CHOICES.includes(obj.ans)) {
+      $('objSelect').value = obj.ans;
+    }
+  }catch(e){
+    console.error('[GPT Prompt]', e);
+    showProvenance('Error calling OpenAI: ' + (e?.message || String(e)), true);
+    alert('ChatGPT error (see status line).');
+  }
+}
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
