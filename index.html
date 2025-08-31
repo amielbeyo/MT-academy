@@ -985,6 +985,11 @@ async function openAIChat(body, signal){
     if (payload.response_format) {
       payload.response_format = normalizeResponseFormatForResponses(payload.response_format);
     }
+    // GPT-5 (Responses API) does NOT support temperature/top_p/penalties — remove them
+    if ('temperature' in payload)        delete payload.temperature;
+    if ('top_p' in payload)              delete payload.top_p;
+    if ('frequency_penalty' in payload)  delete payload.frequency_penalty;
+    if ('presence_penalty' in payload)   delete payload.presence_penalty;
   }
 
   const resp = await fetch(endpoint, {
@@ -2852,8 +2857,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       const body = usingResponses ? {
         model: m,
         input: [{ role:'user', content:[{ type:'input_text', text: opts.prompt || 'Return ONLY this JSON: {"ok":true}' }]}],
-        max_output_tokens: Math.max(16, opts.maxOut || 128),
-        temperature: 0
+        response_format: {
+          type: "json_schema",
+          json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
+        },
+        max_output_tokens: Math.max(16, opts.maxOut || 128)
       } : {
         model: m,
         messages: [
@@ -2864,14 +2872,6 @@ document.addEventListener('DOMContentLoaded',()=>{
         max_tokens: opts.maxOut || 64,
         temperature: 0
       };
-
-      // For GPT-5, allow json_schema if requested
-      if (/^gpt-5/i.test(m) && opts.useSchema !== false) {
-        body.response_format = {
-          type: "json_schema",
-          json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
-        };
-      }
 
       s.textContent = `DIAG: contacting OpenAI (${m})…`; s.style.color='#9aa4b2';
       const resp = await fetch(endpoint, {
