@@ -921,37 +921,93 @@ const EngineState = {
 };
 
 async function openAIChat(body, signal){
-  const usingResp=(EngineState.openaiModel||'').includes('gpt-5');
-  const endpoint=usingResp
-    ?'https://api.openai.com/v1/responses'
-    :'https://api.openai.com/v1/chat/completions';
-  if(usingResp){
-    if(body.messages){body.input=body.messages;delete body.messages;}
-    if(body.max_tokens){body.max_output_tokens=body.max_tokens;delete body.max_tokens;}
+  // Detect Responses API models
+  const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
+
+  // Helper: convert Chat Completions "messages" into Responses "input"
+  function chatToResponsesInput(messages){
+    // Responses API expects: [{ role, content: [{ type:"input_text", text:"..." }, ...] }, ...]
+    return (messages || []).map(m => ({
+      role: m.role, // "system" | "user" | "assistant"
+      content: Array.isArray(m.content)
+        ? m.content.map(part => (
+            typeof part === 'string'
+              ? { type: 'input_text', text: part }
+              : (part.type ? part : { type: 'input_text', text: String(part) })
+          ))
+        : [{ type: 'input_text', text: String(m.content ?? '') }]
+    }));
   }
-  const resp=await fetch(endpoint,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify(body),
+
+  // Choose endpoint and normalize payload
+  const endpoint = usingResponses
+    ? 'https://api.openai.com/v1/responses'
+    : 'https://api.openai.com/v1/chat/completions';
+
+  // Shallow clone so we can rewrite fields safely
+  const payload = { ...body, model: EngineState.openaiModel || body.model };
+
+  if (usingResponses) {
+    // Map Chat → Responses
+    if (payload.messages) {
+      payload.input = chatToResponsesInput(payload.messages);
+      delete payload.messages;
+    }
+    // max_tokens → max_output_tokens
+    if (payload.max_tokens != null) {
+      payload.max_output_tokens = payload.max_tokens;
+      delete payload.max_tokens;
+    }
+    // `response_format: {type: "json_object"}` is valid for Responses as-is.
+  }
+
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${EngineState.openaiKey}`
+    },
+    body: JSON.stringify(payload),
     signal
   });
-  if(!usingResp) return resp;
-  const txt=await resp.text();
-  if(!resp.ok){
-    return new Response(txt,{status:resp.status,statusText:resp.statusText,headers:resp.headers});
+
+  // For Chat Completions, return directly
+  if (!usingResponses) return resp;
+
+  // For Responses API, adapt the response to look like a Chat Completions result
+  const txt = await resp.text();
+  if (!resp.ok) {
+    // Preserve error details so callers can branch on status/message
+    return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
   }
-  let data={};
-  try{data=JSON.parse(txt);}catch{}
-  const msg=data?.output?.[0]?.content?.[0]?.text||data?.output_text||'';
-  const mapped={
-    choices:[{message:{role:'assistant',content:msg}}],
-    usage:{
-      prompt_tokens:data?.usage?.input_tokens??data?.usage?.prompt_tokens,
-      completion_tokens:data?.usage?.output_tokens??data?.usage?.completion_tokens,
-      total_tokens:data?.usage?.total_tokens
+
+  let data = {};
+  try { data = JSON.parse(txt); } catch {}
+
+  // Robust extraction (supports output_text or structured output)
+  const outputText =
+    data?.output_text ??
+    data?.output?.map(o =>
+      (o?.content || [])
+        .map(c => (typeof c?.text === 'string' ? c.text : ''))
+        .join('')
+    ).join('\n') ??
+    '';
+
+  const mapped = {
+    choices: [{ message: { role: 'assistant', content: outputText } }],
+    usage: {
+      prompt_tokens: data?.usage?.input_tokens ?? data?.usage?.prompt_tokens,
+      completion_tokens: data?.usage?.output_tokens ?? data?.usage?.completion_tokens,
+      total_tokens: data?.usage?.total_tokens
     }
   };
-  return new Response(JSON.stringify(mapped),{status:resp.status,statusText:resp.statusText,headers:resp.headers});
+
+  return new Response(JSON.stringify(mapped), {
+    status: resp.status,
+    statusText: resp.statusText,
+    headers: resp.headers
+  });
 }
 
 function renderModeBadge(){
@@ -1376,13 +1432,23 @@ function gptRecord(){
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
         const blob=new Blob(chunks,{type:'audio/webm'});
-        const form=new FormData();form.append('model',(EngineState.openaiModel||'gpt-4o-mini')+'-transcribe');form.append('file',blob,'audio.webm');
-         try{
-           const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
-           const data=await resp.json();const text=data?.text?.trim();
-           if(text){$('objGPTInput').value=text;}
-         }catch(err){alert('Transcription error: '+err.message);}
-         updateGPTSend();
+        const transcribeModel = 'gpt-4o-transcribe'; // stable STT model
+        const form = new FormData();
+        form.append('model', transcribeModel);
+        form.append('file', blob, 'audio.webm');
+        try{
+          const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${EngineState.openaiKey}` },
+            body: form
+          });
+          const data = await resp.json();
+          const text = data?.text?.trim();
+          if (text) { $('objGPTInput').value = text; }
+        }catch(err){
+          alert('Transcription error: ' + err.message);
+        }
+        updateGPTSend();
        };
        rec.start();
        $('btnGPTRecord').disabled=true;
