@@ -949,19 +949,6 @@ async function openAIChat(body, signal){
     }));
   }
 
-  // Helper: if caller passed response_format:{type:"json_object"} for GPT-5, convert it to a minimal json_schema
-  function normalizeResponseFormatForResponses(rf){
-    if (!rf || typeof rf !== 'object') return undefined;
-    if (rf.type && rf.type !== 'json_object') return rf; // assume already valid (e.g., json_schema)
-    return {
-      type: "json_schema",
-      json_schema: {
-        name: "generic_json_object",
-        schema: { type: "object", additionalProperties: true }
-      }
-    };
-  }
-
   // Choose endpoint and normalize payload
   const endpoint = usingResponses
     ? 'https://api.openai.com/v1/responses'
@@ -970,26 +957,37 @@ async function openAIChat(body, signal){
   const payload = { ...body, model: EngineState.openaiModel || body.model };
 
   if (usingResponses) {
+    // Chat → Responses mapping
     if (payload.messages) {
       payload.input = chatToResponsesInput(payload.messages);
       delete payload.messages;
     }
+
+    // max_tokens → max_output_tokens (min 16)
     if (payload.max_tokens != null) {
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
-    // Safety: Responses API requires >= 16
     if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
       payload.max_output_tokens = 16;
     }
+
+    // REMOVE unsupported sampling/penalties for GPT-5
+    if ('temperature'        in payload) delete payload.temperature;
+    if ('top_p'              in payload) delete payload.top_p;
+    if ('frequency_penalty'  in payload) delete payload.frequency_penalty;
+    if ('presence_penalty'   in payload) delete payload.presence_penalty;
+
+    // response_format → text.format
     if (payload.response_format) {
-      payload.response_format = normalizeResponseFormatForResponses(payload.response_format);
+      const rf = payload.response_format;
+      if (rf.type === 'json_object') {
+        payload.text = { format: 'json' };
+      } else if (rf.type === 'json_schema' && rf.json_schema) {
+        payload.text = { format: { type: 'json_schema', json_schema: rf.json_schema } };
+      }
+      delete payload.response_format;
     }
-    // GPT-5 (Responses API) does NOT support temperature/top_p/penalties — remove them
-    if ('temperature' in payload)        delete payload.temperature;
-    if ('top_p' in payload)              delete payload.top_p;
-    if ('frequency_penalty' in payload)  delete payload.frequency_penalty;
-    if ('presence_penalty' in payload)   delete payload.presence_penalty;
   }
 
   const resp = await fetch(endpoint, {
@@ -2857,10 +2855,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const body = usingResponses ? {
         model: m,
         input: [{ role:'user', content:[{ type:'input_text', text: opts.prompt || 'Return ONLY this JSON: {"ok":true}' }]}],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name:"ok_check", schema:{ type:"object", required:["ok"], properties:{ ok:{ type:"boolean", const:true } } } }
-        },
+        text: { format: 'json' },
         max_output_tokens: Math.max(16, opts.maxOut || 128)
       } : {
         model: m,
@@ -2868,7 +2863,7 @@ document.addEventListener('DOMContentLoaded',()=>{
           { role:'system', content:'Return STRICT JSON only.' },
           { role:'user', content: opts.prompt || 'Say {"ok":true} exactly as JSON.' }
         ],
-        response_format: { type:"json_object" },
+        response_format: { type:'json_object' },
         max_tokens: opts.maxOut || 64,
         temperature: 0
       };
