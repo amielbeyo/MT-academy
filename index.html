@@ -937,13 +937,60 @@ function isResponsesModel(model){
   return /^gpt-5/i.test(String(model || ''));
 }
 
+function tryExtractMessage(txt){
+  try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
+}
+
+function extractResponsesText(data){
+  // Prefer the helper the API returns
+  if (typeof data?.output_text === 'string' && data.output_text.trim()){
+    return data.output_text.trim();
+  }
+  // Fallbacks for older/variant payloads
+  const content = data?.output?.[0]?.content;
+  if (Array.isArray(content)){
+    const t =
+      content.find(c => c.type === 'output_text')?.text ||
+      content.find(c => typeof c.text === 'string')?.text ||
+      content[0]?.text;
+    if (t) return String(t);
+  }
+  return '';
+}
+
+async function callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens){
+  const body = {
+    model,
+    messages,
+    temperature,
+    ...(Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {}),
+    ...(wantsJson ? { response_format: { type: 'json_object' } } : {})
+  };
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok){
+    const txt = await resp.text().catch(()=> '');
+    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+    err.status = resp.status;
+    throw err;
+  }
+  return await resp.json();
+}
+
 async function callOpenAI(model, messages, options = {}) {
   const key = EngineState.openaiKey;
   if (!key) { const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
 
-  // ------ GPT-5 / Responses API path ------
+  const temperature = options.temperature ?? 0;
+  const wantsJson = options.response_format?.type === 'json_object';
+  const maxTokens = options.max_tokens;
+
+  // -------- GPT-5: Responses API path --------
   if (isResponsesModel(model)) {
-    // 1) Responses API requires "input_text"
     const input = (messages || []).map(m => ({
       role: m.role || 'user',
       content: [{ type: 'input_text', text: String(m.content ?? '') }]
@@ -952,13 +999,12 @@ async function callOpenAI(model, messages, options = {}) {
     const body = {
       model,
       input,
-      temperature: options.temperature ?? 0,
-      // 2) Responses API uses max_output_tokens
-      ...(Number.isFinite(options.max_tokens) ? { max_output_tokens: options.max_tokens } : {})
+      temperature,
+      ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
     };
 
-    // 3) Map "json_object" -> json_schema for Responses API
-    if (options.response_format?.type === 'json_object') {
+    // Map JSON mode to Responses API schema
+    if (wantsJson) {
       body.response_format = {
         type: 'json_schema',
         json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
@@ -967,60 +1013,38 @@ async function callOpenAI(model, messages, options = {}) {
       body.response_format = options.response_format;
     }
 
-    const resp = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify(body)
-    });
+    try {
+      const resp = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'Authorization': `Bearer ${key}`,
+          // Some accounts still require this beta flag for /responses
+          'OpenAI-Beta': 'assistants=v2'
+        },
+        body: JSON.stringify(body)
+      });
 
-    // Show the real API error text (helps with 400s)
-    if (!resp.ok) {
-      let errText = await resp.text().catch(()=> '');
-      try { const j = JSON.parse(errText); errText = j?.error?.message || errText; } catch (_){ }
-      const e = new Error(errText || `HTTP ${resp.status}`);
-      e.status = resp.status;
-      throw e;
+      if (!resp.ok) {
+        const txt = await resp.text().catch(()=> '');
+        const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+        err.status = resp.status;
+        throw err;
+      }
+
+      const data = await resp.json();
+      const text = extractResponsesText(data);
+      return { choices: [{ message: { content: text } }], raw: data };
+
+    } catch (err) {
+      // Transparent fallback so the app still works if /responses isn’t available
+      console.warn('[Responses API failed, falling back to Chat Completions]', err);
+      return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
     }
-
-    const data = await resp.json();
-
-    // Robustly read the text from Responses API
-    const text =
-      (typeof data.output_text === 'string' && data.output_text.trim()) ? data.output_text.trim()
-      : (Array.isArray(data.output) && data.output[0]?.content?.find?.(c => c.type === 'output_text')?.text)
-      || (data.output?.[0]?.content?.[0]?.text)
-      || '';
-
-    // Return in the same shape your callers expect
-    return { choices: [{ message: { content: text } }], raw: data };
   }
 
-  // ------ GPT-4o / Chat Completions path ------
-  const body = {
-    model,
-    messages,
-    temperature: options.temperature ?? 0,
-    ...(typeof options.max_tokens === 'number' ? { max_tokens: options.max_tokens } : {}),
-    ...(options.response_format ? { response_format: options.response_format } : {})
-  };
-
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify(body)
-  });
-
-  if (!resp.ok) {
-    let errText = await resp.text().catch(()=> '');
-    try { const j = JSON.parse(errText); errText = j?.error?.message || errText; } catch (_){ }
-    const e = new Error(errText || `HTTP ${resp.status}`);
-    e.status = resp.status;
-    throw e;
-  }
-  return await resp.json();
+  // -------- GPT-4o: Chat Completions path --------
+  return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
 }
 
 function renderModeBadge(){
