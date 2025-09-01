@@ -933,10 +933,6 @@ const EngineState = {
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
 };
 
-function isResponsesModel(model){
-  return /^gpt-5/i.test(String(model || ''));
-}
-
 function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
@@ -981,70 +977,80 @@ async function callChatCompletions(model, messages, options, key, temperature, w
   return await resp.json();
 }
 
-async function callOpenAI(model, messages, options = {}) {
-  const key = EngineState.openaiKey;
-  if (!key) { const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
+function shouldUseResponses(err){
+  const msg = (err?.message || '').toLowerCase();
+  return (
+    err?.status === 400 || err?.status === 404 || err?.status === 422
+  ) && (
+    msg.includes('use the responses api') ||
+    msg.includes('does not support chat.completions') ||
+    msg.includes('unrecognized request argument: messages') ||
+    msg.includes('unknown parameter: messages')
+  );
+}
 
-  const temperature = options.temperature ?? 0;
-  const wantsJson = options.response_format?.type === 'json_object';
-  const maxTokens = options.max_tokens;
+async function callResponses(model, messages, options, key, temperature, wantsJson, maxTokens){
+  const input = (messages || []).map(m => ({
+    role: m.role || 'user',
+    content: [{ type: 'input_text', text: String(m.content ?? '') }]
+  }));
 
-  // -------- GPT-5: Responses API path --------
-  if (isResponsesModel(model)) {
-    const input = (messages || []).map(m => ({
-      role: m.role || 'user',
-      content: [{ type: 'input_text', text: String(m.content ?? '') }]
-    }));
+  const body = {
+    model,
+    input,
+    temperature,
+    ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
+  };
 
-    const body = {
-      model,
-      input,
-      temperature,
-      ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
+  if (wantsJson){
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
     };
-
-    // Map JSON mode to Responses API schema
-    if (wantsJson) {
-      body.response_format = {
-        type: 'json_schema',
-        json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
-      };
-    } else if (options.response_format) {
-      body.response_format = options.response_format;
-    }
-
-    try {
-      const resp = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type':'application/json',
-          'Authorization': `Bearer ${key}`,
-          // Some accounts still require this beta flag for /responses
-          'OpenAI-Beta': 'assistants=v2'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (!resp.ok) {
-        const txt = await resp.text().catch(()=> '');
-        const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
-        err.status = resp.status;
-        throw err;
-      }
-
-      const data = await resp.json();
-      const text = extractResponsesText(data);
-      return { choices: [{ message: { content: text } }], raw: data };
-
-    } catch (err) {
-      // Transparent fallback so the app still works if /responses isn’t available
-      console.warn('[Responses API failed, falling back to Chat Completions]', err);
-      return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
-    }
+  } else if (options.response_format){
+    body.response_format = options.response_format;
   }
 
-  // -------- GPT-4o: Chat Completions path --------
-  return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
+  const resp = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+      'OpenAI-Beta': 'assistants=v2'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok){
+    const txt = await resp.text().catch(()=> '');
+    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+    err.status = resp.status;
+    throw err;
+  }
+
+  const data = await resp.json();
+  const text = extractResponsesText(data);
+  return { choices: [{ message: { content: text } }], raw: data };
+}
+
+async function callOpenAI(model, messages, options = {}) {
+  const key = EngineState.openaiKey;
+  if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
+  if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
+
+  const temperature = options.temperature ?? 0;
+  const wantsJson  = options.response_format?.type === 'json_object';
+  const maxTokens  = options.max_tokens;
+
+  try{
+    return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
+  }catch(err){
+    if (shouldUseResponses(err)){
+      console.warn('[Chat Completions says to use Responses API] -> switching. Details:', err?.message || err);
+      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
+    }
+    throw err;
+  }
 }
 
 function renderModeBadge(){
