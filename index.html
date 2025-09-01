@@ -634,63 +634,64 @@ const MT_SCORING = (() => {
 })();
 </script>
 <script>
-// ChatGPT scoring and transcript formatting utilities ported from Python
-// ===== Unified OpenAI helpers (GPT-4o chat + GPT-5 responses) =====
+// ===== Unified OpenAI helpers (GPT-4o chat + GPT-5 responses) — FIXED =====
+
+// GPT-5 family uses the Responses API; GPT-4o/4o-mini stay on chat completions.
 function isResponsesModel(model){
-  // Use Responses API for GPT-5 family (and future models that require it)
-  return /^gpt-5/i.test(model);
+  return /^gpt-5/i.test(String(model||''));
 }
 
+// Map "max tokens" param name correctly for each API.
 function tokenParam(model, maxTokens){
-  // GPT-5 uses max_output_tokens, GPT-4o chat uses max_tokens or max_completion_tokens
   if (isResponsesModel(model)) return { max_output_tokens: maxTokens };
-  // Keep your original behavior for GPT-4o family
+  // Chat completions accepts max_tokens (or max_completion_tokens for some 4o-mini variants)
   const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
   return { [key]: maxTokens };
 }
 
-// Convert classic chat messages -> Responses API "input" content parts
+// Convert chat-style messages to Responses "input" parts
 function messagesToResponsesInput(messages){
-  // Each message becomes {role, content:[{type:'input_text', text:...}]}
-  return messages.map(m => ({
-    role: m.role,
+  // Each message becomes: { role, content: [ {type:'input_text', text:'...'} ] }
+  return (messages||[]).map(m => ({
+    role: m.role || 'user',
     content: [{ type: 'input_text', text: String(m.content ?? '') }]
   }));
 }
 
-// Normalize assistant text out of either API
+// Normalize text from both APIs (Responses + Chat Completions)
 function getAssistantTextFromAny(data){
-  // Responses API has convenient 'output_text'
+  // Responses API convenience
   if (typeof data?.output_text === 'string' && data.output_text.trim()) {
     return data.output_text.trim();
   }
-  // Or content parts
-  const firstOut = data?.output?.[0]?.content?.[0];
-  if (firstOut) {
-    if (typeof firstOut.text === 'string' && firstOut.text.trim()) {
-      return firstOut.text.trim();
-    }
-    if (firstOut.type === 'json_object' && firstOut.json) {
-      try { return JSON.stringify(firstOut.json); } catch(_) {}
+  // Responses content parts
+  const part = data?.output?.[0]?.content?.[0];
+  if (part) {
+    if (typeof part.text === 'string') return part.text.trim();
+    if (part.type === 'json_object' && part.json) {
+      try { return JSON.stringify(part.json); } catch(_) {}
     }
   }
   // Chat Completions
   const chat = data?.choices?.[0]?.message?.content;
-  if (Array.isArray(chat)) {
-    return chat.map(p => p?.text || '').join('').trim();
-  }
+  if (Array.isArray(chat)) return chat.map(p => p?.text || '').join('').trim();
   if (typeof chat === 'string') return chat.trim();
   return '';
 }
 
-// Single entry point: calls the **right** endpoint based on model
+// Single entry point that calls the right endpoint and shapes payloads correctly
 async function openaiCall({key, model, messages, temperature=0, response_format=null, maxTokens=600, signal=null}){
+  if (!key) {
+    const err = new Error('openai_missing_key'); err.code = 401; throw err;
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${key}`
   };
   const tok = tokenParam(model, maxTokens);
 
+  // ===== GPT-5 (Responses API) =====
   if (isResponsesModel(model)) {
     const body = {
       model,
@@ -698,22 +699,29 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
       temperature,
       ...tok
     };
+    // IMPORTANT: Responses API uses text.format for JSON—not the old response_format schema
     if (response_format && response_format.type === 'json_object') {
       body.text = { format: 'json' };
     }
 
     const resp = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST', headers, body: JSON.stringify(body), signal
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal
     });
     if (!resp.ok) {
       const t = await resp.text().catch(()=> '');
-      const err = new Error('openai_responses_error'); err.detail = t; err.code = resp.status; throw err;
+      const err = new Error('openai_responses_error');
+      err.detail = t;
+      err.code = resp.status;
+      throw err;
     }
     const data = await resp.json();
     return { raw: data, text: getAssistantTextFromAny(data) };
   }
 
-  // Fallback to classic Chat Completions for GPT-4o family
+  // ===== GPT-4o family (Chat Completions) =====
   const body = {
     model,
     messages,
@@ -722,15 +730,24 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
     ...tok
   };
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST', headers, body: JSON.stringify(body), signal
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal
   });
   if (!resp.ok) {
     const t = await resp.text().catch(()=> '');
-    const err = new Error('openai_chat_error'); err.detail = t; err.code = resp.status; throw err;
+    const err = new Error('openai_chat_error');
+    err.detail = t;
+    err.code = resp.status;
+    throw err;
   }
   const data = await resp.json();
   return { raw: data, text: getAssistantTextFromAny(data) };
 }
+</script>
+<script>
+// ChatGPT scoring and transcript formatting utilities ported from Python
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
     /^i don't know$/i,
