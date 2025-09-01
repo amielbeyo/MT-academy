@@ -354,6 +354,13 @@ a.inline{color:var(--accent);text-decoration:underline}
 </div>
 
 <script>
+// Make helpers globally available to code outside the guard
+window.$ = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
+window.Q = (sel) => (typeof document !== 'undefined' ? Array.from(document.querySelectorAll(sel)) : []);
+window.escHTML = (s) => s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])) : '';
+</script>
+
+<script>
 // Detailed Arizona Mock Trial Rules of Evidence
 // Expose rule details on the global object so they are available to scripts
 // that run after this file is loaded. Using `globalThis` ensures compatibility
@@ -803,12 +810,13 @@ function showProvenance(msg, isErr=false){
 }
 
 /* Utilities */
-const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
+const $ = window.$;
+const Q = window.Q;
+const escHTML = window.escHTML;
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
-function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
 /* Robust JSON extraction (handles ```json fences) */
 function extractFirstJson(str){
