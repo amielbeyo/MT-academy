@@ -684,7 +684,7 @@ function getAssistantTextFromAny(data){
 }
 
 // Single entry point: calls the **right** endpoint based on model
-async function openaiCall({key, model, messages, temperature=0, response_format: responseFormat=null, maxTokens=600, signal=null}){
+async function openaiCall({key, model, messages, temperature=0, response_format=null, maxTokens=600, signal=null}){
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${key}`
@@ -695,19 +695,10 @@ async function openaiCall({key, model, messages, temperature=0, response_format:
     const body = {
       model,
       input: messagesToResponsesInput(messages),
+      temperature,
+      ...(response_format ? { response_format } : {}),
       ...tok
     };
-    if (responseFormat) {
-      let type = typeof responseFormat === 'string' ? responseFormat : responseFormat.type;
-      if (type === 'json_schema') {
-        body.text = { format: { type: 'json_schema', name: responseFormat.name, schema: responseFormat.schema } };
-      } else {
-        // Treat "json" as "json_object" per API expectations
-        if (type === 'json') type = 'json_object';
-        body.text = { format: { type: type || 'json_object' } };
-      }
-    }
-
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST', headers, body: JSON.stringify(body), signal
     });
@@ -724,7 +715,7 @@ async function openaiCall({key, model, messages, temperature=0, response_format:
     model,
     messages,
     temperature,
-    ...(responseFormat ? { response_format: responseFormat } : {}),
+    ...(response_format ? { response_format } : {}),
     ...tok
   };
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
