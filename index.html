@@ -1356,13 +1356,11 @@ async function gptNew(){
   const model = EngineState.openaiModel || 'gpt-4o-mini';
   const isG5  = /^gpt-5/i.test(model);
 
-  // Clearer/shorter user ask; keep difficulty knob
-  let userPrompt = `Generate a ${diff} difficulty single mock-trial objection drill. 
+  const userPrompt = `Generate a ${diff} difficulty single mock-trial objection drill. 
 Return only the JSON object for: fact (one sentence witness/record line), q (exact question counsel asks), 
 ans (one of: ${OBJECTION_CHOICES.join(', ')}), rule (rule number or short tag), why (1–2 sentences). 
 There must be exactly one best objection and it must be supported by the transcript.`;
 
-  // System message – narrow and enforce enum list explicitly
   const systemMsg = {
     role: 'system',
     content:
@@ -1371,26 +1369,16 @@ Output must contain a short fact pattern and a SINGLE question that triggers exa
 Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION_CHOICES.join(', ')}.`
   };
 
-  const messages = [
-    systemMsg,
-    { role: 'user', content: userPrompt }
-  ];
+  const messages = [systemMsg, { role: 'user', content: userPrompt }];
 
-  // Build request body with strict JSON control:
   const body = {
     model,
     messages,
-    temperature: 0,
-    max_tokens: 300
+    max_tokens: 300,
+    ...(isG5
+      ? { response_format: { type: "json_schema", json_schema: OBJECTION_JSON_SCHEMA } }
+      : { response_format: { type: "json_object" }, temperature: 0 })
   };
-
-  if (isG5) {
-    // Responses API: use strict json_schema (prevents chatty text)
-    body.response_format = { type: "json_schema", json_schema: OBJECTION_JSON_SCHEMA };
-  } else {
-    // Chat Completions: stick to json_object & reiterate in the prompt
-    body.response_format = { type: "json_object" };
-  }
 
   try{
     const resp = await openAIChat(body);
@@ -1402,16 +1390,8 @@ Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION
     }
 
     const data = await resp.json();
-    if (data?.error?.message) {
-      surfaceHttpError({status:200,statusText:'OK'}, data.error.message);
-      alert('ChatGPT error (see status line).');
-      return;
-    }
-
     const raw  = data?.choices?.[0]?.message?.content || '';
-
-    // Try to parse JSON from the returned string
-    const obj = extractFirstJson(raw);
+    const obj  = extractFirstJson(raw);
 
     if (!obj || !obj.fact || !obj.q || !obj.ans) {
       showProvenance('Bad JSON from model: ' + String(raw).slice(0,150), true);
@@ -1419,16 +1399,13 @@ Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION
       return;
     }
 
-    // Normalize ans to your canonical enum list
     obj.ans = normalizeObjectionName(obj.ans);
     if (!OBJECTION_CHOICES.includes(obj.ans)) {
-      // last-resort guard: if the model drifted, hard fail visibly
       showProvenance('Model returned non-canonical objection: ' + obj.ans, true);
       alert('Bad response from ChatGPT (invalid objection name).');
       return;
     }
 
-    // Success → load into UI
     cur = obj;
     $('objFact').textContent = obj.fact;
     $('objQ').textContent    = obj.q;
@@ -1440,9 +1417,7 @@ Do NOT invent extra context. Use only these objection names exactly: ${OBJECTION
     $('objWhy').textContent    = '';
     $('objRuling').textContent = '';
 
-    if (OBJECTION_CHOICES.includes(obj.ans)) {
-      $('objSelect').value = obj.ans;
-    }
+    if (OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value = obj.ans;
   }catch(e){
     console.error('[GPT Prompt]', e);
     showProvenance('Error calling OpenAI: ' + (e?.message || String(e)), true);
@@ -1685,10 +1660,9 @@ Scoring rule:
       const text = data?.choices?.[0]?.message?.content?.trim() || '';
 
       try{
-        const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
-        appendJudgeDecision(parsed);                            // unchanged UI
+        const parsed = ChatGPTScoring.parseScoreResponse(text);
+        appendJudgeDecision(parsed);
       }catch{
-        // If the model didn't use the expected format, show raw text so you see what happened
         appendChat('judge', text);
       }
 
@@ -2203,8 +2177,8 @@ Return ONLY a JSON object with ALL of these fields:
     text: {
       format: {
         type: 'json_schema',
-        name: schema?.name || 'rubric_score',
-        schema: schema?.schema || schema
+        name: schema.name,
+        schema: schema.schema
       }
     },
     max_output_tokens: Math.max(256, Math.min(1024, max_tokens || 0))
@@ -2220,23 +2194,14 @@ Return ONLY a JSON object with ALL of these fields:
   };
 
   const statusEl = document.getElementById('videoStatus');
-  function showErr(resp, txt, label='OpenAI'){
-    const head = (txt || '').slice(0, 600).replace(/\s+/g,' ').trim();
-    statusEl.innerHTML = `⚠️ ${label} HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`;
-    statusEl.style.color = '#ef9a9a';
-    console.warn('[SCORE ERROR]', resp.status, resp.statusText, txt);
-  }
 
   async function call(signal){
     const resp = await openAIChat(req, signal);
-    if(resp.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
-    if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
     if(!resp.ok){
       const t = await resp.text().catch(()=> '');
-      showErr(resp, t);
-      const e = new Error('chatgpt_error'); e.detail = t;
-      if(/insufficient_quota|exceeded.*quota/i.test(t)) e.code='insufficient_quota';
-      throw e;
+      statusEl.innerHTML = `⚠️ OpenAI HTTP ${resp.status} ${resp.statusText} • ${t.slice(0,600).replace(/\s+/g,' ')}`;
+      statusEl.style.color = '#ef9a9a';
+      const e=new Error('chatgpt_error'); e.detail=t; throw e;
     }
     return await resp.json();
   }
@@ -2247,8 +2212,6 @@ Return ONLY a JSON object with ALL of these fields:
   try{
     const data = await call(ctrl.signal);
     const raw  = data?.choices?.[0]?.message?.content || '';
-    console.info('[SCORE RAW]', raw.slice(0,200));
-
     const parsed = extractFirstJson(raw);
     if(!parsed){
       statusEl.innerHTML = `⚠️ ChatGPT returned non-JSON or malformed JSON. First 240 chars: ${escHTML(String(raw).slice(0,240))}…`;
@@ -2371,55 +2334,42 @@ Return ONLY a JSON object with ALL of these fields:
     <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
   }
 
-  async function testChatGPT(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
-      return;
-    }
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
-    const usingResponses = /^gpt-5/i.test(model);
-
-    const messages = [
-      { role:'system', content:'Return STRICT JSON ONLY that matches the schema.' },
-      { role:'user', content:'Say ok:true.' }
-    ];
-
-    const body = {
-      model,
-      messages,
-      max_tokens: 20,
-      temperature: 0
-    };
-
-    if (usingResponses) {
-      body.response_format = {
-        type: "json_schema",
-        json_schema: {
-          name: "ok_check",
-          schema: { type: "object", required:["ok"], properties: { ok: { type: "boolean", const: true } } }
-        }
-      };
-    } else {
-      body.response_format = { type: "json_object" };
-    }
-
-    showProvenance('Testing ChatGPT\u2026');
-    try{
-      const resp = await openAIChat(body);
-      const data = await resp.json();
-      const raw = data?.choices?.[0]?.message?.content || '';
-      const obj = extractFirstJson(raw);
-      if (obj && obj.ok === true) {
-        showProvenance('ChatGPT reachable \u2705');
-      } else {
-        showProvenance('ChatGPT responded but not JSON-ok. See console.', true);
-        console.warn('[TEST RAW]', raw);
-      }
-    }catch(e){
-      console.error('[ChatGPT][TEST] error', e);
-      showProvenance('ChatGPT test error (see console).', true);
-    }
+async function testChatGPT(){
+  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+    alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+    return;
   }
+  const model = EngineState.openaiModel || 'gpt-4o-mini';
+  const usingResponses = /^gpt-5/i.test(model);
+
+  const body = {
+    model,
+    messages: [
+      { role:'system', content:'Return STRICT JSON ONLY.' },
+      { role:'user',   content:'Say {"ok":true} exactly.' }
+    ],
+    ...(usingResponses
+      ? { response_format: { type: "json_object" }, max_tokens: 32 }
+      : { response_format: { type: "json_object" }, max_tokens: 20, temperature: 0 })
+  };
+
+  showProvenance('Testing ChatGPT\u2026');
+  try{
+    const resp = await openAIChat(body);
+    const data = await resp.json();
+    const raw = data?.choices?.[0]?.message?.content || '';
+    const obj = extractFirstJson(raw);
+    if (obj && obj.ok === true) {
+      showProvenance('ChatGPT reachable \u2705');
+    } else {
+      showProvenance('ChatGPT responded but not JSON-ok. See console.', true);
+      console.warn('[TEST RAW]', raw);
+    }
+  }catch(e){
+    console.error('[ChatGPT][TEST] error', e);
+    showProvenance('ChatGPT test error (see console).', true);
+  }
+}
 
   async function gptWrite(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
