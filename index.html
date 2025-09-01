@@ -2123,7 +2123,7 @@ const VideoCoach=(function(){
   }
 
   function makeRubricJsonSchema(type){
-    // Nested object for per-Q/A objection callout
+    // nested object for objection callout
     const objection = {
       type: "object",
       additionalProperties: false,
@@ -2131,11 +2131,10 @@ const VideoCoach=(function(){
         type:   { type: "string" },
         reason: { type: "string" }
       },
-      // REQUIRED by the API: include every key in properties
-      required: ["type", "reason"]
+      required: ["type","reason"]
     };
 
-    // Per-Q/A feedback item
+    // per-Q/A feedback item
     const qaItem = {
       type: "object",
       additionalProperties: false,
@@ -2148,7 +2147,6 @@ const VideoCoach=(function(){
         aReason: { type: "string" },
         objection
       },
-      // REQUIRED by the API: include every key in properties
       required: ["q","a","qScore","aScore","qReason","aReason","objection"]
     };
 
@@ -2156,26 +2154,19 @@ const VideoCoach=(function(){
       name: "rubric_score",
       schema: {
         type: "object",
-        // REQUIRED by the API on the root
         additionalProperties: false,
         properties: {
           total: { type: "number", minimum: 0, maximum: 100 },
           categories: {
             type: "object",
-            // dynamic map: keys unknown, but values must be 1–10 numbers
             additionalProperties: { type: "number", minimum: 1, maximum: 10 }
           },
-          comments: {
-            type: "object",
-            // dynamic map of strings
-            additionalProperties: { type: "string" }
-          },
-          explanation: { type: "string" },
-          notes:       { type: "string" },
-          qa:          { type: "array", items: qaItem }
+          comments:     { type: "object", additionalProperties: { type: "string" } },
+          explanation:  { type: "string" },
+          notes:        { type: "string" },
+          qa:           { type: "array", items: qaItem }
         },
-        // Keep only the truly required root fields strict
-        required: ["total","categories"]
+        required: ["total","categories","comments","explanation","notes","qa"]
       }
     };
   }
