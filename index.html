@@ -961,6 +961,9 @@ async function openAIChat(body, signal){
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
+    if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
+      payload.max_output_tokens = 16;
+    }
     // strip unsupported sampling params for Responses API
     delete payload.temperature;
     delete payload.top_p;
