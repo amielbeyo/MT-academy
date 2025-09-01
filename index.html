@@ -694,10 +694,13 @@ async function openaiCall({key, model, messages, temperature=0, response_format:
       ...tok
     };
     if (responseFormat) {
-      if (responseFormat.type === 'json_object') {
-        body.text = { format: { type: 'json_object' } };
+      let type = typeof responseFormat === 'string' ? responseFormat : responseFormat.type;
+      if (type === 'json_schema') {
+        body.text = { format: { type: 'json_schema', name: responseFormat.name, schema: responseFormat.schema } };
       } else {
-        body.text = { format: responseFormat };
+        // Treat "json" as "json_object" per API expectations
+        if (type === 'json') type = 'json_object';
+        body.text = { format: { type: type || 'json_object' } };
       }
     }
 
