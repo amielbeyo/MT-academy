@@ -932,10 +932,9 @@ const EngineState = {
 
 // --- unified OpenAI caller with robust GPT-5 (Responses API) handling + diagnostics
 async function openAIChat(body, signal){
-  // Treat any gpt-5* model as using the Responses API
-  const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
+  const effModel = (body && body.model) || EngineState.openaiModel || 'gpt-4o-mini';
+  const usingResponses = /^gpt-5/i.test(effModel);
 
-  // Convert Chat Completions messages → Responses input format
   function chatToResponsesInput(messages){
     return (messages || []).map(m => ({
       role: m.role,
@@ -943,17 +942,15 @@ async function openAIChat(body, signal){
         ? m.content.map(part => (
             typeof part === 'string'
               ? { type: 'input_text', text: part }
-              : (part.type ? part : { type: 'input_text', text: String(part) })
+              : (part && typeof part === 'object' && part.type
+                  ? part
+                  : { type: 'input_text', text: String(part) })
           ))
         : [{ type: 'input_text', text: String(m.content ?? '') }]
     }));
   }
 
-  const endpoint = usingResponses
-    ? 'https://api.openai.com/v1/responses'
-    : 'https://api.openai.com/v1/chat/completions';
-
-  const payload = { ...body, model: EngineState.openaiModel || body.model };
+  const payload = { ...body, model: effModel };
 
   if (usingResponses) {
     if (payload.messages) {
@@ -975,13 +972,19 @@ async function openAIChat(body, signal){
     if (payload.response_format) {
       const rf = payload.response_format;
       if (rf.type === 'json_object') {
-        payload.text = { format: { type: 'json_object' } };
+        payload.text = { format: 'json' };
       } else if (rf.type === 'json_schema' && rf.json_schema) {
-        payload.text = { format: { type: 'json_schema', json_schema: rf.json_schema } };
+        const fmtName = rf.json_schema.name || 'app_json';
+        const rootSchema = rf.json_schema.schema || rf.json_schema;
+        payload.text = { format: { type: 'json_schema', name: fmtName, schema: rootSchema } };
       }
       delete payload.response_format;
     }
   }
+
+  const endpoint = usingResponses
+    ? 'https://api.openai.com/v1/responses'
+    : 'https://api.openai.com/v1/chat/completions';
 
   const resp = await fetch(endpoint, {
     method: 'POST',
@@ -1589,7 +1592,7 @@ function gptRecord(){
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
         const blob=new Blob(chunks,{type:'audio/webm'});
-        const transcribeModel = 'gpt-4o-transcribe'; // stable STT model
+        const transcribeModel = (EngineState.openaiModel || 'gpt-4o') + '-transcribe';
         const form = new FormData();
         form.append('model', transcribeModel);
         form.append('file', blob, 'audio.webm');
