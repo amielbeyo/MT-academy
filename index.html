@@ -633,6 +633,10 @@ const MT_SCORING = (() => {
 </script>
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
+function chatTokenParam(model, maxTokens){
+  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
+  return { [key]: maxTokens };
+}
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
     /^i don't know$/i,
@@ -1182,10 +1186,12 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
+   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const tokenParam=chatTokenParam(model,250);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages,response_format:{type:'json_object'},max_completion_tokens:250})
+    body:JSON.stringify({model,messages,response_format:{type:'json_object'},...tokenParam})
    });
    const data=await resp.json();
    const raw=data?.choices?.[0]?.message?.content||'';
@@ -1267,10 +1273,12 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
+    const model=EngineState.openaiModel||'gpt-4o-mini';
+    const tokenParam=chatTokenParam(model,150);
     const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
      headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:gptChat,max_completion_tokens:150,temperature:0.7})
+     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
     });
    const data=await resp.json();
    const text=data?.choices?.[0]?.message?.content?.trim()||'';
@@ -1288,10 +1296,12 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
+   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const tokenParam=chatTokenParam(model,150);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
      headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:gptChat,max_completion_tokens:150,temperature:0.7})
+     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
     });
    const data=await resp.json();
    const reply=data?.choices?.[0]?.message?.content?.trim()||'';
@@ -1429,14 +1439,16 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
+      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const tokenParam = chatTokenParam(model,200);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
         body: JSON.stringify({
-          model: EngineState.openaiModel || 'gpt-4o-mini',
+          model,
           messages:[{role:'user', content: prompt}],
-          max_completion_tokens: 200,
-          temperature: 0.7
+          temperature: 0.7,
+          ...tokenParam
         })
       });
       const data = await resp.json();
@@ -1886,14 +1898,16 @@ const VideoCoach=(function(){
     const key = EngineState.openaiKey;
     if(!key){ throw new Error('no_key'); }
     const model = EngineState.openaiModel || 'gpt-4o-mini';
-    const max_completion_tokens = EngineState.openaiMaxTokens || 600;
+    const maxTokens = EngineState.openaiMaxTokens || 600;
+    const tokenParam = chatTokenParam(model, maxTokens);
 
     const prompt = buildChatGPTPrompt(type, transcript);
     const messages = [{role:'user',content:prompt}];
 
     async function callOnce(signal){
       if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] model=', model, 'max_completion_tokens=', max_completion_tokens);
+        const tokenKey = Object.keys(tokenParam)[0];
+        console.info('[ChatGPT] model=', model, `${tokenKey}=`, maxTokens);
         const preview = (prompt || '').slice(0, 400);
         console.info('[ChatGPT] outbound preview:', preview);
       }
@@ -1907,7 +1921,7 @@ const VideoCoach=(function(){
           model,
           messages,
           temperature: 0,
-          max_completion_tokens,
+          ...tokenParam,
           response_format: { type: 'json_object' }
         }),
         signal
@@ -2065,10 +2079,12 @@ const VideoCoach=(function(){
     ];
     showProvenance('Testing ChatGPT\u2026');
     try{
+      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const tokenParam = chatTokenParam(model,30);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{ 'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}` },
-        body: JSON.stringify({ model: EngineState.openaiModel || 'gpt-4o-mini', messages: testMsg, response_format:{type:'json_object'}, max_completion_tokens:30 })
+        body: JSON.stringify({ model, messages: testMsg, response_format:{type:'json_object'}, ...tokenParam })
       });
       const data = await resp.json();
       console.info('[ChatGPT][TEST] HTTP', resp.status, 'data=', data);
@@ -2094,12 +2110,14 @@ const VideoCoach=(function(){
       {role:'system',content:'You are an expert high school mock trial coach.'},
       {role:'user',content:`I am working on a ${type}. Here are my materials:\n${notes}\n\nGoal:\n${goal}\n\nPlease write a polished ${type} for me.`}
     ];
-    const max_completion_tokens = EngineState.openaiMaxTokens || 600;
+    const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
+      const model=EngineState.openaiModel||'gpt-4o-mini';
+      const tokenParam=chatTokenParam(model,maxTokens);
       const resp=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages,max_completion_tokens,temperature:0.7})
+        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
       });
       const data=await resp.json();
       const text=data?.choices?.[0]?.message?.content?.trim()||'';
