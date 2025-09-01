@@ -2002,7 +2002,7 @@ async function scoreViaChatGPT(type, transcript){
 
   // Parse strict JSON from either API
   const obj = extractFirstJson(text);
-  if(!obj) { const e=new Error('bad_json'); e.detail=text?.slice(0,400); throw e; }
+  if(!obj) { const e=new Error('bad_json'); e.code='bad_json'; e.detail=text?.slice(0,400); throw e; }
 
   const conf = RUBRICS[type] || {cats:[]};
   const cats = {}, comments = {};
