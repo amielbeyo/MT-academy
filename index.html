@@ -938,12 +938,12 @@ async function openAIChat(body, signal){
     return (messages || []).map(m => ({
       role: m.role,
       content: Array.isArray(m.content)
-        ? m.content.map(part => (
+        ? m.content.map(part =>
             typeof part === 'string'
-              ? { type: 'input_text', text: part }
-              : (part.type ? part : { type: 'input_text', text: String(part) })
-          ))
-        : [{ type: 'input_text', text: String(m.content ?? '') }]
+              ? { type:'input_text', text: part }
+              : (part.type ? part : { type:'input_text', text:String(part) })
+          )
+        : [{ type:'input_text', text:String(m.content ?? '') }]
     }));
   }
 
@@ -962,7 +962,26 @@ async function openAIChat(body, signal){
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
-    // `response_format: {type: "json_object"}` is valid for Responses as-is.
+    // Safety: Responses API requires >=16
+    if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
+      payload.max_output_tokens = 16;
+    }
+    // Remove unsupported sampling params
+    if ('temperature' in payload) delete payload.temperature;
+    if ('top_p' in payload) delete payload.top_p;
+    if ('frequency_penalty' in payload) delete payload.frequency_penalty;
+    if ('presence_penalty' in payload) delete payload.presence_penalty;
+
+    // Map response_format -> text.format
+    if (payload.response_format) {
+      const rf = payload.response_format;
+      if (rf.type === 'json_object') {
+        payload.text = { format: { type: 'json_object' } };
+      } else if (rf.type === 'json_schema' && rf.json_schema) {
+        payload.text = { format: { type: 'json_schema', json_schema: rf.json_schema } };
+      }
+      delete payload.response_format;
+    }
   }
 
   const resp = await fetch(endpoint, {
@@ -987,10 +1006,13 @@ async function openAIChat(body, signal){
 
   const outputText =
     data?.output_text ??
-    data?.output?.map(o => (o?.content || [])
-      .map(c => (typeof c?.text === 'string' ? c.text : ''))
-      .join('')).join('\n') ??
-    '';
+    (Array.isArray(data?.output)
+      ? data.output.map(o =>
+          (o?.content || []).map(c =>
+            typeof c?.text === 'string' ? c.text : (c?.json ? JSON.stringify(c.json) : '')
+          ).join('')
+        ).join('\n')
+      : '');
 
   const mapped = {
     choices: [{ message: { role: 'assistant', content: outputText } }],
