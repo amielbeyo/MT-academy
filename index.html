@@ -2141,49 +2141,50 @@ const VideoCoach=(function(){
   }
 
   function makeRubricJsonSchema(type){
-    // One permissive schema used for all four types; category keys vary by type and that's OK.
+    const qaItem = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        q:       { type: "string" },
+        a:       { type: "string" },
+        qScore:  { type: "number" },
+        aScore:  { type: "number" },
+        qReason: { type: "string" },
+        aReason: { type: "string" },
+        objection: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            type:   { type: "string" },
+            reason: { type: "string" }
+          }
+        }
+      }
+    };
+
     return {
       name: "rubric_score",
       schema: {
         type: "object",
-        required: ["total","categories"],
-        additionalProperties: true,
+        // REQUIRED by the API: present and false on the root
+        additionalProperties: false,
         properties: {
-          total: { type: "number" },
+          total: { type: "number", minimum: 0, maximum: 100 },
           categories: {
             type: "object",
-            additionalProperties: { type: "number" }
+            // categories is a dynamic map: allow only number values 1–10
+            additionalProperties: { type: "number", minimum: 1, maximum: 10 }
           },
           comments: {
             type: "object",
+            // comments is a dynamic map of strings
             additionalProperties: { type: "string" }
           },
           explanation: { type: "string" },
-          notes: { type: "string" },
-          qa: {
-            type: "array",
-            items: {
-              type: "object",
-              additionalProperties: true,
-              properties: {
-                q: { type: "string" },
-                a: { type: "string" },
-                qScore: { type: "number" },
-                aScore: { type: "number" },
-                qReason: { type: "string" },
-                aReason: { type: "string" },
-                objection: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    type: { type: "string" },
-                    reason: { type: "string" }
-                  }
-                }
-              }
-            }
-          }
-        }
+          notes:       { type: "string" },
+          qa:          { type: "array", items: qaItem }
+        },
+        required: ["total","categories"]
       }
     };
   }
