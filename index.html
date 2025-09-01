@@ -944,16 +944,28 @@ async function callOpenAI(model, messages, options = {}) {
   if (isResponsesModel(model)) {
     const input = (messages || []).map(m => ({
       role: m.role || 'user',
-      content: [{ type: 'input_text', text: String(m.content ?? '') }]
+      content: [{ type: 'text', text: String(m.content ?? '') }]
     }));
 
     const body = {
       model,
       input,
       temperature: options.temperature ?? 0,
-      ...(typeof options.max_tokens === 'number' ? { max_output_tokens: options.max_tokens } : {}),
-      ...(options.response_format ? { response_format: options.response_format } : {})
+      ...(typeof options.max_tokens === 'number' ? { max_output_tokens: options.max_tokens } : {})
     };
+
+    // If caller requested JSON mode, translate to Responses API schema format
+    if (options.response_format?.type === 'json_object') {
+      body.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: 'mt_output',
+          schema: { type: 'object', additionalProperties: true }
+        }
+      };
+    } else if (options.response_format) {
+      body.response_format = options.response_format;
+    }
 
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
