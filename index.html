@@ -978,15 +978,15 @@ async function openAIChat(body, signal){
     if ('frequency_penalty'  in payload) delete payload.frequency_penalty;
     if ('presence_penalty'   in payload) delete payload.presence_penalty;
 
-    // response_format → text.format
+    // Map Chat's response_format → Responses' text.format
     if (payload.response_format) {
       const rf = payload.response_format;
       if (rf.type === 'json_object') {
-        payload.text = { format: 'json' };
+        payload.text = { format: { type: 'json_object' } };
       } else if (rf.type === 'json_schema' && rf.json_schema) {
         payload.text = { format: { type: 'json_schema', json_schema: rf.json_schema } };
       }
-      delete payload.response_format;
+      delete payload.response_format; // Responses API expects text.format instead
     }
   }
 
@@ -2855,7 +2855,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       const body = usingResponses ? {
         model: m,
         input: [{ role:'user', content:[{ type:'input_text', text: opts.prompt || 'Return ONLY this JSON: {"ok":true}' }]}],
-        text: { format: 'json' },
+        text: { format: { type: 'json_object' } },
         max_output_tokens: Math.max(16, opts.maxOut || 128)
       } : {
         model: m,
