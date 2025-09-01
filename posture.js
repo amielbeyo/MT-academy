@@ -67,6 +67,10 @@
         setTimeout(process,200);
       }
       function finish(){
+        pose.close();
+        video.pause();
+        video.remove();
+        canvas.remove();
         if(frames===0){resolve({score:0,posture:0,gesture:0,movement:0,advice:'No posture data'});return;}
         const sAvg=spine/frames;
         const shAvg=shoulder/frames;
