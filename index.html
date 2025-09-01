@@ -695,7 +695,7 @@ async function openaiCall({key, model, messages, temperature=0, response_format:
     };
     if (responseFormat) {
       if (responseFormat.type === 'json_object') {
-        body.text = { format: 'json' };
+        body.text = { format: { type: 'json' } };
       } else {
         body.text = { format: responseFormat };
       }
