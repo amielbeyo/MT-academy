@@ -679,7 +679,7 @@ function getAssistantTextFromAny(data){
 }
 
 // Single entry point: calls the **right** endpoint based on model
-async function openaiCall({key, model, messages, temperature=0, response_format=null, maxTokens=600, signal=null}){
+async function openaiCall({key, model, messages, temperature=0, response_format: responseFormat=null, maxTokens=600, signal=null}){
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${key}`
@@ -693,8 +693,12 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
       temperature,
       ...tok
     };
-    if (response_format && response_format.type === 'json_object') {
-      body.text = { format: 'json' };
+    if (responseFormat) {
+      if (responseFormat.type === 'json_object') {
+        body.text = { format: 'json' };
+      } else {
+        body.text = { format: responseFormat };
+      }
     }
 
     const resp = await fetch('https://api.openai.com/v1/responses', {
@@ -713,7 +717,7 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
     model,
     messages,
     temperature,
-    ...(response_format ? { response_format } : {}),
+    ...(responseFormat ? { response_format: responseFormat } : {}),
     ...tok
   };
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
