@@ -635,10 +635,7 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  // gpt-4o-mini and similar models now expect `max_output_tokens`
-  // while other models continue to use `max_tokens`
-  const key = /-mini$/i.test(model) ? 'max_output_tokens' : 'max_tokens';
-  return { [key]: maxTokens };
+  return { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -926,19 +923,34 @@ const EngineState = {
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
 };
 
-let OpenAIClass;
-async function callOpenAI(model, promptOrMessages, options = {}) {
-  const m = model || EngineState.openaiModel || 'gpt-4o-mini';
-  const messages = Array.isArray(promptOrMessages) ? promptOrMessages : [{role:'user', content: promptOrMessages}];
-  if(!OpenAIClass){
-    OpenAIClass = (await import('https://cdn.jsdelivr.net/npm/openai@latest/dist/openai.min.js')).default;
+async function callOpenAI(model, messages, options = {}) {
+  const key = EngineState.openaiKey;
+  if (!key) {
+    const e = new Error('Missing OpenAI key'); e.status = 401; throw e;
   }
-  const client = new OpenAIClass({ apiKey: EngineState.openaiKey, dangerouslyAllowBrowser: true });
-  return await client.chat.completions.create({
-    model: m,
+  const body = {
+    model,
     messages,
-    ...options
+    temperature: options.temperature ?? 0,
+    ...(typeof options.max_tokens === 'number' ? { max_tokens: options.max_tokens } : {}),
+    ...(options.response_format ? { response_format: options.response_format } : {})
+  };
+
+  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`
+    },
+    body: JSON.stringify(body)
   });
+  if (!resp.ok) {
+    const txt = await resp.text().catch(()=> '');
+    const e = new Error(txt || `HTTP ${resp.status}`);
+    e.status = resp.status;
+    throw e;
+  }
+  return await resp.json();
 }
 
 function renderModeBadge(){
@@ -1880,12 +1892,6 @@ const VideoCoach=(function(){
     return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
   }
 
-  function parseChatGPTScoreResponse(text){
-    const obj = extractFirstJson(text);
-    if(!obj) throw new Error('bad_json');
-    return obj;
-  }
-
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey){ throw new Error('no_key'); }
@@ -1905,7 +1911,7 @@ const VideoCoach=(function(){
       }
       let data;
       try{
-        data = await callOpenAI(model, messages, {temperature:0, ...tokenParam, response_format:{type:'json_object'}, signal});
+        data = await callOpenAI(model, messages, { temperature: 0, ...tokenParam, signal });
       }catch(err){
         if(err.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
         if(err.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
@@ -1917,7 +1923,7 @@ const VideoCoach=(function(){
       if(DEBUG_CHATGPT){
         console.info('[ChatGPT] usage=', data?.usage, 'raw msg len=', raw.length);
       }
-      const parsed = parseChatGPTScoreResponse(raw);
+      const parsed = ChatGPTScoring.parseScoreResponse(raw);
       const conf = RUBRICS[type] || {cats:[]};
       const cats = {}, comments = {};
       conf.cats.forEach(c=>{
