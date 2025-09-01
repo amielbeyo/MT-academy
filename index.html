@@ -822,10 +822,10 @@ const CURRENT_STATE = 'AZ';
 function makeRubricMap(stateName, abbr){
   return {
     opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
-  - Content & Case Theory (30)
-  - Organization & Roadmap (20)
-  - Knowledge of Law/Facts (15)
-  - Persuasiveness (15)
+  - Content & Case Theory (33)
+  - Organization & Roadmap (23)
+  - Knowledge of Law/Facts (7)
+  - Persuasiveness (17)
   - Delivery (15)
   - Professionalism/Decorum (5)
   Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask.
@@ -839,7 +839,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Presentation was non-argumentative; did not include improper statements or assume facts not in evidence
   \u25a1 Professional and composed
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"law":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","law":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
   - Content & Law Application (30)
   - Structure & Element Walk-through (20)
@@ -1540,7 +1540,7 @@ const VideoCoach=(function(){
   }
 
   const RUBRICS={
-    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.35},{key:'organization',n:'Organization & Roadmap',w:0.25},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15},{key:'decorum',n:'Professionalism/Decorum',w:0.05}]},
+    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.33},{key:'organization',n:'Organization & Roadmap',w:0.23},{key:'law',n:'Knowledge of Law/Facts',w:0.07},{key:'persuasion',n:'Persuasiveness',w:0.17},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15},{key:'decorum',n:'Professionalism/Decorum',w:0.05}]},
     closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.30},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
     direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.25},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
     cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.25},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10},{key:'decorum',n:'Professionalism',w:0.05}]}
@@ -1641,7 +1641,7 @@ const VideoCoach=(function(){
     const noSpeech=isEffectivelyEmpty(text)||(effWords<3&&qM.qCount===0);
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
-      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
+      if(type==='opening'){pack.content=1;pack.organization=1;pack.law=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
       else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
       else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;pack.decorum=1;}
       else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;pack.decorum=1;}
@@ -1660,7 +1660,7 @@ const VideoCoach=(function(){
 
     let contentCore=clamp(3+Math.round(5*cmp.score)+Math.round(bm.vocabRich/4),1,10);
     let persuasion=clamp(3+Math.round(4*cmp.lexCos)+(/[!.]/.test(text)?2:0)+Math.round(bm.vocabRich/5),1,10);
-    let refutation=0, openq=0, foundation=0, listening=0, leading=0, impeach=0, brevity=0, decorum=clamp(8-(/\b(you\u2019re\s+lying|ridiculous|absurd|this\s+is\s+stupid)\b/i.test(text)?3:0),1,10);
+    let refutation=0, openq=0, foundation=0, listening=0, leading=0, impeach=0, brevity=0, decorum=clamp(8-(/\b(you\u2019re\s+lying|ridiculous|absurd|this\s+is\s+stupid)\b/i.test(text)?3:0),1,10), law=6;
 
     if(isOpen){
       const lower=text.toLowerCase();
@@ -1676,7 +1676,8 @@ const VideoCoach=(function(){
       const ns=PATS.opening.nice.length?Math.min(1,PATS.opening.nice.filter(k=>lower.includes(k)).length/(PATS.opening.nice.length*0.7)):0;
 
       organization=Math.max(organization,clamp(5+(hasRoadmap?2:0)+(hasTheme?1:0)+(hasEWS?1:0)+(hasHearSee?1:0)+(asksVerdict?1:0),1,10));
-      contentCore=clamp(Math.round(10*(0.45*ms+0.20*ns+0.25*cmp.biCos+0.10*cmp.lexCos))+(mentionsElements?1:0)+(mentionsBurden?1:0),1,10);
+      contentCore=clamp(Math.round(10*(0.45*ms+0.20*ns+0.25*cmp.biCos+0.10*cmp.lexCos)),1,10);
+      law=clamp(4+(mentionsElements?3:0)+(mentionsBurden?3:0),1,10);
       persuasion=clamp(3+Math.round(3*cmp.lexCos)+Math.round(2*cmp.biCos)+(hasTheme?1:0)+(asksVerdict?1:0)+(mentionsBurden?1:0)-Math.min(2,Math.floor(bm.fillers/4)),1,10);
     }
 
@@ -1726,7 +1727,7 @@ const VideoCoach=(function(){
     persuasion=clamp(persuasion-Math.min(2,Math.floor(totalObj/6)),1,10);
 
     const conf=RUBRICS[type]; const pack={};
-    if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
+    if(isOpen){pack.content=contentCore;pack.organization=organization;pack.law=law;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
     else if(isClose){pack.content=contentCore;pack.organization=organization;pack.refutation=refutation;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
     else if(isDir){pack.content=contentCore;pack.openq=openq;pack.foundation=foundation;pack.listening=listening;pack.delivery=delivery;pack.decorum=decorum;}
     else {pack.content=contentCore;pack.leading=leading;pack.impeach=impeach;pack.brevity=brevity;pack.delivery=delivery;pack.decorum=decorum;}
