@@ -1269,7 +1269,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
   if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
   try{
   const messages = [
-    {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
+    {role:'system',content:`Return ONLY a valid JSON object. No preface, no code fences.\n\n${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
   ];
   const model = EngineState.openaiModel || 'gpt-4o-mini';
@@ -1978,7 +1978,10 @@ async function scoreViaChatGPT(type, transcript){
   const model = EngineState.openaiModel || 'gpt-4o-mini';
   const maxTokens = EngineState.openaiMaxTokens || 600;
   const prompt = buildChatGPTPrompt(type, transcript);
-  const messages = [{role:'user',content:prompt}];
+  const messages = [
+    {role:'system', content:'Return ONLY a valid JSON object. No preface, no code fences.'},
+    {role:'user',content:prompt}
+  ];
 
   // One call (your outer caller already has fallback logic)
   const { raw, text } = await openaiCall({
@@ -2068,15 +2071,28 @@ async function scoreViaChatGPT(type, transcript){
         $('videoStatus').textContent = 'Scored with ChatGPT.';
         showProvenance('Scored by ChatGPT (OpenAI API).');
       }).catch(err=>{
-        let msg='ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
-        if(err?.code===429){ msg='Rate limit on your ChatGPT account \u2014 used built-in for this run. Try again shortly.'; }
-        else if(err?.message==='unauthorized' || err?.code===401){ msg='Your OpenAI API key is invalid/expired. Update it in \u201cChange Scoring Engine\u201d. Used built-in for this run.'; }
-        else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
-        else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
-        else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
+        // NEW: richer diagnostics
+        console.error('[ScoreViaChatGPT][catch]', err);
+
+        let detail = '';
+        if (err && typeof err.detail === 'string') {
+          detail = err.detail.slice(0, 400);
+        }
+        const msgParts = [];
+        if (err?.code) msgParts.push(`code=${err.code}`);
+        if (/unauthorized|401/i.test(err?.message) || err?.code===401) msgParts.push('Invalid/expired API key');
+        if (err?.code===429 || /rate[_ -]?limited|429/i.test(err?.message)) msgParts.push('Rate limited');
+        if (/insufficient_quota|exceeded.*quota/i.test(detail)) msgParts.push('Insufficient quota/billing');
+        if (/cors/i.test(detail)) msgParts.push('CORS blocked');
+        if (/bad_json|Unexpected token|JSON/i.test(err?.message || detail)) msgParts.push('Model did not return valid JSON');
+
+        let msg = 'ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
+        if (msgParts.length) msg += ` (${msgParts.join(' · ')})`;
+        if (detail) msg += `\n\nDetail:\n${detail}`;
+
         $('videoStatus').textContent = msg;
 
-        // IMPORTANT: Do NOT flip EngineState.mode
+        // keep your fallback
         scoreWithBuiltin(type, raw);
         showProvenance('Built-in score used (ChatGPT not reached).', true);
 
@@ -2101,36 +2117,36 @@ async function scoreViaChatGPT(type, transcript){
     <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
   }
 
-  async function testChatGPT(){
+  async function diagOpenAI(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+      alert('ChatGPT mode not enabled or API key missing.');
       return;
     }
-    const testMsg = [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
-    ];
-    showProvenance('Testing ChatGPT\u2026');
+    showProvenance('Pinging OpenAI\u2026');
     try{
-  const model = EngineState.openaiModel || 'gpt-4o-mini';
-  const { text } = await openaiCall({
-    key: EngineState.openaiKey,
-    model,
-    messages: [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
-    ],
-    temperature: 0,
-    response_format: { type: 'json_object' },
-    maxTokens: 30
-  });
-  const ok = extractFirstJson(text);
-  if(ok && ok.ok===true){ showProvenance('ChatGPT reachable \u2705'); }
-  else { showProvenance('ChatGPT test failed (unexpected output).', true); }
-}catch(e){
-  console.error('[ChatGPT][TEST] error', e);
-  showProvenance('ChatGPT test error (see console).', true);
-}
+      const resp = await fetch('https://api.openai.com/v1/models', {
+        method:'GET',
+        headers:{ 'Authorization': `Bearer ${EngineState.openaiKey}` },
+        // optional but explicit
+        mode: 'cors'
+      });
+      const text = await resp.text();
+      if (resp.status === 200) {
+        showProvenance('OpenAI reachable \u2705');
+      } else if (resp.status === 401) {
+        showProvenance('401 Unauthorized \u2014 API key invalid/expired.', true);
+      } else if (resp.status === 429) {
+        showProvenance('429 Rate limited \u2014 try again later or lower usage.', true);
+      } else if (resp.status === 403) {
+        showProvenance('403 Forbidden \u2014 possible org/project restriction.', true);
+      } else {
+        showProvenance(`HTTP ${resp.status} \u2014 ${text.slice(0,120)}`, true);
+      }
+      console.info('[diagOpenAI]', resp.status, text);
+    }catch(e){
+      console.error('[diagOpenAI] network error', e);
+      showProvenance(`Network/CORS error: ${e?.message||e}`, true);
+    }
   }
 
   async function gptWrite(){
@@ -2178,7 +2194,9 @@ async function scoreViaChatGPT(type, transcript){
     $('videoFile').addEventListener('change',e=> handleUpload(e.target.files&&e.target.files[0]));
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
-    $('btnTestChatGPT').addEventListener('click', testChatGPT);
+    $('btnTestChatGPT').addEventListener('click', async ()=>{
+      try { await diagOpenAI(); } catch(_) {}
+    });
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
