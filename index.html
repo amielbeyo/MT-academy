@@ -666,8 +666,13 @@ function getAssistantTextFromAny(data){
   }
   // Or content parts
   const firstOut = data?.output?.[0]?.content?.[0];
-  if (firstOut?.type === 'output_text' && typeof firstOut.text === 'string') {
-    return firstOut.text.trim();
+  if (firstOut) {
+    if (typeof firstOut.text === 'string' && firstOut.text.trim()) {
+      return firstOut.text.trim();
+    }
+    if (firstOut.type === 'json_object' && firstOut.json) {
+      try { return JSON.stringify(firstOut.json); } catch(_) {}
+    }
   }
   // Chat Completions
   const chat = data?.choices?.[0]?.message?.content;
