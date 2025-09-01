@@ -696,9 +696,13 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
       model,
       input: messagesToResponsesInput(messages),
       temperature,
-      ...(response_format ? { response_format } : {}),
       ...tok
     };
+
+    // Map chat-style response_format to Responses API text.format
+    if (response_format && response_format.type === 'json_object') {
+      body.text = { format: 'json' };
+    }
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST', headers, body: JSON.stringify(body), signal
     });
