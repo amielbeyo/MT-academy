@@ -267,6 +267,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
+      <button id="btnRatePosture" class="btn secondary">Rate Posture</button>
     </div>
     <div id="videoFeedback" class="small"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
@@ -2064,6 +2065,37 @@ const VideoCoach=(function(){
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
   }
 
+  async function ratePosture(){
+    if(!lastVideoBlob){ alert('Please record or upload a video first.'); return; }
+    $('videoFeedback').innerHTML='';
+    $('videoStatus').textContent='Analyzing posture…';
+    try{
+      const transcript=$('videoTranscript').value||'';
+      const res=await Posture.score(lastVideoBlob);
+      let tips=res.advice;
+      if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+        try{
+          const msgs=[
+            {role:'system',content:'You are a helpful posture coach.'},
+            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.score}. Give concise posture improvement tips.`}
+          ];
+          const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+            body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,max_tokens:120,temperature:0.7})
+          });
+          const data=await resp.json();
+          const text=data?.choices?.[0]?.message?.content?.trim();
+          if(text) tips=text;
+        }catch(e){}
+      }
+      $('videoFeedback').innerHTML=`<div class="small"><strong>Posture Score:</strong> ${res.score}/10</div><div class="small" style="margin-top:4px"><strong>Posture Tips:</strong> ${escHTML(tips)}</div>`;
+      $('videoStatus').textContent='Posture scored.';
+    }catch(e){
+      $('videoStatus').textContent='Posture analysis failed.';
+    }
+  }
+
   function crit(type){
     const conf=RUBRICS[type]||RUBRICS.opening;
     $('videoCriteria').innerHTML=`<strong>${conf.name} \u2014 Criteria</strong><ul style="margin:6px 0 0 18px">${conf.cats.map(c=>`<li><strong>${c.n}</strong> (weight ${(c.w*100).toFixed(0)}%)</li>`).join('')}</ul>
@@ -2138,6 +2170,7 @@ const VideoCoach=(function(){
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
+    $('btnRatePosture').addEventListener('click', ratePosture);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
