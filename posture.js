@@ -39,50 +39,39 @@
       const magA=Math.hypot(ab.x,ab.y),magB=Math.hypot(cb.x,cb.y);
       return Math.acos(Math.min(1,Math.max(-1,dot/(magA*magB))))*180/Math.PI;
     }
-    function spineAngle(lm){
-      const hip=lm[24],shoulderPt=lm[12];
-      const dx=shoulderPt.x-hip.x,dy=shoulderPt.y-hip.y;
-      const ang=Math.atan2(dy,dx)*180/Math.PI;
-      return Math.abs(90-ang);
+
+    function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+    function process(){
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      pose.send({image:canvas});
     }
 
-    return new Promise(resolve=>{
-      pose.onResults(res=>{
-        if(res.poseLandmarks){
-          const lm=res.poseLandmarks;
-          spine+=spineAngle(lm);
-          shoulder+=Math.abs(lm[11].y-lm[12].y);
-          const lEl=angle(lm[11],lm[13],lm[15]);
-          const rEl=angle(lm[12],lm[14],lm[16]);
-          elbow+=Math.abs(90-lEl)+Math.abs(90-rEl);
-          const lKn=angle(lm[23],lm[25],lm[27]);
-          const rKn=angle(lm[24],lm[26],lm[28]);
-          knee+=Math.abs(180-lKn)+Math.abs(180-rKn);
-          if(lastL&&lastR&&lastHip){
-            wristMove+=Math.hypot(lm[15].x-lastL.x,lm[15].y-lastL.y);
-            wristMove+=Math.hypot(lm[16].x-lastR.x,lm[16].y-lastR.y);
-            const hipC={x:(lm[23].x+lm[24].x)/2,y:(lm[23].y+lm[24].y)/2};
-            bodyMove+=Math.hypot(hipC.x-lastHip.x,hipC.y-lastHip.y);
-            lastHip=hipC;
-          }else{
-            lastHip={x:(lm[23].x+lm[24].x)/2,y:(lm[23].y+lm[24].y)/2};
-          }
-          lastL=lm[15];
-          lastR=lm[16];
-          frames++;
-        }
-      });
-
-      function process(){
-        if(video.paused||video.ended){finish();return;}
-        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        pose.send({image:canvas}).catch(()=>finish());
-        setTimeout(process,200);
+    pose.onResults(r=>{
+      frames++;
+      const lm=r.poseLandmarks;
+      if(!lm){return;}
+      const L=lm[11],R=lm[12];
+      const H=lm[23],H2=lm[24];
+      const spineAng=angle(L,H,H2);
+      spine+=Math.abs(spineAng-180);
+      shoulder+=Math.abs(L.y-R.y);
+      elbow+=angle(lm[13],lm[11],lm[15])+angle(lm[14],lm[12],lm[16]);
+      knee+=angle(lm[25],lm[23],lm[27])+angle(lm[26],lm[24],lm[28]);
+      if(lastL&&lastR){
+        wristMove+=dist(lm[15],lastL)+dist(lm[16],lastR);
       }
+      if(lastHip){
+        bodyMove+=dist(H,lastHip);
+      }
+      lastL=lm[15];
+      lastR=lm[16];
+      lastHip=H;
+    });
+
+    return new Promise(resolve=>{
       function finish(){
-        try{pose.close();}catch(_){/* ignore */}
-        video.pause();
+        pose.close();
         video.remove();
         canvas.remove();
         if(frames===0){resolve({score:0,posture:0,gesture:0,movement:0,advice:'No posture data'});return;}
@@ -120,6 +109,35 @@
     });
   }
 
-  global.Posture={score};
-})(window);
+  async function ratePosture(){
+    try{
+      const blob=await fetch($('videoPreview').src).then(r=>r.blob());
+      setStatus('Scoring body language...');
+      const res=await score(blob);
+      let tips=res.advice;
+      const transcript=$('videoTranscript').value.trim();
+      if(transcript&&EngineState.openaiKey){
+        try{
+          const msgs=[
+            {role:'system',content:'You are a helpful posture coach.'},
+            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nGive concise body language improvement tips.`}
+          ];
+          const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+            body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,max_tokens:120,temperature:0.7})
+          });
+          const data=await resp.json();
+          const text=data?.choices?.[0]?.message?.content?.trim();
+          if(text) tips=text;
+        }catch(e){}
+      }
+      $('videoFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(tips)}</div>`;
+      $('videoStatus').textContent='Body language scored.';
+    }catch(e){
+      $('videoStatus').textContent='Body analysis failed.';
+    }
+  }
 
+  global.Posture={score,ratePosture};
+})(window);

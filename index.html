@@ -628,7 +628,7 @@ const MT_SCORING = (() => {
     evaluateOpening: responses => evaluate(responses, OPENING_CRITERIA),
     evaluateDirect: responses => evaluate(responses, DIRECT_CRITERIA),
     evaluateCross: responses => evaluate(responses, CROSS_CRITERIA),
-  evaluateClosing: responses => evaluate(responses, CLOSING_CRITERIA),
+    evaluateClosing: responses => evaluate(responses, CLOSING_CRITERIA),
   };
 })();
 </script>
@@ -1467,7 +1467,7 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
-  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null, lastVideoBlob=null;
+  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -1509,8 +1509,6 @@ const VideoCoach=(function(){
     {name:"Compound", rule:"611(a)", cls:"hl-comp", when:(s)=>/\?[^?]+\?/.test(s)||/\b(and|or)\b.*\?/i.test(s)},
     {name:"Asked & Answered", rule:"611(a)", cls:"hl-asked", when:(s,ctx)=>{ const key=s.toLowerCase().replace(/[^a-z ]/g,'').split(' ').slice(0,8).join(' '); if(ctx.qSeen.has(key)) return true; ctx.qSeen.add(key); return false; }}
   ];
-
-  const POSTURE_WEIGHT=0.3;
 
   function clean(s){return (s||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').replace(/\s+/g,' ').trim()}
   // Safer sentence split (no lookbehind): convert punctuation to breaks
@@ -1759,15 +1757,11 @@ const VideoCoach=(function(){
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
-    const finalLabel=result.postureScore!=null?'Final Score (with body language)':'Final Score';
-    const postureRow=result.postureScore!=null?`<div>Posture Score</div><div>${result.postureScore.toFixed(1)}/10</div>`:'';
-    const gestureRow=result.gestureScore!=null?`<div>Gesture Score</div><div>${result.gestureScore.toFixed(1)}/10</div>`:'';
-    const movementRow=result.movementScore!=null?`<div>Movement Score</div><div>${result.movementScore.toFixed(1)}/10</div>`:'';
     $('videoFeedback').innerHTML=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
-        <div>${finalLabel}</div><div><strong>${result.total}</strong> / 100</div>
+        <div>Final Score</div><div><strong>${result.total}</strong> / 100</div>
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
         <div>Fillers</div><div>${m.fillers}</div>
@@ -1775,18 +1769,12 @@ const VideoCoach=(function(){
         <div>Vocab Richness</div><div>${m.vocabRich.toFixed(1)}/10</div>
         <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
         <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
-        ${postureRow}
-        ${gestureRow}
-        ${movementRow}
       </div>`;
     if(result.explanation){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
     }
     if(result.notes){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
-    }
-    if(result.postureAdvice){
-      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(result.postureAdvice)}</div>`;
     }
     $('videoFeedback').innerHTML += `
       <div style="margin-top:6px">
@@ -1833,22 +1821,12 @@ const VideoCoach=(function(){
   function tUpd(){ $('videoTimer').textContent=new Date(sec*1000).toISOString().substr(14,5)}
 
   async function startCamera(){
-    micOnly=false; uploaded=false; lastVideoBlob=null; setStatus('Requesting camera/mic\u2026');
+    micOnly=false; uploaded=false; setStatus('Requesting camera/mic\u2026');
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return; }
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
     catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
     chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
-    if(rec){
-      rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
-      rec.onstop=()=>{
-        const blob=new Blob(chunks,{type:'video/webm'});
-        lastVideoBlob=blob;
-        const url=URL.createObjectURL(blob);
-        $('btnDownloadRecording').href=url;
-        $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); };
-      };
-      rec.start();
-    }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
     try{
@@ -1861,7 +1839,7 @@ const VideoCoach=(function(){
   }
 
   async function startMicOnly(){
-    micOnly=true; uploaded=false; lastVideoBlob=null; setStatus('Mic-only transcription\u2026');
+    micOnly=true; uploaded=false; setStatus('Mic-only transcription\u2026');
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
     try{
@@ -1874,7 +1852,7 @@ const VideoCoach=(function(){
   }
 
   function handleUpload(file){
-    if(!file) return; uploaded=true; micOnly=false; lastVideoBlob=file;
+    if(!file) return; uploaded=true; micOnly=false;
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
     uploadedURL=URL.createObjectURL(file);
     const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play();
@@ -1986,7 +1964,7 @@ const VideoCoach=(function(){
     }
   }
 
-  async function scoreWithBuiltin(type, txt, postureRes){
+  function scoreWithBuiltin(type, txt){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
     const det=detectObjections(type,transcript);
     const engine=score(type,transcript);
@@ -1998,112 +1976,76 @@ const VideoCoach=(function(){
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
-    if(postureRes){
-      result.postureScore=postureRes.posture;
-      result.gestureScore=postureRes.gesture;
-      result.movementScore=postureRes.movement;
-      result.postureAdvice=postureRes.advice;
-      result.total=Math.round(result.total*(1-POSTURE_WEIGHT)+postureRes.score*10*POSTURE_WEIGHT);
-    }
     renderReport(type,result,det);
     highlightTranscriptArea(type,det);
   }
 
-  async function scoreNow(){
+  function scoreNow(){
     const type=$('videoType').value||'opening';
     const raw=$('videoTranscript').value||'';
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
-    let postureRes=null;
-    if(lastVideoBlob&&window.Posture){
-      try{postureRes=await Posture.score(lastVideoBlob);}catch(err){console.warn('Posture analysis failed',err);}
-    }
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
-      try{
-        const parsed=await scoreViaChatGPT(type,transcript);
-        const det=detectObjections(type,transcript);
-        const m=baseMetrics(transcript);
-        const result={
-          cats:parsed.categories||{},
-          comments:parsed.comments||{},
-          total:Math.max(0,Math.min(100,parseInt(parsed.total||0,10))),
-          explanation:parsed.explanation||'',
-          notes:parsed.notes||'',
-          qa:parsed.qa||[],
-          metrics:m,
-          compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
-          qm:{qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
-          effWords:transcript.trim().split(/\s+/).length
+        scoreViaChatGPT(type, transcript).then(parsed=>{
+          const det=detectObjections(type,transcript);
+          const m = baseMetrics(transcript);
+          const result = {
+            cats: parsed.categories || {},
+            comments: parsed.comments || {},
+            total: Math.max(0, Math.min(100, parseInt(parsed.total||0,10))),
+            explanation: parsed.explanation || '',
+            notes: parsed.notes || '',
+            qa: parsed.qa || [],
+            metrics: m,
+          compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
+          qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
+          effWords: transcript.trim().split(/\s+/).length
         };
-        const conf=RUBRICS[type];
-        conf.cats.forEach(c=>{ if(typeof result.cats[c.key] !== 'number'){ result.cats[c.key]=6; } });
-        if((type==='opening'||type==='closing')&&result.effWords<200){
-          conf.cats.forEach(c=>{ result.cats[c.key]=clamp(result.cats[c.key]-1,1,10); });
-        } else if(type==='opening'&&result.effWords>=300&&result.effWords<=600){
-          conf.cats.forEach(c=>{ result.cats[c.key]=clamp(result.cats[c.key]+1,1,10); });
+        const conf = RUBRICS[type];
+        conf.cats.forEach(c=>{ if(typeof result.cats[c.key] !== 'number'){ result.cats[c.key] = 6; } });
+        if ((type==='opening'||type==='closing') && result.effWords<200) {
+          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]-1,1,10); });
+        } else if (type==='opening' && result.effWords>=300 && result.effWords<=600) {
+          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]+1,1,10); });
         }
-        result.total=Math.round(conf.cats.reduce((sum,c)=>sum+clamp(result.cats[c.key],1,10)*(c.w*10),0));
-        if(postureRes){
-          result.postureScore=postureRes.posture;
-          result.gestureScore=postureRes.gesture;
-          result.movementScore=postureRes.movement;
-          result.postureAdvice=postureRes.advice;
-          result.total=Math.round(result.total*(1-POSTURE_WEIGHT)+postureRes.score*10*POSTURE_WEIGHT);
+        result.total = Math.round(conf.cats.reduce((sum,c)=>sum + clamp(result.cats[c.key],1,10)*(c.w*10),0));
+        const wpm=m.wpm||0;
+        if(wpm<95||wpm>125){
+          result.total=Math.max(0,result.total-10);
+        }else if(wpm>=100&&wpm<=115){
+          result.total=Math.min(100,result.total+7);
         }
-        renderReport(type,result,det);
-        highlightTranscriptArea(type,det);
-        $('videoStatus').textContent='Scored with ChatGPT.';
+        renderReport(type, result, det);
+        highlightTranscriptArea(type, det);
+        $('videoStatus').textContent = 'Scored with ChatGPT.';
         showProvenance('Scored by ChatGPT (OpenAI API).');
-      }catch(err){
+      }).catch(err=>{
         let msg='ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
         if(err?.code===429){ msg='Rate limit on your ChatGPT account \u2014 used built-in for this run. Try again shortly.'; }
         else if(err?.message==='unauthorized' || err?.code===401){ msg='Your OpenAI API key is invalid/expired. Update it in \u201cChange Scoring Engine\u201d. Used built-in for this run.'; }
         else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
         else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
         else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
-        $('videoStatus').textContent=msg;
-        await scoreWithBuiltin(type,raw,postureRes);
+        $('videoStatus').textContent = msg;
+
+        // IMPORTANT: Do NOT flip EngineState.mode
+        scoreWithBuiltin(type, raw);
         showProvenance('Built-in score used (ChatGPT not reached).', true);
-        const badge=$('modeBadge'); const banner=$('videoModeBanner');
-        if(badge && /ChatGPT/i.test(badge.textContent)){ badge.textContent='Mode: ChatGPT (temporary built-in fallback used)'; }
-        if(banner && /ChatGPT/i.test(banner.innerHTML)){ banner.innerHTML='Scoring via <strong>built-in heuristic engine</strong> (ChatGPT unavailable).'; }
-      }
+
+        const badge = $('modeBadge');
+        const banner = $('videoModeBanner');
+        if(badge && /ChatGPT/i.test(badge.textContent)){
+          badge.textContent = 'Mode: ChatGPT (temporary built-in fallback used)';
+        }
+        if(banner && /ChatGPT/i.test(banner.innerHTML)){
+          banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong> (ChatGPT unavailable).';
+        }
+      });
       return;
     }
-    await scoreWithBuiltin(type,raw,postureRes);
+    scoreWithBuiltin(type, raw);
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
-  }
-
-  async function ratePosture(){
-    if(!lastVideoBlob){ alert('Please record or upload a video first.'); return; }
-    $('videoFeedback').innerHTML='';
-    $('videoStatus').textContent='Analyzing body language…';
-    try{
-      const transcript=$('videoTranscript').value||'';
-      const res=await Posture.score(lastVideoBlob);
-      let tips=res.advice;
-      if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
-        try{
-          const msgs=[
-            {role:'system',content:'You are a helpful posture coach.'},
-            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nGive concise body language improvement tips.`}
-          ];
-          const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-            body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,max_tokens:120,temperature:0.7})
-          });
-          const data=await resp.json();
-          const text=data?.choices?.[0]?.message?.content?.trim();
-          if(text) tips=text;
-        }catch(e){}
-      }
-      $('videoFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(tips)}</div>`;
-      $('videoStatus').textContent='Body language scored.';
-    }catch(e){
-      $('videoStatus').textContent='Body analysis failed.';
-    }
   }
 
   function crit(type){
