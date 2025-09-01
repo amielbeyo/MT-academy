@@ -932,47 +932,42 @@ const EngineState = {
 
 // --- unified OpenAI caller with robust GPT-5 (Responses API) handling + diagnostics
 async function openAIChat(body, signal){
-  const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
-
-  function chatToResponsesInput(messages){
-    return (messages || []).map(m => ({
-      role: m.role,
-      content: Array.isArray(m.content)
-        ? m.content.map(part =>
-            typeof part === 'string'
-              ? { type:'input_text', text: part }
-              : (part.type ? part : { type:'input_text', text:String(part) })
-          )
-        : [{ type:'input_text', text:String(m.content ?? '') }]
-    }));
-  }
+  // Use the model actually passed in (fallback to saved selection)
+  const selectedModel = (body && body.model) ? body.model : (EngineState.openaiModel || '');
+  // Any model that starts with "gpt-5" uses the Responses API
+  const usingResponses = /^gpt-5/i.test(selectedModel);
 
   const endpoint = usingResponses
     ? 'https://api.openai.com/v1/responses'
     : 'https://api.openai.com/v1/chat/completions';
 
-  const payload = { ...body, model: EngineState.openaiModel || body.model };
+  const payload = { ...body, model: selectedModel };
 
   if (usingResponses) {
     if (payload.messages) {
-      payload.input = chatToResponsesInput(payload.messages);
+      payload.input = (payload.messages || []).map(m => ({
+        role: m.role,
+        content: Array.isArray(m.content)
+          ? m.content.map(part =>
+              typeof part === 'string'
+                ? { type: 'input_text', text: part }
+                : (part.type ? part : { type: 'input_text', text: String(part) })
+            )
+          : [{ type: 'input_text', text: String(m.content ?? '') }]
+      }));
       delete payload.messages;
     }
     if (payload.max_tokens != null) {
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
-    // Safety: Responses API requires >=16
-    if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
-      payload.max_output_tokens = 16;
-    }
-    // Remove unsupported sampling params
-    if ('temperature' in payload) delete payload.temperature;
-    if ('top_p' in payload) delete payload.top_p;
-    if ('frequency_penalty' in payload) delete payload.frequency_penalty;
-    if ('presence_penalty' in payload) delete payload.presence_penalty;
+    // strip unsupported sampling params for Responses API
+    delete payload.temperature;
+    delete payload.top_p;
+    delete payload.frequency_penalty;
+    delete payload.presence_penalty;
 
-    // Map response_format -> text.format
+    // Map response_format → text.format
     if (payload.response_format) {
       const rf = payload.response_format;
       if (rf.type === 'json_object') {
@@ -1359,7 +1354,7 @@ async function gptNew(){
   $('objGPTChat').hidden = true;
 
   const model = EngineState.openaiModel || 'gpt-4o-mini';
-  const isG5  = /\bgpt-5\b/i.test(model);
+  const isG5  = /^gpt-5/i.test(model);
 
   // Clearer/shorter user ask; keep difficulty knob
   let userPrompt = `Generate a ${diff} difficulty single mock-trial objection drill. 
@@ -2188,13 +2183,14 @@ ${transcript}
 Scoring notes (guidance, not an output format):
 ${rubricDesc}
 
-Return ONLY JSON with:
+OUTPUT CONTRACT (MANDATORY):
+Return ONLY a JSON object with ALL of these fields:
 - "total" (0–100, integer),
 - "categories" (object of 1–10 numbers),
-- optional "comments" (object of strings),
-- optional "explanation" (short string),
-- optional "notes" (string with tips, '\n' for new lines),
-- optional "qa" (array with question/answer feedback objects).`;
+- "comments" (object of strings — use {} if none),
+- "explanation" (string — "" if none),
+- "notes" (string — "" if none),
+- "qa" (array of per-Q/A feedback objects — [] if none).`;
 
   const schema = makeRubricJsonSchema(type);
 
@@ -2211,7 +2207,7 @@ Return ONLY JSON with:
         schema: schema?.schema || schema
       }
     },
-    max_output_tokens: Math.max(16, max_tokens)
+    max_output_tokens: Math.max(256, Math.min(1024, max_tokens || 0))
   } : {
     model,
     messages: [
