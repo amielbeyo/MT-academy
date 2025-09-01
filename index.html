@@ -635,7 +635,9 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
+  // gpt-4o-mini and similar models now expect `max_output_tokens`
+  // while other models continue to use `max_tokens`
+  const key = /-mini$/i.test(model) ? 'max_output_tokens' : 'max_tokens';
   return { [key]: maxTokens };
 }
 const ChatGPTScoring = (() => {
