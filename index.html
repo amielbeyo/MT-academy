@@ -1907,7 +1907,8 @@ const VideoCoach=(function(){
           model,
           messages,
           temperature: 0,
-          max_completion_tokens
+          max_completion_tokens,
+          response_format: { type: 'json_object' }
         }),
         signal
       });
@@ -1920,10 +1921,11 @@ const VideoCoach=(function(){
         throw e;
       }
       const data = await resp.json();
+      const content = data?.choices?.[0]?.message?.content;
+      const raw = Array.isArray(content) ? content.map(p=>p.text||'').join('') : (content || '');
       if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', (data?.choices?.[0]?.message?.content||'').length);
+        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', raw.length);
       }
-      const raw = data?.choices?.[0]?.message?.content || '';
       const parsed = parseChatGPTScoreResponse(raw);
       const conf = RUBRICS[type] || {cats:[]};
       const cats = {}, comments = {};
