@@ -932,14 +932,13 @@ const EngineState = {
 
 // --- unified OpenAI caller with robust GPT-5 (Responses API) handling + diagnostics
 async function openAIChat(body, signal){
-  // Detect Responses API models
+  // Treat any gpt-5* model as using the Responses API
   const usingResponses = /\bgpt-5\b/i.test(EngineState.openaiModel || '');
 
-  // Helper: convert Chat Completions "messages" into Responses "input"
+  // Convert Chat Completions messages → Responses input format
   function chatToResponsesInput(messages){
-    // Responses API expects: [{ role, content: [{ type:"input_text", text:"..." }, ...] }, ...]
     return (messages || []).map(m => ({
-      role: m.role, // "system" | "user" | "assistant"
+      role: m.role,
       content: Array.isArray(m.content)
         ? m.content.map(part => (
             typeof part === 'string'
@@ -950,26 +949,38 @@ async function openAIChat(body, signal){
     }));
   }
 
-  // Choose endpoint and normalize payload
   const endpoint = usingResponses
     ? 'https://api.openai.com/v1/responses'
     : 'https://api.openai.com/v1/chat/completions';
 
-  // Shallow clone so we can rewrite fields safely
   const payload = { ...body, model: EngineState.openaiModel || body.model };
 
   if (usingResponses) {
-    // Map Chat → Responses
     if (payload.messages) {
       payload.input = chatToResponsesInput(payload.messages);
       delete payload.messages;
     }
-    // max_tokens → max_output_tokens
     if (payload.max_tokens != null) {
       payload.max_output_tokens = payload.max_tokens;
       delete payload.max_tokens;
     }
-    // `response_format: {type: "json_object"}` is valid for Responses as-is.
+    if (typeof payload.max_output_tokens === 'number' && payload.max_output_tokens < 16) {
+      payload.max_output_tokens = 16;
+    }
+    if ('temperature' in payload)       delete payload.temperature;
+    if ('top_p' in payload)             delete payload.top_p;
+    if ('frequency_penalty' in payload) delete payload.frequency_penalty;
+    if ('presence_penalty' in payload)  delete payload.presence_penalty;
+
+    if (payload.response_format) {
+      const rf = payload.response_format;
+      if (rf.type === 'json_object') {
+        payload.text = { format: { type: 'json_object' } };
+      } else if (rf.type === 'json_schema' && rf.json_schema) {
+        payload.text = { format: { type: 'json_schema', json_schema: rf.json_schema } };
+      }
+      delete payload.response_format;
+    }
   }
 
   const resp = await fetch(endpoint, {
@@ -982,27 +993,25 @@ async function openAIChat(body, signal){
     signal
   });
 
-  // For Chat Completions, return directly
   if (!usingResponses) return resp;
 
-  // For Responses API, adapt the response to look like a Chat Completions result
   const txt = await resp.text();
   if (!resp.ok) {
-    // Preserve error details so callers can branch on status/message
     return new Response(txt, { status: resp.status, statusText: resp.statusText, headers: resp.headers });
   }
 
   let data = {};
   try { data = JSON.parse(txt); } catch {}
 
-  // Robust extraction (supports output_text or structured output)
   const outputText =
     data?.output_text ??
-    data?.output?.map(o =>
-      (o?.content || [])
-        .map(c => (typeof c?.text === 'string' ? c.text : ''))
-        .join('')
-    ).join('\n') ??
+    (Array.isArray(data?.output)
+      ? data.output.map(o => (o?.content || []).map(c => (
+            typeof c?.text === 'string'
+              ? c.text
+              : (c?.json ? JSON.stringify(c.json) : '')
+        )).join('')).join('\n')
+      : '') ??
     '';
 
   const mapped = {
