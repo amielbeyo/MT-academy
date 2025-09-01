@@ -695,7 +695,6 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
     const body = {
       model,
       input: messagesToResponsesInput(messages),
-      temperature,
       ...tok
     };
 
