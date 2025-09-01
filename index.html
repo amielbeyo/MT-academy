@@ -267,7 +267,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
-      <button id="btnRatePosture" class="btn secondary">Rate Posture</button>
+      <button id="btnRatePosture" class="btn secondary">Rate Body Language</button>
     </div>
     <div id="videoFeedback" class="small"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
@@ -1760,8 +1760,10 @@ const VideoCoach=(function(){
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
-    const finalLabel=result.postureScore!=null?'Final Score (with posture)':'Final Score';
+    const finalLabel=result.postureScore!=null?'Final Score (with body language)':'Final Score';
     const postureRow=result.postureScore!=null?`<div>Posture Score</div><div>${result.postureScore.toFixed(1)}/10</div>`:'';
+    const gestureRow=result.gestureScore!=null?`<div>Gesture Score</div><div>${result.gestureScore.toFixed(1)}/10</div>`:'';
+    const movementRow=result.movementScore!=null?`<div>Movement Score</div><div>${result.movementScore.toFixed(1)}/10</div>`:'';
     $('videoFeedback').innerHTML=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
@@ -1775,6 +1777,8 @@ const VideoCoach=(function(){
         <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
         <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
         ${postureRow}
+        ${gestureRow}
+        ${movementRow}
       </div>`;
     if(result.explanation){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
@@ -1783,7 +1787,7 @@ const VideoCoach=(function(){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
     }
     if(result.postureAdvice){
-      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Posture Tips:</strong> ${escHTML(result.postureAdvice)}</div>`;
+      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(result.postureAdvice)}</div>`;
     }
     $('videoFeedback').innerHTML += `
       <div style="margin-top:6px">
@@ -1996,7 +2000,9 @@ const VideoCoach=(function(){
       result.total=Math.min(100,result.total+7);
     }
     if(postureRes){
-      result.postureScore=postureRes.score;
+      result.postureScore=postureRes.posture;
+      result.gestureScore=postureRes.gesture;
+      result.movementScore=postureRes.movement;
       result.postureAdvice=postureRes.advice;
       result.total=Math.round(result.total*(1-POSTURE_WEIGHT)+postureRes.score*10*POSTURE_WEIGHT);
     }
@@ -2037,7 +2043,9 @@ const VideoCoach=(function(){
         }
         result.total=Math.round(conf.cats.reduce((sum,c)=>sum+clamp(result.cats[c.key],1,10)*(c.w*10),0));
         if(postureRes){
-          result.postureScore=postureRes.score;
+          result.postureScore=postureRes.posture;
+          result.gestureScore=postureRes.gesture;
+          result.movementScore=postureRes.movement;
           result.postureAdvice=postureRes.advice;
           result.total=Math.round(result.total*(1-POSTURE_WEIGHT)+postureRes.score*10*POSTURE_WEIGHT);
         }
@@ -2068,7 +2076,7 @@ const VideoCoach=(function(){
   async function ratePosture(){
     if(!lastVideoBlob){ alert('Please record or upload a video first.'); return; }
     $('videoFeedback').innerHTML='';
-    $('videoStatus').textContent='Analyzing posture…';
+    $('videoStatus').textContent='Analyzing body language…';
     try{
       const transcript=$('videoTranscript').value||'';
       const res=await Posture.score(lastVideoBlob);
@@ -2077,7 +2085,7 @@ const VideoCoach=(function(){
         try{
           const msgs=[
             {role:'system',content:'You are a helpful posture coach.'},
-            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.score}. Give concise posture improvement tips.`}
+            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nGive concise body language improvement tips.`}
           ];
           const resp=await fetch('https://api.openai.com/v1/chat/completions',{
             method:'POST',
@@ -2089,10 +2097,10 @@ const VideoCoach=(function(){
           if(text) tips=text;
         }catch(e){}
       }
-      $('videoFeedback').innerHTML=`<div class="small"><strong>Posture Score:</strong> ${res.score}/10</div><div class="small" style="margin-top:4px"><strong>Posture Tips:</strong> ${escHTML(tips)}</div>`;
-      $('videoStatus').textContent='Posture scored.';
+      $('videoFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(tips)}</div>`;
+      $('videoStatus').textContent='Body language scored.';
     }catch(e){
-      $('videoStatus').textContent='Posture analysis failed.';
+      $('videoStatus').textContent='Body analysis failed.';
     }
   }
 
