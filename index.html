@@ -634,37 +634,29 @@ const MT_SCORING = (() => {
 })();
 </script>
 <script>
-// ===== Unified OpenAI helpers (GPT-4o chat + GPT-5 responses) — FIXED =====
+// ===== Unified OpenAI helpers (GPT-4o chat + GPT-5 responses) — FINAL FIX =====
 
-// GPT-5 family uses the Responses API; GPT-4o/4o-mini stay on chat completions.
 function isResponsesModel(model){
   return /^gpt-5/i.test(String(model||''));
 }
 
-// Map "max tokens" param name correctly for each API.
 function tokenParam(model, maxTokens){
   if (isResponsesModel(model)) return { max_output_tokens: maxTokens };
-  // Chat completions accepts max_tokens (or max_completion_tokens for some 4o-mini variants)
   const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
   return { [key]: maxTokens };
 }
 
-// Convert chat-style messages to Responses "input" parts
 function messagesToResponsesInput(messages){
-  // Each message becomes: { role, content: [ {type:'input_text', text:'...'} ] }
   return (messages||[]).map(m => ({
     role: m.role || 'user',
     content: [{ type: 'input_text', text: String(m.content ?? '') }]
   }));
 }
 
-// Normalize text from both APIs (Responses + Chat Completions)
 function getAssistantTextFromAny(data){
-  // Responses API convenience
   if (typeof data?.output_text === 'string' && data.output_text.trim()) {
     return data.output_text.trim();
   }
-  // Responses content parts
   const part = data?.output?.[0]?.content?.[0];
   if (part) {
     if (typeof part.text === 'string') return part.text.trim();
@@ -672,18 +664,14 @@ function getAssistantTextFromAny(data){
       try { return JSON.stringify(part.json); } catch(_) {}
     }
   }
-  // Chat Completions
   const chat = data?.choices?.[0]?.message?.content;
   if (Array.isArray(chat)) return chat.map(p => p?.text || '').join('').trim();
   if (typeof chat === 'string') return chat.trim();
   return '';
 }
 
-// Single entry point that calls the right endpoint and shapes payloads correctly
 async function openaiCall({key, model, messages, temperature=0, response_format=null, maxTokens=600, signal=null}){
-  if (!key) {
-    const err = new Error('openai_missing_key'); err.code = 401; throw err;
-  }
+  if (!key) { const err = new Error('openai_missing_key'); err.code = 401; throw err; }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -691,7 +679,7 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
   };
   const tok = tokenParam(model, maxTokens);
 
-  // ===== GPT-5 (Responses API) =====
+  // ===== GPT-5 family — Responses API =====
   if (isResponsesModel(model)) {
     const body = {
       model,
@@ -699,9 +687,10 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
       temperature,
       ...tok
     };
-    // IMPORTANT: Responses API uses text.format for JSON—not the old response_format schema
+
+    // IMPORTANT: use response_format (not text.format)
     if (response_format && response_format.type === 'json_object') {
-      body.text = { format: 'json' };
+      body.response_format = { type: 'json_object' };
     }
 
     const resp = await fetch('https://api.openai.com/v1/responses', {
@@ -721,7 +710,7 @@ async function openaiCall({key, model, messages, temperature=0, response_format=
     return { raw: data, text: getAssistantTextFromAny(data) };
   }
 
-  // ===== GPT-4o family (Chat Completions) =====
+  // ===== GPT-4o family — Chat Completions =====
   const body = {
     model,
     messages,
