@@ -984,8 +984,9 @@ async function openAIChat(body, signal){
       if (rf.type === 'json_object') {
         payload.text = { format: { type: 'json_object' } };
       } else if (rf.type === 'json_schema' && rf.json_schema) {
-        const fmtName = rf.json_schema.name || 'app_json';
-        payload.text = { format: { type: 'json_schema', name: fmtName, json_schema: rf.json_schema } };
+        const fmtName    = rf.json_schema.name || 'app_json';
+        const rootSchema = rf.json_schema.schema || rf.json_schema; // accept either wrapper or raw schema
+        payload.text = { format: { type: 'json_schema', name: fmtName, schema: rootSchema } };
       }
       delete payload.response_format; // Responses API expects text.format instead
     }
@@ -2220,7 +2221,13 @@ Return ONLY JSON with:
       { role:'system', content:[{ type:'input_text', text:'You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include extra keys, markdown, or text outside JSON.' }]},
       { role:'user',   content:[{ type:'input_text', text: promptText }] }
     ],
-    text: { format: { type: 'json_schema', name: (schema?.name || 'rubric_score'), json_schema: schema } },
+    text: {
+      format: {
+        type: 'json_schema',
+        name: schema?.name || 'rubric_score',
+        schema: schema?.schema || schema
+      }
+    },
     max_output_tokens: Math.max(16, max_tokens)
   } : {
     model,
