@@ -2186,18 +2186,16 @@ const VideoCoach=(function(){
     };
   }
 
-  async function scoreViaChatGPT(type, transcript){
+async function scoreViaChatGPT(type, transcript){
   const key = EngineState.openaiKey;
   if(!key){ throw new Error('no_key'); }
   const model = EngineState.openaiModel || 'gpt-4o-mini';
   const max_tokens = EngineState.openaiMaxTokens || 600;
   const usingResponses = /^gpt-5/i.test(model);
 
-  // Guidance text you already have
   const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
   const rubricDesc = rubricMap[type] || rubricMap.opening || '';
 
-  // Build user prompt text (reuse your builder)
   const promptText =
 `Transcript:
 ${transcript}
@@ -2213,27 +2211,20 @@ Return ONLY JSON with:
 - optional "notes" (string with tips, '\n' for new lines),
 - optional "qa" (array with question/answer feedback objects).`;
 
-  // Make the JSON schema you already defined
   const schema = makeRubricJsonSchema(type);
 
-  // Build request body for GPT-5 vs GPT-4o
   const req = usingResponses ? {
-    // RESPONSES API (GPT-5 family)
     model,
     input: [
-      { role:'system', content:[{ type:'input_text', text:'You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include any extra keys, commentary, markdown, or text outside JSON.' }]},
+      { role:'system', content:[{ type:'input_text', text:'You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include extra keys, markdown, or text outside JSON.' }]},
       { role:'user',   content:[{ type:'input_text', text: promptText }] }
     ],
-    // IMPORTANT: text.format instead of response_format
     text: { format: { type: 'json_schema', json_schema: schema } },
-    // MUST be >= 16
     max_output_tokens: Math.max(16, max_tokens)
-    // DO NOT send temperature/top_p/penalties on Responses API
   } : {
-    // CHAT COMPLETIONS (GPT-4o family)
     model,
     messages: [
-      { role:'system', content:'You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include any extra keys, commentary, markdown, or text outside JSON.' },
+      { role:'system', content:'You are a neutral high school mock trial judge. Respond with STRICT JSON ONLY that matches the provided schema. Do not include extra keys, markdown, or text outside JSON.' },
       { role:'user',   content: promptText }
     ],
     response_format: { type: 'json_object' },
@@ -2246,6 +2237,7 @@ Return ONLY JSON with:
     const head = (txt || '').slice(0, 600).replace(/\s+/g,' ').trim();
     statusEl.innerHTML = `⚠️ ${label} HTTP ${resp.status} ${resp.statusText} • ${head || '(empty body)'}`;
     statusEl.style.color = '#ef9a9a';
+    console.warn('[SCORE ERROR]', resp.status, resp.statusText, txt);
   }
 
   async function call(signal){
@@ -2267,21 +2259,16 @@ Return ONLY JSON with:
 
   try{
     const data = await call(ctrl.signal);
+    const raw  = data?.choices?.[0]?.message?.content || '';
+    console.info('[SCORE RAW]', raw.slice(0,200));
 
-    // Extract the model output (our openAIChat already maps Responses→Chat-like)
-    const raw = data?.choices?.[0]?.message?.content || '';
-
-    // Try to parse JSON strictly
     const parsed = extractFirstJson(raw);
     if(!parsed){
-      // show first part so you can see what's wrong
-      statusEl.innerHTML = `⚠️ ChatGPT returned non-JSON or malformed JSON. Showing first 240 chars: ${escHTML(String(raw).slice(0,240))}…`;
+      statusEl.innerHTML = `⚠️ ChatGPT returned non-JSON or malformed JSON. First 240 chars: ${escHTML(String(raw).slice(0,240))}…`;
       statusEl.style.color = '#ef9a9a';
-      const e = new Error('bad_json'); e.detail = raw.slice(0,500);
-      throw e;
+      throw new Error('bad_json');
     }
 
-    // Normalize to your rubric buckets
     const conf = (function(){
       if(type==='opening') return {cats:['content','organization','persuasion','delivery','decorum']};
       if(type==='closing') return {cats:['content','organization','refutation','persuasion','delivery','decorum']};
