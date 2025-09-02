@@ -45,7 +45,6 @@ gtag('config', 'G-3QMGWMD9KZ');
   "logo": "https://mocktrialacademy.com/favicon.svg"
 }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/openai@4.47.3/dist/openai.min.js"></script>
 <style>
 /* Softer color palette */
 :root{--bg:linear-gradient(135deg,#3b82f6 70%,#f59e0b);--card:#f1f5f9;--muted:#6b7280;--text:#0f172a;--accent:#3b82f6;--secondary:#f59e0b}
@@ -1068,37 +1067,82 @@ function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
 
-/* --- OpenAI API helper (unified via Responses API) --- */
-let _openaiClient;
+function isResponsesModel(m){ return /^gpt-5/i.test(String(m||'')); }
+
+/* --- OpenAI API helper --- */
 async function callOpenAI(model, messages, options={}){
   const key=EngineState.openaiKey;
-  if(typeof messages==='string') messages=[{role:'user',content:messages}];
   if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
-  if(!_openaiClient){
-    _openaiClient=new OpenAI({apiKey:key,dangerouslyAllowBrowser:true});
-  }else{
-    _openaiClient.apiKey=key;
-  }
+  if(typeof messages==='string') messages=[{role:'user',content:messages}];
+  const wantsJson = options.response_format?.type==='json_object';
   const max = Number(
     options.max_tokens ?? options.max_completion_tokens ?? options.max_output_tokens ?? EngineState.openaiMaxTokens ?? 400
   );
-  const req={
-    model,
-    input:(messages||[]).map(m=>({role:m.role||'user',content:[{type:'text',text:String(m.content??'') }]})),
-    max_output_tokens:max
-  };
-  if(typeof options.temperature==='number') req.temperature=options.temperature;
-  if(options.response_format?.type==='json_object'){
-    req.response_format={
-      type:'json_schema',
-      json_schema:{name:'mt_output',schema:{type:'object',additionalProperties:true}}
+  const temperature = typeof options.temperature==='number' ? options.temperature : undefined;
+
+  if(isResponsesModel(model)){
+    const input = (messages||[]).map(m=>({role:m.role||'user',content:[{type:'text',text:String(m.content??'')}]}));
+    const body={
+      model,
+      input,
+      ...(Number.isFinite(max)?{max_output_tokens:max}:{}),
+      ...(typeof temperature==='number'?{temperature}:{}),
     };
+    if(wantsJson){
+      body.response_format={
+        type:'json_schema',
+        json_schema:{name:'mt_output',schema:{type:'object',additionalProperties:true}}
+      };
+    }else if(options.response_format){
+      body.response_format=options.response_format;
+    }
+    const resp=await fetch('https://api.openai.com/v1/responses',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+      body:JSON.stringify(body)
+    });
+    if(!resp.ok){
+      const txt=await resp.text().catch(()=> '');
+      const err=new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`); err.status=resp.status; err.raw=txt; throw err;
+    }
+    const data=await resp.json();
+    const text=data.output_text || data.output?.[0]?.content?.[0]?.text || '';
+    return {choices:[{message:{content:text}}],raw:data};
+  }else{
+    const body={
+      model,
+      messages,
+      ...(Number.isFinite(max)?{max_tokens:max}:{}),
+      ...(typeof temperature==='number'?{temperature}:{}),
+      ...(wantsJson?{response_format:{type:'json_object'}}: options.response_format?{response_format:options.response_format}:{})
+    };
+    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
+      body:JSON.stringify(body)
+    });
+    if(!resp.ok){
+      const txt=await resp.text().catch(()=> '');
+      const err=new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`); err.status=resp.status; err.raw=txt; throw err;
+    }
+    return await resp.json();
   }
-  const res=await _openaiClient.responses.create(req);
-  const text=res.output_text || res.output?.[0]?.content?.[0]?.text || '';
-  return {choices:[{message:{content:text}}],raw:res};
+}
+
+async function callOpenAIWithFallback(messages, options){
+  const primary=EngineState.openaiModel;
+  try{
+    return await callOpenAI(primary, messages, options);
+  }catch(e){
+    const msg=(e?.message||'').toLowerCase();
+    if((e.status===404 || /model|does not exist|unknown model/.test(msg)) && primary!=='gpt-4o-mini'){
+      try{ return await callOpenAI('gpt-4o-mini', messages, options); }catch(_){}
+    }
+    throw e;
+  }
 }
 window.callOpenAI=callOpenAI;
+window.callOpenAIWithFallback=callOpenAIWithFallback;
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
@@ -1389,7 +1433,7 @@ async function gptNew(){
     ];
     const model=EngineState.openaiModel;
     const tokenParam=chatTokenParam(model,250);
-    const data=await callOpenAI(model,messages,{response_format:{type:'json_object'},...tokenParam});
+    const data=await callOpenAIWithFallback(messages,{response_format:{type:'json_object'},...tokenParam});
     let raw=data?.choices?.[0]?.message?.content||'';
     let obj=extractFirstJson(raw);
 
@@ -1399,7 +1443,7 @@ async function gptNew(){
         {role:'system',content:`Return exactly 5 lines:\nFACT: ...\nQUESTION: ...\nANSWER: <one of [${OBJECTION_CHOICES.join(', ')}]>\nRULE: ...\nWHY: ...`},
         {role:'user',content:userPrompt}
       ];
-      const data2=await callOpenAI(model,messages2,{...chatTokenParam(model,220), temperature:0});
+      const data2=await callOpenAIWithFallback(messages2,{...chatTokenParam(model,220), temperature:0});
       raw=data2?.choices?.[0]?.message?.content||'';
       obj=parseObjectionLoose(raw)||obj;
     }
@@ -1428,7 +1472,7 @@ async function gptNew(){
     $('btnGPTRule').disabled=true;
   }catch(e){
     // Silent fallback to DB; no user-facing error
-    console.error('[GPT Prompt]',e);
+    console.error('[GPT Prompt]', e?.message || e);
     cur = pickRandom(DB);
     $('objFact').textContent=cur.fact; $('objQ').textContent=cur.q;
     $('objResult').hidden=true;
@@ -1487,7 +1531,7 @@ Task:
   try{
     const model=EngineState.openaiModel;
     const tokenParam=chatTokenParam(model,150);
-    const data=await callOpenAI(model,gptChat,{temperature:0.7,...tokenParam});
+    const data=await callOpenAIWithFallback(gptChat,{temperature:0.7,...tokenParam});
     const text=data?.choices?.[0]?.message?.content?.trim()||'';
     gptChat.push({role:'assistant',content:text}); appendChat('chatgpt',text);
   }catch(e){
@@ -1504,7 +1548,7 @@ async function gptSend(){
   try{
     const model=EngineState.openaiModel;
     const tokenParam=chatTokenParam(model,150);
-    const data=await callOpenAI(model,gptChat,{temperature:0.7,...tokenParam});
+    const data=await callOpenAIWithFallback(gptChat,{temperature:0.7,...tokenParam});
     const reply=data?.choices?.[0]?.message?.content?.trim()||'';
     gptChat.push({role:'assistant',content:reply}); appendChat('chatgpt',reply);
   }catch(e){
@@ -1654,7 +1698,7 @@ Scoring rule:
     try{
       const model = EngineState.openaiModel;
       const tokenParam = chatTokenParam(model,200);
-      const data = await callOpenAI(model, [{role:'user', content: prompt}], {temperature:0.7, ...tokenParam});
+      const data = await callOpenAIWithFallback([{role:'user', content: prompt}], {temperature:0.7, ...tokenParam});
       const text = data?.choices?.[0]?.message?.content?.trim() || '';
 
       try{
@@ -2111,7 +2155,7 @@ const VideoCoach=(function(){
 
     const tokenOpt = chatTokenParam(model, maxTokens);
 
-    const data = await callOpenAI(model, messages, {
+    const data = await callOpenAIWithFallback(messages, {
       ...tokenOpt,
       response_format: { type:'json_object' }
     });
@@ -2244,7 +2288,7 @@ const VideoCoach=(function(){
       const tokenOpt = chatTokenParam(model, 20);
 
       try{
-        const data = await callOpenAI(model, messages, {
+        const data = await callOpenAIWithFallback(messages, {
           ...tokenOpt,
           response_format: { type:'json_object' }
         });
@@ -2275,7 +2319,7 @@ const VideoCoach=(function(){
 
     try{
       const model=EngineState.openaiModel;
-      const data=await callOpenAI(model, messages, { ...chatTokenParam(model, EngineState.openaiMaxTokens||400), temperature:0.7 });
+      const data=await callOpenAIWithFallback(messages, { ...chatTokenParam(model, EngineState.openaiMaxTokens||400), temperature:0.7 });
       const text=data?.choices?.[0]?.message?.content?.trim();
       if(text) { out.value=text; }
       else { throw new Error('empty-output'); }
