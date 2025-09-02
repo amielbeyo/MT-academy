@@ -31,6 +31,8 @@
 
     let frames=0,spine=0,shoulder=0,elbow=0,knee=0;
     let wristMove=0,bodyMove=0,lastL=null,lastR=null,lastHip=null;
+    const events=[]; // timestamped posture issues
+    const eventLast={};
 
     function angle(a,b,c){
       const ab={x:a.x-b.x,y:a.y-b.y};
@@ -54,16 +56,31 @@
       const L=lm[11],R=lm[12];
       const H=lm[23],H2=lm[24];
       const spineAng=angle(L,H,H2);
-      spine+=Math.abs(spineAng-180);
-      shoulder+=Math.abs(L.y-R.y);
-      elbow+=angle(lm[13],lm[11],lm[15])+angle(lm[14],lm[12],lm[16]);
-      knee+=angle(lm[25],lm[23],lm[27])+angle(lm[26],lm[24],lm[28]);
+      const spineDiff=Math.abs(spineAng-180);
+      const shoulderDiff=Math.abs(L.y-R.y);
+      const elbowAng=angle(lm[13],lm[11],lm[15])+angle(lm[14],lm[12],lm[16]);
+      const kneeAng=angle(lm[25],lm[23],lm[27])+angle(lm[26],lm[24],lm[28]);
+      spine+=spineDiff;
+      shoulder+=shoulderDiff;
+      elbow+=elbowAng;
+      knee+=kneeAng;
       if(lastL&&lastR){
         wristMove+=dist(lm[15],lastL)+dist(lm[16],lastR);
       }
       if(lastHip){
         bodyMove+=dist(H,lastHip);
       }
+      function mark(issue){
+        const t=video.currentTime;
+        if(!eventLast[issue]||t-eventLast[issue]>1){
+          events.push({time:+t.toFixed(1),issue});
+          eventLast[issue]=t;
+        }
+      }
+      if(spineDiff>5) mark('keep your back straighter');
+      if(shoulderDiff>0.03) mark('level your shoulders');
+      if(elbowAng/2>25) mark('steady your elbows');
+      if(kneeAng/2>25) mark('avoid locking knees');
       lastL=lm[15];
       lastR=lm[16];
       lastHip=H;
@@ -101,7 +118,8 @@
           posture:+postureScore.toFixed(1),
           gesture:+gestScore.toFixed(1),
           movement:+moveScore.toFixed(1),
-          advice:tips.join('; ')
+          advice:tips.join('; '),
+          events
         });
       }
       video.onloadeddata=()=>{video.play();process();};
@@ -118,9 +136,10 @@
       const transcript=$('videoTranscript').value.trim();
       if(transcript&&EngineState.openaiKey){
         try{
+          const timeline=res.events.map(e=>`${e.time}s ${e.issue}`).join(' | ');
           const msgs=[
             {role:'system',content:'You are a helpful posture coach.'},
-            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nGive concise body language improvement tips.`}
+            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nTimeline: ${timeline}\nGive concise body language improvement tips.`}
           ];
           const resp=await fetch('https://api.openai.com/v1/chat/completions',{
             method:'POST',
@@ -132,7 +151,8 @@
           if(text) tips=text;
         }catch(e){}
       }
-      $('videoFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(tips)}</div>`;
+      const timelineHtml=res.events.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}</li>`).join('');
+      $('videoFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(tips)}</div>${res.events.length?`<div class="small" style="margin-top:4px"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
       $('videoStatus').textContent='Body language scored.';
     }catch(e){
       $('videoStatus').textContent='Body analysis failed.';
