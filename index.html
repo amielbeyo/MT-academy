@@ -992,7 +992,11 @@ function responsesInput(messages, as='messages'){
 function extractResponsesText(data){
   if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
   const c = data?.output?.[0]?.content;
-  if(Array.isArray(c)) return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
+  if(Array.isArray(c)){
+    const j = c.find(x=>x.type==='output_json' || x.type==='json');
+    if(j && j.json) return JSON.stringify(j.json);
+    return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
+  }
   return '';
 }
 async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature, tokenKey }={}){
