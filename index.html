@@ -937,62 +937,45 @@ function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
 
-/* --- OpenAI API helper --- */
-async function callOpenAI(model, messages, options = {}) {
-  const key = EngineState.openaiKey;
-  if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
-  if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
+/* --- OpenAI API helper (fixed for Responses API) --- */
 
-  const wantsJson = options.response_format?.type === 'json_object';
-  const maxTokens = options.max_tokens;
-  const temperature = (typeof options.temperature === 'number') ? options.temperature : undefined;
+function modelFamily(model){
+  return /^(gpt-5|o5)/i.test(String(model||'')) ? 'responses' : 'chat';
+}
 
-  const useResponses = /^(gpt-5|o5)/i.test(String(model));
-  if (useResponses){
-    const input = (messages || []).map(m => ({
-      role: m.role || 'user',
-      content: [{ type: 'text', text: String(m.content ?? '') }]
-    }));
-    const body = {
-      model,
-      input,
-      ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
-    };
-    if (typeof temperature === 'number') body.temperature = temperature;
-    if (wantsJson) {
-      body.response_format = {
-        type: 'json_schema',
-        json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
-      };
-    } else if (options.response_format) {
-      body.response_format = options.response_format;
-    }
+function parseApiErr(txt){
+  try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; }
+}
 
-    const resp = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify(body)
-    });
-    if (!resp.ok){
-      const txt = await resp.text().catch(()=> '');
-      const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
-      err.status = resp.status;
-      throw err;
-    }
-    const data = await resp.json();
-    let text = '';
-    if (typeof data?.output_text === 'string' && data.output_text.trim()) {
-      text = data.output_text.trim();
-    } else if (Array.isArray(data?.output?.[0]?.content)) {
-      const c = data.output[0].content;
-      text = c.find(x => x.type === 'output_text')?.text
-          || c.find(x => typeof x.text === 'string')?.text
-          || c[0]?.text
-          || '';
-    }
-    return { choices: [{ message: { content: String(text || '') } }], raw: data };
+function extractResponsesText(data){
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+  const c = data?.output?.[0]?.content;
+  if (Array.isArray(c)){
+    return c.find(x => x.type === 'output_text')?.text
+        || c.find(x => typeof x.text === 'string')?.text
+        || c[0]?.text
+        || '';
   }
+  return '';
+}
 
+async function postJSON(url, body, key){
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify(body)
+  });
+  if (!resp.ok){
+    const txt = await resp.text().catch(()=> '');
+    const err = new Error(parseApiErr(txt) || `HTTP ${resp.status}`);
+    err.status = resp.status;
+    err.raw = txt;
+    throw err;
+  }
+  return await resp.json();
+}
+
+async function callChatCompletions(model, messages, { wantsJson=false, maxTokens, temperature } = {}){
   const body = {
     model,
     messages,
@@ -1000,20 +983,117 @@ async function callOpenAI(model, messages, options = {}) {
   };
   if (typeof temperature === 'number') body.temperature = temperature;
   if (wantsJson) body.response_format = { type: 'json_object' };
+  return await postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
+}
 
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+function buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam='max_output_tokens', inputStyle='messages' }){
+  const input = (inputStyle === 'string')
+    ? (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content ?? '')}`).join('\n')
+    : (messages||[]).map(m => ({
+        role: m.role || 'user',
+        content: [{ type: 'input_text', text: String(m.content ?? '') }]
+      }));
+
+  const body = { model, input };
+  if (Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
+  if (typeof temperature === 'number') body.temperature = temperature;
+
+  if (wantsJson){
+    body.text = {
+      format: {
+        type: 'json_schema',
+        name: 'mt_output',
+        schema: { type: 'object', additionalProperties: true }
+      }
+    };
+  }
+  return body;
+}
+
+async function fireResponses(body){
+  const resp = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${EngineState.openaiKey}` },
     body: JSON.stringify(body)
   });
   if (!resp.ok){
     const txt = await resp.text().catch(()=> '');
-    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+    const err = new Error(parseApiErr(txt) || `HTTP ${resp.status}`);
     err.status = resp.status;
+    err.raw = txt;
     throw err;
   }
   return await resp.json();
 }
+
+async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature } = {}){
+  let lastErr;
+  try {
+    const A = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_output_tokens', inputStyle:'messages' });
+    const d = await fireResponses(A);
+    return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
+  } catch(eA){
+    lastErr = eA;
+    const m = (eA.message||'').toLowerCase();
+    if (/max_completion_tokens|unsupported.*max_output_tokens/.test(m)){
+      try{
+        const B = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_completion_tokens', inputStyle:'messages' });
+        const d = await fireResponses(B);
+        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
+      }catch(eB){ lastErr = eB; }
+    }
+    if (/invalid.*input|must be.*string|content.*must be/i.test(m)){
+      try{
+        const C = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_output_tokens', inputStyle:'string' });
+        const d = await fireResponses(C);
+        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
+      }catch(eC){ lastErr = eC; }
+    }
+    if (/temperature/.test(m)){
+      try{
+        const D = buildResponsesBody({ model, messages, wantsJson, maxTokens, tokenParam:'max_output_tokens', inputStyle:'messages' });
+        const d = await fireResponses(D);
+        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
+      }catch(eD){ lastErr = eD; }
+    }
+  }
+  throw lastErr || new Error('Responses API call failed');
+}
+
+async function callOpenAI(model, messages, options = {}) {
+  const key = EngineState.openaiKey;
+  if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
+  if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
+
+  const wantsJson = options?.response_format?.type === 'json_object';
+  const maxTokens = options?.max_tokens;
+  const temperature = (typeof options?.temperature === 'number') ? options.temperature : undefined;
+
+  try{
+    if (modelFamily(model) === 'responses'){
+      return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
+    } else {
+      return await callChatCompletions(model, messages, { wantsJson, maxTokens, temperature });
+    }
+  }catch(primaryErr){
+    const msg = (primaryErr.message||'').toLowerCase();
+    if (primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
+    if (/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
+    try{
+      if (modelFamily(model) === 'responses'){
+        return await callChatCompletions(model, messages, { wantsJson, maxTokens, temperature });
+      } else {
+        return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
+      }
+    }catch(secondaryErr){
+      const combo = new Error(`[primary ${primaryErr.status||''}] ${primaryErr.message} | [secondary ${secondaryErr.status||''}] ${secondaryErr.message}`);
+      combo.status = secondaryErr.status || primaryErr.status || 400;
+      throw combo;
+    }
+  }
+}
+
+window.callOpenAI = callOpenAI;
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
@@ -1435,7 +1515,7 @@ function gptRecord(){
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
         const blob=new Blob(chunks,{type:'audio/webm'});
-        const transcribeModel = `${EngineState.openaiModel || 'gpt-4o-mini'}-transcribe`;
+        const transcribeModel = 'gpt-4o-mini-transcribe';
         const form=new FormData();form.append('model',transcribeModel);form.append('file',blob,'audio.webm');
          try{
            const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
