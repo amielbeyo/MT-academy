@@ -2035,7 +2035,6 @@ const VideoCoach=(function(){
       : { max_tokens: maxTokens };
 
     const data = await callOpenAI(model, messages, {
-      temperature: 0,
       ...tokenOpt,
       response_format: { type:'json_object' }
     });
@@ -2171,7 +2170,6 @@ const VideoCoach=(function(){
       try{
         const data = await callOpenAI(model, messages, {
           ...tokenOpt,
-          temperature: 0,
           response_format: { type:'json_object' }
         });
         const raw = data?.choices?.[0]?.message?.content || '';
