@@ -275,6 +275,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnRatePosture" class="btn secondary">Rate Body Language</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="postureFeedback" class="small" style="margin-top:4px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -780,49 +781,7 @@ async function analyzeBodyLanguage(blob){
   });
 }
 
-async function ratePosture(){
-  try{
-    const blob=lastVideoBlob;
-    if(!blob){
-      $('videoStatus').textContent='No video available for posture scoring.';
-      return;
-    }
-    setStatus('Scoring body language...');
-    const res=await analyzeBodyLanguage(blob);
-    let tips=res.advice,gestures='';
-    const transcript=$('videoTranscript').value.trim();
-    let timelineTips=res.events.map(e=>({time:e.time,suggestion:e.issue}));
-    if(transcript&&EngineState.openaiKey){
-      try{
-        const timeline=res.events.map(e=>`${e.time}s ${e.issue}`).join(' | ');
-        const msgs=[
-          {role:'system',content:'You are a helpful posture coach.'},
-          {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nTimeline: ${timeline}\nReturn JSON with keys tips, gestures, and timeline where timeline is an array of {time, suggestion} giving optimal hand/arm/leg positions or gesture ideas at those times.`}
-        ];
-        const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-          body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,max_tokens:220,temperature:0.7})
-        });
-        const data=await resp.json();
-        const text=data?.choices?.[0]?.message?.content?.trim();
-        if(text){
-          try{
-            const obj=JSON.parse(text);
-            tips=obj.tips||tips;
-            gestures=(obj.gestures||[]).join('; ');
-            if(Array.isArray(obj.timeline)){timelineTips=obj.timeline;}
-          }catch(_){tips=text;}
-        }
-      }catch(e){}
-    }
-    const timelineHtml=timelineTips.map(e=>`<li>${e.time}s: ${escHTML(e.suggestion)}</li>`).join('');
-    $('videoFeedback').innerHTML=`<div class=\"kv small\"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class=\"small\" style=\"margin-top:4px\"><strong>Body Tips:</strong> ${escHTML(tips)}${gestures?`<br><strong>Gesture Ideas:</strong> ${escHTML(gestures)}`:''}</div>${timelineTips.length?`<div class=\"small\" style=\"margin-top:4px\"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
-    $('videoStatus').textContent='Body language scored.';
-  }catch(e){
-    $('videoStatus').textContent='Body analysis failed.';
-  }
-}
+// posture rating moved into VideoCoach module
 </script>
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
@@ -2076,6 +2035,50 @@ const VideoCoach=(function(){
     $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
     setStatus('Stopped. You can Re-score after editing transcript.');
     setTimeout(scoreNow,250);
+  }
+
+  async function ratePosture(){
+    try{
+      const blob=lastVideoBlob;
+      if(!blob){
+        $('videoStatus').textContent='No video available for posture scoring.';
+        return;
+      }
+      setStatus('Scoring body language...');
+      const res=await analyzeBodyLanguage(blob);
+      let tips=res.advice,gestures='';
+      const transcript=$('videoTranscript').value.trim();
+      let timelineTips=res.events.map(e=>({time:e.time,suggestion:e.issue}));
+      if(transcript&&EngineState.openaiKey){
+        try{
+          const timeline=res.events.map(e=>`${e.time}s ${e.issue}`).join(' | ');
+          const msgs=[
+            {role:'system',content:'You are a helpful posture coach.'},
+            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nTimeline: ${timeline}\nReturn JSON with keys tips, gestures, and timeline where timeline is an array of {time, suggestion} giving optimal hand/arm/leg positions or gesture ideas at those times.`}
+          ];
+          const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
+            body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,max_tokens:220,temperature:0.7})
+          });
+          const data=await resp.json();
+          const text=data?.choices?.[0]?.message?.content?.trim();
+          if(text){
+            try{
+              const obj=JSON.parse(text);
+              tips=obj.tips||tips;
+              gestures=(obj.gestures||[]).join('; ');
+              if(Array.isArray(obj.timeline)){timelineTips=obj.timeline;}
+            }catch(_){tips=text;}
+          }
+        }catch(e){}
+      }
+      const timelineHtml=timelineTips.map(e=>`<li>${e.time}s: ${escHTML(e.suggestion)}</li>`).join('');
+      $('postureFeedback').innerHTML=`<div class=\"kv small\"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class=\"small\" style=\"margin-top:4px\"><strong>Body Tips:</strong> ${escHTML(tips)}${gestures?`<br><strong>Gesture Ideas:</strong> ${escHTML(gestures)}`:''}</div>${timelineTips.length?`<div class=\"small\" style=\"margin-top:4px\"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
+      $('videoStatus').textContent='Body language scored.';
+    }catch(e){
+      $('videoStatus').textContent='Body analysis failed.';
+    }
   }
 
   function buildChatGPTPrompt(type, transcript){
