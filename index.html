@@ -9,16 +9,6 @@
  gtag('js', new Date());
  gtag('config', 'G-3QMGWMD9KZ');
 </script>
-<script>
-  // Minimal DOM helpers
-  function $(id){ return document.getElementById(id); }
-  function Q(sel){ return Array.from(document.querySelectorAll(sel)); }
-</script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    Q('button').forEach(btn => { if(!btn.type) btn.type = 'button'; });
-  });
-</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MT academy</title>
@@ -271,7 +261,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div id="videoStatus" class="small" style="margin-top:4px;color:#9aa4b2"></div>
     <video id="videoPreview" autoplay playsinline muted style="width:100%;background:#000;border-radius:6px"></video>
     <textarea id="videoTranscript" placeholder="Transcript will appear here"></textarea>
-    <div id="videoControls" class="controls">
+    <div class="controls">
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
@@ -809,6 +799,7 @@ function showProvenance(msg, isErr=false){
 }
 
 /* Utilities */
+const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
@@ -1476,7 +1467,8 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
-  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null,lastVideoBlob=null;
+  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
+      micOnly=false, uploaded=false, uploadedURL=null, lastVideoBlob=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -1831,37 +1823,11 @@ const VideoCoach=(function(){
 
   async function startCamera(){
     micOnly=false; uploaded=false; setStatus('Requesting camera/mic\u2026');
-    if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){ } stream=null; }
-    if(window.gptRecStream){ try{ gptRecStream.getTracks().forEach(t=>t.stop()); }catch(_){ } gptRecStream=null; }
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-      setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return;
-    }
-    try{
-      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:true});
-    }catch(e){
-      try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }
-      catch(err){ setStatus('Camera/mic error: '+err.message+'. Try Mic Only or Upload Video.', true); return; }
-    }
-    const v=$('videoPreview');
-    v.srcObject=stream; v.muted=true; try{ await v.play(); }catch(_){}
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return; }
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
+    catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
     chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
-    if(rec){
-      rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
-      rec.onstop=()=>{
-        const blob=new Blob(chunks,{type:'video/webm'});
-        lastVideoBlob=blob;
-        const url=URL.createObjectURL(blob);
-        $('btnDownloadRecording').href=url;
-        $('btnPlayRecording').onclick=()=>{
-          const v=$('videoPreview');
-          v.srcObject=null;
-          v.src=url;
-          v.controls=true;
-          v.play();
-        };
-      };
-      rec.start();
-    }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
     try{
@@ -1920,7 +1886,6 @@ const VideoCoach=(function(){
 
   async function ratePosture(){
     try{
-      if(rec && rec.state!=='inactive'){ rec.stop(); setTimeout(ratePosture,300); return; }
       const blob=lastVideoBlob;
       if(!blob){
         $('videoStatus').textContent='No video available for posture scoring.';
@@ -1929,35 +1894,8 @@ const VideoCoach=(function(){
       await loadPostureModule();
       setStatus('Scoring body language...');
       const res=await analyzeBodyLanguage(blob);
-      let tips=res.advice,gestures='';
-      const transcript=$('videoTranscript').value.trim();
-      let timelineTips=res.events.map(e=>({time:e.time,suggestion:e.issue}));
-      if(transcript&&EngineState.openaiKey){
-        try{
-          const timeline=res.events.map(e=>`${e.time}s ${e.issue}`).join(' | ');
-          const msgs=[
-            {role:'system',content:'You are a helpful posture coach.'},
-            {role:'user',content:`Transcript: "${transcript}"\nPosture score: ${res.posture}/10\nGesture score: ${res.gesture}/10\nMovement score: ${res.movement}/10\nTimeline: ${timeline}\nReturn JSON with keys tips, gestures, and timeline where timeline is an array of {time, suggestion} giving optimal hand/arm/leg positions or gesture ideas at those times.`}
-          ];
-          const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-            method:'POST',
-            headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-            body:JSON.stringify({model:EngineState.openaiModel||'gpt-4o-mini',messages:msgs,response_format:{type:'json_object'},max_tokens:220,temperature:0.7})
-          });
-          const data=await resp.json();
-          const text=data?.choices?.[0]?.message?.content?.trim();
-          if(text){
-            try{
-              const obj=JSON.parse(text);
-              tips=obj.tips||tips;
-              gestures=(obj.gestures||[]).join('; ');
-              if(Array.isArray(obj.timeline)){timelineTips=obj.timeline;}
-            }catch(_){tips=text;}
-          }
-        }catch(e){}
-      }
-      const timelineHtml=timelineTips.map(e=>`<li>${e.time}s: ${escHTML(e.suggestion)}</li>`).join('');
-      $('postureFeedback').innerHTML=`<div class=\"kv small\"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div><div class=\"small\" style=\"margin-top:4px\"><strong>Body Tips:</strong> ${escHTML(tips)}${gestures?`<br><strong>Gesture Ideas:</strong> ${escHTML(gestures)}`:''}</div>${timelineTips.length?`<div class=\"small\" style=\"margin-top:4px\"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
+      const timelineHtml=res.events.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}</li>`).join('');
+      $('postureFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div>${res.advice?`<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(res.advice)}</div>`:''}${res.events.length?`<div class="small" style="margin-top:4px"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
       $('videoStatus').textContent='Body language scored.';
     }catch(e){
       $('videoStatus').textContent='Body analysis failed: '+(e&&e.message?e.message:'');
@@ -1971,13 +1909,9 @@ const VideoCoach=(function(){
   }
 
   function parseChatGPTScoreResponse(text){
-    try{
-      return JSON.parse(text);
-    }catch(_){
-      const obj = extractFirstJson(text);
-      if(!obj) throw new Error('bad_json');
-      return obj;
-    }
+    const obj = extractFirstJson(text);
+    if(!obj) throw new Error('bad_json');
+    return obj;
   }
 
   // Hardened: timeout + retry + JSON-safe parsing + logs
@@ -1988,10 +1922,7 @@ const VideoCoach=(function(){
     const max_tokens = EngineState.openaiMaxTokens || 600;
 
     const prompt = buildChatGPTPrompt(type, transcript);
-    const messages = [
-      {role:'system',content:'You are a neutral mock trial judge who scores speeches using provided rubrics. Return only JSON.'},
-      {role:'user',content:prompt}
-    ];
+    const messages = [{role:'user',content:prompt}];
 
     async function callOnce(signal){
       if(DEBUG_CHATGPT){
@@ -2008,7 +1939,6 @@ const VideoCoach=(function(){
         body: JSON.stringify({
           model,
           messages,
-          response_format:{type:'json_object'},
           temperature: 0,
           max_tokens
         }),
@@ -2223,15 +2153,7 @@ const VideoCoach=(function(){
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
-    const rateBtn = $('btnRatePosture') || (()=>{
-      const b=document.createElement('button');
-      b.id='btnRatePosture';
-      b.className='btn secondary';
-      b.textContent='Rate Body Language';
-      $('videoControls').appendChild(b);
-      return b;
-    })();
-    rateBtn.addEventListener('click', ratePosture);
+    $('btnRatePosture')?.addEventListener('click', ratePosture);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
