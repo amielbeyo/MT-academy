@@ -672,6 +672,7 @@ async function analyzeBodyLanguage(blob){
   let wristMove=0,bodyMove=0,lastL=null,lastR=null,lastHip=null;
   let wristStill=0; // count frames with minimal hand movement
   const events=[]; // timestamped posture issues and gesture suggestions
+  let done=false, finish;
 
   function angle(a,b,c){
     const ab={x:a.x-b.x,y:a.y-b.y};
@@ -683,9 +684,11 @@ async function analyzeBodyLanguage(blob){
 
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
 
-  function process(){
+  async function process(){
+    if(video.ended){finish();return;}
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    pose.send({image:canvas});
+    await pose.send({image:canvas});
+    requestAnimationFrame(process);
   }
 
   pose.onResults(r=>{
@@ -728,8 +731,11 @@ async function analyzeBodyLanguage(blob){
   });
 
   return new Promise(resolve=>{
-    function finish(){
+    finish=function(){
+      if(done) return;
+      done=true;
       pose.close();
+      URL.revokeObjectURL(video.src);
       video.remove();
       canvas.remove();
       if(frames===0){resolve({score:0,posture:0,gesture:0,movement:0,advice:'No posture data'});return;}
@@ -762,9 +768,15 @@ async function analyzeBodyLanguage(blob){
         advice:tips.join('; '),
         events
       });
-    }
-    video.onloadeddata=()=>{video.play();process();};
-    video.onerror=()=>finish();
+    };
+    video.onloadeddata=()=>{
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      video.play();
+      requestAnimationFrame(process);
+    };
+    video.onended=finish;
+    video.onerror=finish;
   });
 }
 
