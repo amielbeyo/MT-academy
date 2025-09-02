@@ -644,7 +644,9 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  return Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {};
+  if (!Number.isFinite(maxTokens)) return {};
+  const isResponses = /^(gpt-5|o5)/i.test(String(model||''));
+  return isResponses ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -982,9 +984,10 @@ async function callResponses(model, messages, { wantsJson=false, maxTokens, temp
       body.text = {
         format: {
           type: 'json_schema',
-          name: 'mt_output',
-          strict: true,
-          schema: { type:'object', additionalProperties:true }
+          json_schema: {
+            name: 'mt_output',
+            schema: { type:'object', additionalProperties:true }
+          }
         }
       };
     }
