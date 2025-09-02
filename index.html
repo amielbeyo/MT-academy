@@ -173,7 +173,7 @@ a.inline{color:var(--accent);text-decoration:underline}
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
-              <input id="openaiMaxTokens" class="input" type="number" value="600" min="200" max="2000">
+              <input id="openaiMaxTokens" class="input" type="number" value="400" min="200" max="2000">
             </label>
           </div>
           <div class="row" style="margin-top:8px">
@@ -646,7 +646,7 @@ const MT_SCORING = (() => {
 function chatTokenParam(model, maxTokens){
   if (!Number.isFinite(maxTokens)) return {};
   const isResponses = /^(gpt-5|o5)/i.test(String(model||''));
-  return isResponses ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
+  return isResponses ? { max_output_tokens: maxTokens } : { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -931,8 +931,8 @@ const EngineState = {
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
   set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
-  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
-  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',400) },
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||400) }
 };
 
 function tryExtractMessage(txt){
@@ -1047,23 +1047,28 @@ async function callOpenAI(model, messages, options={}){
     undefined;
   const maxTokens = tokenKey ? options[tokenKey] : undefined;
   const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
+  const family = modelFamily(model);
+  const primaryTokens = family==='responses' ? Math.min(maxTokens ?? 400, 400) : maxTokens;
+
+  const primary = () => family==='responses'
+    ? callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey })
+    : callChat(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey });
+  const secondary = () => family==='responses'
+    ? callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey })
+    : callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey });
 
   try{
-    if(modelFamily(model)==='responses'){
-      return await callResponses(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
-    } else {
-      return await callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
+    let data = await primary();
+    const content = data?.choices?.[0]?.message?.content || '';
+    if((wantsJson && !extractFirstJson(content)) || (!wantsJson && !content.trim())){
+      data = await secondary();
     }
+    return data;
   }catch(primaryErr){
-    // graceful cross-fallback for transient or feature mismatches
     const msg=(primaryErr.message||'').toLowerCase();
     if(primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
     if(/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
-    if(modelFamily(model)==='responses'){
-      return await callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
-    } else {
-      return await callResponses(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
-    }
+    return await secondary();
   }
 }
 
@@ -1106,7 +1111,7 @@ function attachVideoGateHandlers(){
   $('btnUseChatGPT').addEventListener('click', ()=>{
     const key=$('openaiKey').value.trim();
     const model=$('openaiModel').value;
-    const maxt=Number($('openaiMaxTokens').value)||600;
+    const maxt=Number($('openaiMaxTokens').value)||400;
     if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
@@ -2029,7 +2034,7 @@ const VideoCoach=(function(){
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey){ throw new Error('no_key'); }
     const model = EngineState.openaiModel;
-    const maxTokens = EngineState.openaiMaxTokens || 600;
+    const maxTokens = EngineState.openaiMaxTokens || 400;
 
     const messages = [
       { role:'system', content:'You are a judge. Return ONLY a valid JSON object that matches the requested shape. No preface or code fences.' },
@@ -2205,7 +2210,7 @@ const VideoCoach=(function(){
       {role:'system',content:'You are an expert high school mock trial coach.'},
       {role:'user',content:`I am working on a ${type}. Here are my materials:\n${notes}\n\nGoal:\n${goal}\n\nPlease write a polished ${type} for me.`}
     ];
-    const maxTokens = EngineState.openaiMaxTokens || 600;
+    const maxTokens = EngineState.openaiMaxTokens || 400;
     try{
       const model = EngineState.openaiModel;
       const tokenParam = chatTokenParam(model,maxTokens);
