@@ -9,6 +9,11 @@
  gtag('js', new Date());
  gtag('config', 'G-3QMGWMD9KZ');
 </script>
+<script>
+  // Minimal DOM helpers
+  function $(id){ return document.getElementById(id); }
+  function Q(sel){ return Array.from(document.querySelectorAll(sel)); }
+</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MT academy</title>
@@ -969,7 +974,6 @@ function showProvenance(msg, isErr=false){
 }
 
 /* Utilities */
-const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
