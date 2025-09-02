@@ -228,7 +228,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     </div>
     <div class="small" style="margin-top:8px">Press <strong>ChatGPT Argue</strong> to show argument actions.</div>
     <button id="btnGPTArgue" class="btn primary" style="width:100%;margin-top:4px">ChatGPT Argue</button>
-    <div id="objGPTChat" class="small" hidden style="margin-top:8px;white-space:pre-wrap"></div>
+    <div id="objGPTChat" class="small" hidden style="margin-top:8px;white-space:pre-wrap;max-height:400px;overflow-y:auto"></div>
     <div id="objGPTControls" class="controls" hidden style="margin-top:8px">
       <input id="objGPTInput" type="text" style="flex:1">
       <button id="btnGPTRecord" class="btn secondary">Record</button>
@@ -1440,7 +1440,7 @@ Scoring rule:
 
     try{
       const model = EngineState.openaiModel || 'gpt-4o-mini';
-      const tokenParam = chatTokenParam(model,200);
+      const tokenParam = chatTokenParam(model,400);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
