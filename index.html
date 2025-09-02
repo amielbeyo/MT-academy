@@ -944,6 +944,10 @@ function tryExtractMessage(txt){
 /* === PLUGIN A: Unified OpenAI adapter (Chat Completions + Responses) === */
 function modelFamily(m){ return /^(gpt-5|o5)/i.test(String(m||'')) ? 'responses' : 'chat'; }
 function parseApiErr(txt){ try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; } }
+function isTempError(err){
+  const msg = (err?.message||'').toLowerCase();
+  return [400,422].includes(err?.status) && msg.includes('temperature');
+}
 async function postJSON(url, body, key){
   const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`}, body:JSON.stringify(body) });
   if(!r.ok){ const t = await r.text().catch(()=> ''); const e = new Error(parseApiErr(t) || `HTTP ${r.status}`); e.status=r.status; e.raw=t; throw e; }
@@ -952,28 +956,29 @@ async function postJSON(url, body, key){
 
 /* Chat Completions (4o/mini etc.) */
 async function callChat(model, messages, { wantsJson=false, maxTokens, tokenKey='max_tokens', temperature }={}){
-  async function tryOnce(useCompletion){
+  async function tryOnce(useCompletion, omitTemp){
     const body = { model, messages };
     if(Number.isFinite(maxTokens)){
       const key = useCompletion ? 'max_completion_tokens' : tokenKey;
       body[key] = maxTokens;
     }
-    if(typeof temperature==='number') body.temperature = temperature;
+    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
     if(wantsJson){
-      // schema isn’t required here; json_object is simplest & robust
       body.response_format = { type: 'json_object' };
     }
     return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
   }
 
   try{
-    return await tryOnce(false);
-  }catch(e){
-    const msg=(e.message||'').toLowerCase();
-    if([400,422].includes(e.status) && /max_completion_tokens/.test(msg)){
-      return await tryOnce(true);
+    return await tryOnce(false,false);
+  }catch(e1){
+    const msg=(e1.message||'').toLowerCase();
+    if([400,422].includes(e1.status) && /max_completion_tokens/.test(msg)){
+      try{ return await tryOnce(true,false); }
+      catch(e2){ if(isTempError(e2)) return await tryOnce(true,true); throw e2; }
     }
-    throw e;
+    if(isTempError(e1)) return await tryOnce(false,true);
+    throw e1;
   }
 }
 
@@ -982,7 +987,7 @@ function responsesInput(messages, as='messages'){
   if(as==='string'){
     return (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content??'')}`).join('\n');
   }
-  return (messages||[]).map(m => ({ role:m.role||'user', content:[{ type:'input_text', text:String(m.content??'') }] }));
+  return (messages||[]).map(m => ({ role:m.role||'user', content:[{ type:'text', text:String(m.content??'') }] }));
 }
 function extractResponsesText(data){
   if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
@@ -991,10 +996,10 @@ function extractResponsesText(data){
   return '';
 }
 async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature, tokenKey }={}){
-  const tryBody = (tokenParam='max_output_tokens', style='messages') => {
+  const buildBody = (tokenParam='max_output_tokens', style='messages', omitTemp=false) => {
     const body = { model, input: responsesInput(messages, style) };
     if(Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
-    if(typeof temperature==='number') body.temperature = temperature;
+    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
     if(wantsJson){
       body.text = {
         format: {
@@ -1009,20 +1014,22 @@ async function callResponses(model, messages, { wantsJson=false, maxTokens, temp
     return body;
   };
 
-  // attempt matrix to dodge vendor-variant quirks
   const attempts = [
-    ...(tokenKey ? [tryBody(tokenKey,'messages')] : []),
-    tryBody('max_output_tokens','messages'),
-    tryBody('max_completion_tokens','messages'),
-    tryBody('max_output_tokens','string'),
+    ...(tokenKey ? [{token:tokenKey, style:'messages'}] : []),
+    {token:'max_output_tokens', style:'messages'},
+    {token:'max_completion_tokens', style:'messages'},
+    {token:'max_output_tokens', style:'string'}
   ];
 
   let lastErr;
-  for(const body of attempts){
-    try {
-      const d = await postJSON('https://api.openai.com/v1/responses', body, EngineState.openaiKey);
-      return { choices: [{ message: { content: extractResponsesText(d) } }], raw:d };
-    } catch(e){ lastErr = e; }
+  for(const omitTemp of [false,true]){
+    for(const a of attempts){
+      try{
+        const d = await postJSON('https://api.openai.com/v1/responses', buildBody(a.token, a.style, omitTemp), EngineState.openaiKey);
+        return { choices: [{ message: { content: extractResponsesText(d) } }], raw:d };
+      }catch(e){ lastErr = e; }
+    }
+    if(!isTempError(lastErr)) break;
   }
   throw lastErr || new Error('Responses API call failed');
 }
