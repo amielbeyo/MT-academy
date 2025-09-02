@@ -645,8 +645,7 @@ const MT_SCORING = (() => {
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
   if (!Number.isFinite(maxTokens)) return {};
-  const isResponses = /^(gpt-5|o5)/i.test(String(model||''));
-  return isResponses ? { max_output_tokens: maxTokens } : { max_tokens: maxTokens };
+  return { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -1040,22 +1039,20 @@ async function callOpenAI(model, messages, options={}){
   if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
   if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
   const wantsJson = options?.response_format?.type === 'json_object';
-  const tokenKey =
-    options?.max_tokens !== undefined ? 'max_tokens' :
-    options?.max_completion_tokens !== undefined ? 'max_completion_tokens' :
-    options?.max_output_tokens !== undefined ? 'max_output_tokens' :
-    undefined;
-  const maxTokens = tokenKey ? options[tokenKey] : undefined;
+  const maxTokens =
+    options?.max_tokens ??
+    options?.max_completion_tokens ??
+    options?.max_output_tokens;
   const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
   const family = modelFamily(model);
   const primaryTokens = family==='responses' ? Math.min(maxTokens ?? 400, 400) : maxTokens;
 
   const primary = () => family==='responses'
-    ? callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey })
-    : callChat(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey });
+    ? callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature })
+    : callChat(model, messages, { wantsJson, maxTokens: primaryTokens, temperature });
   const secondary = () => family==='responses'
-    ? callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey })
-    : callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey });
+    ? callChat(model, messages, { wantsJson, maxTokens, temperature })
+    : callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature });
 
   try{
     let data = await primary();
@@ -2041,10 +2038,7 @@ const VideoCoach=(function(){
       { role:'user',   content: buildJudgeJSONPrompt(type, transcript) }
     ];
 
-    const isResponses = /^(gpt-5|o5)/i.test(model);
-    const tokenOpt = isResponses
-      ? { max_completion_tokens: maxTokens }
-      : { max_tokens: maxTokens };
+    const tokenOpt = chatTokenParam(model, maxTokens);
 
     const data = await callOpenAI(model, messages, {
       ...tokenOpt,
@@ -2170,14 +2164,13 @@ const VideoCoach=(function(){
         alert('Enable ChatGPT mode + key'); return;
       }
       const model = EngineState.openaiModel || '';
-      const isResponses = /^(gpt-5|o5)/i.test(model);
 
       const messages = [
         { role:'system', content:'Return ONLY JSON: {"ok":true}' },
         { role:'user',   content:'Reply with {"ok":true} exactly (no code fences).' }
       ];
 
-      const tokenOpt = isResponses ? { max_completion_tokens: 20 } : { max_tokens: 20 };
+      const tokenOpt = chatTokenParam(model, 20);
 
       try{
         const data = await callOpenAI(model, messages, {
