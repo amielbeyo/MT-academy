@@ -997,11 +997,13 @@ async function callResponsesDeterministic(model, messages, { key, wantsJson, max
     ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
   };
   if (wantsJson) {
-    body.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: 'mt_output',
-        schema: { type: 'object', additionalProperties: true }
+    body.text = {
+      format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'mt_output',
+          schema: { type: 'object', additionalProperties: true }
+        }
       }
     };
   }
