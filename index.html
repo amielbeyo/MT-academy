@@ -848,6 +848,130 @@ function extractFirstJson(str){
   return null;
 }
 
+// === Reliability + parsing helpers ===
+function pickRandom(a){ return a[Math.floor(Math.random()*a.length)] }
+
+async function callOpenAIWithFallback(messages, options){
+  const primary = EngineState.openaiModel;
+  try { return await callOpenAI(primary, messages, options); }
+  catch(e){
+    const msg=(e?.message||'').toLowerCase();
+    if((e.status===404 || /model|does not exist|unknown model/.test(msg)) && primary!=='gpt-4o-mini'){
+      try { return await callOpenAI('gpt-4o-mini', messages, options); } catch(_){}
+    }
+    throw e;
+  }
+}
+
+const OBJECTION_ALIASES = {
+  'hearsay within hearsay':'Hearsay within Hearsay',
+  'hearsay-within-hearsay':'Hearsay within Hearsay',
+  'hearsay':'Hearsay',
+  'leading':'Leading',
+  'speculation':'Speculation',
+  'lack of personal knowledge':'Lack of Personal Knowledge',
+  'personal knowledge':'Lack of Personal Knowledge',
+  'foundation':'Lack of Foundation',
+  'lack of foundation':'Lack of Foundation',
+  'character':'Improper Character',
+  'character evidence':'Improper Character',
+  'opinion':'Improper Opinion',
+  'lay opinion':'Improper Opinion',
+  'asked and answered':'Asked & Answered',
+  'asked & answered':'Asked & Answered',
+  'beyond scope':'Beyond Scope',
+  'beyond the scope':'Beyond Scope',
+  'argumentative':'Argumentative',
+  'compound':'Compound',
+  'vague/ambiguous':'Vague/Ambiguous',
+  'vague or ambiguous':'Vague/Ambiguous',
+  'nonresponsive':'Nonresponsive',
+  'non-responsive':'Nonresponsive',
+  'assumes facts not in evidence':'Assumes Facts Not in Evidence',
+  'misstates evidence':'Misstates Evidence',
+  'misstates the evidence':'Misstates Evidence',
+  'cumulative':'Cumulative',
+  'subsequent remedial measures':'Subsequent Remedial Measures',
+  'compromise/offers':'Compromise/Offers',
+  'offers of compromise':'Compromise/Offers',
+  'medical payments':'Medical Payments',
+  'plea discussions':'Plea Discussions',
+  'insurance':'Insurance',
+  'relevance':'Relevance',
+  'irrelevant':'Relevance',
+};
+
+function normalizeObjectionName(raw){
+  if(!raw) return '';
+  const s = String(raw).toLowerCase().replace(/[^a-z/&\s-]/g,'').trim();
+  if(OBJECTION_ALIASES[s]) return OBJECTION_ALIASES[s];
+  for(const k of Object.keys(OBJECTION_ALIASES)){
+    if(s.includes(k)) return OBJECTION_ALIASES[k];
+  }
+  if(s.includes('hearsay') && s.includes('within')) return 'Hearsay within Hearsay';
+  if(s.includes('hearsay')) return 'Hearsay';
+  return '';
+}
+
+function guessFromRule(rule){
+  const t=String(rule||'').toLowerCase();
+  if(/801|802/.test(t)) return 'Hearsay';
+  if(/805/.test(t)) return 'Hearsay within Hearsay';
+  if(/611\(c\)|leading/.test(t)) return 'Leading';
+  if(/611\(b\)/.test(t)) return 'Beyond Scope';
+  if(/611/.test(t) && /compound/.test(t)) return 'Compound';
+  if(/611/.test(t) && /argument/.test(t)) return 'Argumentative';
+  if(/611/.test(t) && /(vague|ambiguous)/.test(t)) return 'Vague/Ambiguous';
+  if(/611/.test(t) && /(nonresponsive|non-responsive)/.test(t)) return 'Nonresponsive';
+  if(/611/.test(t) && /(asked)/.test(t)) return 'Asked & Answered';
+  if(/602/.test(t)) return 'Lack of Personal Knowledge';
+  if(/404/.test(t)) return 'Improper Character';
+  if(/701/.test(t)) return 'Improper Opinion';
+  if(/403/.test(t)) return 'Relevance';
+  if(/407/.test(t)) return 'Subsequent Remedial Measures';
+  if(/408/.test(t)) return 'Compromise/Offers';
+  if(/409/.test(t)) return 'Medical Payments';
+  if(/410/.test(t)) return 'Plea Discussions';
+  if(/411/.test(t)) return 'Insurance';
+  return '';
+}
+
+function guessFromText(fact,q){
+  const f=String(fact||'').toLowerCase(), qq=String(q||'').toLowerCase();
+  if(/\b(told|said|according to|report|texted|letter|memo|news|he heard|she heard|they heard)\b/.test(f)) return 'Hearsay';
+  if(/\b(didn'?t you|isn'?t it true|correct\?|right\?|yes or no|wouldn'?t you agree)\b/.test(qq)) return 'Leading';
+  if(/\b(must have|probably|i think|i guess|assume)\b/.test(f)) return 'Speculation';
+  if(/when did you stop|after you (hit|stole|killed)|where did you hide/.test(qq)) return 'Assumes Facts Not in Evidence';
+  if(/\b(what time|how big|over there then|usual way)\b/.test(qq)) return 'Vague/Ambiguous';
+  return 'Relevance';
+}
+
+function coerceObjection(ans, rule, fact, q){
+  let out = normalizeObjectionName(ans);
+  if(!out) out = guessFromRule(rule);
+  if(!out) out = guessFromText(fact,q);
+  if(!OBJECTION_CHOICES.includes(out)) out = 'Relevance';
+  return out;
+}
+
+function parseObjectionLoose(text){
+  if(!text) return null;
+  const lines = text.replace(/\r/g,'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const obj = {};
+  for(const ln of lines){
+    const m = ln.match(/^(fact|question|q|answer|ans|rule|why)\s*[:\-]\s*(.+)$/i);
+    if(m){
+      const k = m[1].toLowerCase(), v = m[2].trim();
+      if(k==='fact') obj.fact=v;
+      else if(k==='question'||k==='q') obj.q=v;
+      else if(k==='answer'||k==='ans') obj.ans=v;
+      else if(k==='rule') obj.rule=v;
+      else if(k==='why') obj.why=v;
+    }
+  }
+  return (obj.fact||obj.q||obj.ans) ? obj : null;
+}
+
 /* State data */
 const CURRENT_STATE = 'AZ';
 function makeRubricMap(stateName, abbr){
@@ -1366,6 +1490,12 @@ function renderStats(){
 }
 function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
+function builtinOpposingReply(curr){
+  const a = coerceObjection(curr?.ans, curr?.rule, curr?.fact, curr?.q);
+  const r = curr?.rule || (a==='Hearsay'?'801/802': a==='Leading'?'611(c)':'611');
+  const w = curr?.why || 'Grounded in the record under the cited rule.';
+  return `Objection, ${a} (${r}). ${w} Counsel, your response?`;
+}
 async function gptNew(){
   if(!requireChatGPT(true)) return;
   const btn=$('btnGPTNew'); lock(btn,true);
@@ -1373,26 +1503,56 @@ async function gptNew(){
   const diff=$('objGPTDiff').value||'easy';
   let userPrompt=`Generate a ${diff} difficulty objection drill.`+(diff==='difficult'?' Use a nuanced fact pattern requiring multiple rules or exceptions.':'');
   try{
+    // 1) Try JSON first
     const messages=[
-      {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. One correct answer. Return JSON: {fact,q,ans,rule,why}.`},
+      {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Exactly ONE correct objection. Return JSON with keys: fact,q,ans,rule,why.`},
       {role:'user',content:userPrompt}
     ];
     const model=EngineState.openaiModel;
     const tokenParam=chatTokenParam(model,250);
-    const data=await callOpenAI(model,messages,{response_format:{type:'json_object'},...tokenParam});
-    const raw=data?.choices?.[0]?.message?.content||'';
-    const obj=extractFirstJson(raw);
-    if(obj&&obj.fact&&obj.q&&obj.ans){
-      cur=obj; $('objFact').textContent=obj.fact; $('objQ').textContent=obj.q;
-      const r=$('objResult'); r.hidden=true; r.classList.remove('ok','bad');
-      $('objRule').textContent=''; $('objWhy').textContent=''; $('objRuling').textContent='';
-      if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
-      $('btnGPTRule').disabled=true;
-    } else {
-      alert('ChatGPT returned unexpected format.');
+    const data=await callOpenAIWithFallback(messages,{response_format:{type:'json_object'},...tokenParam});
+    let raw=data?.choices?.[0]?.message?.content||'';
+    let obj=extractFirstJson(raw);
+
+    // 2) If not valid JSON, ask for 5-line plain text and parse
+    if(!(obj && obj.fact && obj.q && obj.ans)){
+      const messages2=[
+        {role:'system',content:`Return exactly 5 lines:\nFACT: ...\nQUESTION: ...\nANSWER: <one of [${OBJECTION_CHOICES.join(', ')}]>\nRULE: ...\nWHY: ...`},
+        {role:'user',content:userPrompt}
+      ];
+      const data2=await callOpenAIWithFallback(messages2,{...chatTokenParam(model,220), temperature:0});
+      raw=data2?.choices?.[0]?.message?.content||'';
+      obj=parseObjectionLoose(raw)||obj;
     }
+
+    // 3) Coerce/normalize and guard
+    if(obj){
+      const fact=obj.fact||'';
+      const q=obj.q||obj.question||'';
+      const ans=coerceObjection(obj.ans||obj.answer, obj.rule, fact, q);
+      const rule=obj.rule || (ans==='Hearsay'?'801/802': ans==='Leading'?'611(c)':'');
+      const why=obj.why || 'Applies under the stated rule to the question/statement.';
+      cur={fact,q,ans,rule,why};
+    }
+
+    // 4) Local fallback if still missing
+    if(!cur){
+      cur = pickRandom(DB);
+    }
+
+    // Paint UI
+    $('objFact').textContent=cur.fact;
+    $('objQ').textContent=cur.q;
+    const r=$('objResult'); r.hidden=true; r.classList.remove('ok','bad');
+    $('objRule').textContent=''; $('objWhy').textContent=''; $('objRuling').textContent='';
+    if(OBJECTION_CHOICES.includes(cur.ans)) $('objSelect').value=cur.ans;
+    $('btnGPTRule').disabled=true;
   }catch(e){
-    console.error('[GPT Prompt]',e); alert(tryExtractMessage(e.message)||'ChatGPT error');
+    // Silent fallback to DB; no user-facing error
+    console.error('[GPT Prompt]',e);
+    cur = pickRandom(DB);
+    $('objFact').textContent=cur.fact; $('objQ').textContent=cur.q;
+    $('objResult').hidden=true;
   }finally{ lock(btn,false); }
 }
 async function gptArgue(){
@@ -1453,7 +1613,7 @@ Task:
     gptChat.push({role:'assistant',content:text}); appendChat('chatgpt',text);
   }catch(e){
     console.error('[GPT Argue]',e);
-    appendChat('chatgpt', tryExtractMessage(e.message)||'ChatGPT error.');
+    appendChat('chatgpt', builtinOpposingReply(cur));
   }finally{ lock(btn,false); }
 }
 
@@ -1469,7 +1629,8 @@ async function gptSend(){
     const reply=data?.choices?.[0]?.message?.content?.trim()||'';
     gptChat.push({role:'assistant',content:reply}); appendChat('chatgpt',reply);
   }catch(e){
-    console.error('[GPT Send]',e); appendChat('chatgpt', tryExtractMessage(e.message)||'ChatGPT error.');
+    console.error('[GPT Send]',e);
+    appendChat('chatgpt', builtinOpposingReply(cur));
   }finally{
     lock(btn,false);
     const userMsgs=(gptChat||[]).filter(m=>m.role==='user');
@@ -2227,18 +2388,34 @@ const VideoCoach=(function(){
     const goal=$('gptWriteGoal').value.trim();
     const out=$('gptWriteOutput'); const btn=$('btnGPTWrite');
     out.value='(Generating draft...)'; lock(btn,true);
+
     const messages=[
       {role:'system',content:'You are an expert high school mock trial coach.'},
-      {role:'user',content:`Write a polished ${type}. Materials:\n${notes||'(no notes)'}\n\nGoal:\n${goal||'(no specific goal)'}\n\nConstraints: concise, persuasive, concrete.`}
+      {role:'user',content:`Write a polished ${type}. Materials:\n${notes||'(no notes)'}\n\nGoal:\n${goal||'(no specific goal)'}\n\nConstraints: concise, persuasive, concrete. Use headings and short paragraphs.`}
     ];
+
     try{
-      const model=EngineState.openaiModel;
-      const tokenParam=chatTokenParam(model, EngineState.openaiMaxTokens||400);
-      const data=await callOpenAI(model,messages,{temperature:0.7,...tokenParam});
-      out.value=data?.choices?.[0]?.message?.content?.trim()||'(empty response)';
+      const data=await callOpenAIWithFallback(messages, { ...chatTokenParam(EngineState.openaiModel, EngineState.openaiMaxTokens||400), temperature:0.7 });
+      const text=data?.choices?.[0]?.message?.content?.trim();
+      if(text) { out.value=text; }
+      else { throw new Error('empty-output'); }
     }catch(e){
       console.error('[GPT Write]',e);
-      out.value='Error: '+(tryExtractMessage(e.message)||'ChatGPT error');
+      const titleMap={opening:'OPENING — Roadmap',closing:'CLOSING — Apply Law',direct:'DIRECT — Chapters',cross:'CROSS — Chapters'};
+      const t=type.toLowerCase();
+      out.value =
+`# ${titleMap[t]||'DRAFT'}
+**Theme/Theory:** ${goal||'(state your theme in 1 line)'}  
+
+## Roadmap / Chapters
+- ${t==='opening' ? 'Duty → Breach → Causation → Damages' : t==='closing' ? 'Element-by-element with cites to testimony/exhibits' : t==='direct' ? 'Background → Event → Aftermath (open-ended questions)' : 'Admission → Impeachment → Damage theory (short leading)'}  
+
+## Key Facts to Hit
+${notes ? '- ' + notes.split(/\n+/).filter(Boolean).join('\n- ') : '- (list 3–5 record facts you will use)'}
+
+## Ask
+- ${t==='opening' ? 'We will ask you to find liability by a preponderance.' : t==='closing' ? 'We ask for a verdict consistent with the instructions and the evidence.' : t==='direct' ? 'Move to admit exhibits with proper foundation.' : 'End after clear admissions; no extra questions.'}
+`;
     }finally{ lock(btn,false); }
   }
 
