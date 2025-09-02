@@ -961,6 +961,13 @@ function extractResponsesText(data){
   return '';
 }
 
+function contentFromChat(resp){
+  try{
+    const t = resp?.choices?.[0]?.message?.content;
+    return (typeof t === 'string' ? t : '').trim();
+  }catch{ return ''; }
+}
+
 async function callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens){
   async function tryOnce(useMaxCompletion, omitTemp){
     const body = {
@@ -988,18 +995,15 @@ async function callChatCompletions(model, messages, options, key, temperature, w
   }
 
   try {
-    // First pass: classic max_tokens + given temperature
     return await tryOnce(false, false);
   } catch (e1) {
     const m1 = (e1.message || '').toLowerCase();
 
-    // If it wants max_completion_tokens, retry with that
     if ([400,422].includes(e1.status) && /max_tokens/.test(m1) && /max_completion_tokens/.test(m1)) {
       try {
         console.warn('[chat] retrying with max_completion_tokens');
         return await tryOnce(true, false);
       } catch (e2) {
-        // If temperature is the issue now, drop/default it
         if (isTempError(e2)) {
           console.warn('[chat] retrying without temperature');
           return await tryOnce(true, true);
@@ -1007,13 +1011,10 @@ async function callChatCompletions(model, messages, options, key, temperature, w
         throw e2;
       }
     }
-
-    // If temperature itself is the problem, drop it and retry
     if (isTempError(e1)) {
       console.warn('[chat] retrying without temperature');
       return await tryOnce(false, true);
     }
-
     throw e1;
   }
 }
@@ -1063,19 +1064,16 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
     return { choices: [{ message: { content: text } }], raw: data };
   }
 
-  // 1) Try with max_output_tokens + given temperature
   try {
     return await tryOnce('max_output_tokens', false);
   } catch (e1) {
     const m1 = (e1.message || '').toLowerCase();
 
-    // 2) If it wants max_completion_tokens, switch
     if ([400,422].includes(e1.status) && /max_(output|tokens)/.test(m1) && /max_completion_tokens/.test(m1)) {
       try {
         console.warn('[responses] retrying with max_completion_tokens');
         return await tryOnce('max_completion_tokens', false);
       } catch (e2) {
-        // 3) If temperature still not allowed, drop it
         if (isTempError(e2)) {
           console.warn('[responses] retrying without temperature');
           return await tryOnce('max_completion_tokens', true);
@@ -1083,13 +1081,10 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
         throw e2;
       }
     }
-
-    // 3) If temperature is the issue on the first try, drop it
     if (isTempError(e1)) {
       console.warn('[responses] retrying without temperature');
       return await tryOnce('max_output_tokens', true);
     }
-
     throw e1;
   }
 }
@@ -1103,17 +1098,28 @@ async function callOpenAI(model, messages, options = {}) {
   const wantsJson  = options.response_format?.type === 'json_object';
   const maxTokens  = options.max_tokens;
 
-  // Try Chat Completions first for any model
-  try{
-    return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
-  }catch(err1){
-    // If it's a request/endpoint mismatch (typical 400/404/422), try Responses API once
+  try {
+    const chatResp = await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
+    const txt = contentFromChat(chatResp);
+
+    if (wantsJson && (!txt || !extractFirstJson(txt))) {
+      console.warn('[chat] empty/non-JSON \u2192 trying Responses');
+      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
+    }
+
+    if (!wantsJson && !txt) {
+      console.warn('[chat] empty content \u2192 trying Responses');
+      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
+    }
+
+    return chatResp;
+
+  } catch (err1) {
     if ([400,404,422].includes(err1?.status)){
       try{
         console.warn('[Chat \u2192 4xx, switching to Responses] ', err1.message || err1);
         return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
       }catch(err2){
-        // Throw both messages to surface the real reason in console/UI
         const combo = new Error(`[chat ${err1?.status}] ${err1?.message || ''} | [responses ${err2?.status}] ${err2?.message || ''}`.trim());
         combo.status = err2?.status || err1?.status || 400;
         throw combo;
