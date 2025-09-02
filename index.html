@@ -988,7 +988,7 @@ async function callChatDeterministic(model, messages, { key, wantsJson, maxToken
 async function callResponsesDeterministic(model, messages, { key, wantsJson, maxTokens }){
   const input = (messages || []).map(m => ({
     role: m.role || 'user',
-    content: [{ type: 'input_text', text: String(m.content ?? '') }]
+    content: [{ type: 'text', text: String(m.content ?? '') }]
   }));
 
   const body = {
@@ -997,13 +997,11 @@ async function callResponsesDeterministic(model, messages, { key, wantsJson, max
     ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
   };
   if (wantsJson) {
-    body.text = {
-      format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'mt_output',
-          schema: { type: 'object', additionalProperties: true }
-        }
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: 'mt_output',
+        schema: { type: 'object', additionalProperties: true }
       }
     };
   }
