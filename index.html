@@ -1088,13 +1088,12 @@ async function callOpenAI(model, messages, options={}){
       ...(Number.isFinite(max)?{max_output_tokens:max}:{}),
       ...(typeof temperature==='number'?{temperature}:{}),
     };
-    if(wantsJson){
-      body.response_format={
-        type:'json_schema',
-        json_schema:{name:'mt_output',schema:{type:'object',additionalProperties:true}}
-      };
-    }else if(options.response_format){
-      body.response_format=options.response_format;
+    if(options.response_format){
+      if(options.response_format.type==='json_object'){
+        body.text={format:{type:'json_object'}};
+      }else{
+        body.text={format:options.response_format};
+      }
     }
     const resp=await fetch('https://api.openai.com/v1/responses',{
       method:'POST',
