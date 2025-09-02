@@ -14,6 +14,11 @@
   function $(id){ return document.getElementById(id); }
   function Q(sel){ return Array.from(document.querySelectorAll(sel)); }
 </script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    Q('button').forEach(btn => { if(!btn.type) btn.type = 'button'; });
+  });
+</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MT academy</title>
