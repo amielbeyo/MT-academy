@@ -939,156 +939,99 @@ function tryExtractMessage(txt){
 
 /* --- OpenAI API helper (fixed for Responses API) --- */
 
-function modelFamily(model){
-  return /^(gpt-5|o5)/i.test(String(model||'')) ? 'responses' : 'chat';
+/* === PLUGIN A: Unified OpenAI adapter (Chat Completions + Responses) === */
+function modelFamily(m){ return /^(gpt-5|o5)/i.test(String(m||'')) ? 'responses' : 'chat'; }
+function parseApiErr(txt){ try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; } }
+async function postJSON(url, body, key){
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`}, body:JSON.stringify(body) });
+  if(!r.ok){ const t = await r.text().catch(()=> ''); const e = new Error(parseApiErr(t) || `HTTP ${r.status}`); e.status=r.status; e.raw=t; throw e; }
+  return r.json();
 }
 
-function parseApiErr(txt){
-  try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; }
-}
-
-function extractResponsesText(data){
-  if (typeof data?.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
-  const c = data?.output?.[0]?.content;
-  if (Array.isArray(c)){
-    return c.find(x => x.type === 'output_text')?.text
-        || c.find(x => typeof x.text === 'string')?.text
-        || c[0]?.text
-        || '';
+/* Chat Completions (4o/mini etc.) */
+async function callChat(model, messages, { wantsJson=false, maxTokens, temperature }={}){
+  const body = { model, messages };
+  if(Number.isFinite(maxTokens)) body.max_tokens = maxTokens;
+  if(typeof temperature==='number') body.temperature = temperature;
+  if(wantsJson){
+    // schema isn’t required here; json_object is simplest & robust
+    body.response_format = { type: 'json_object' };
   }
+  return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
+}
+
+/* Responses (gpt-5 / o5) with proper text.format.name */
+function responsesInput(messages, as='messages'){
+  if(as==='string'){
+    return (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content??'')}`).join('\n');
+  }
+  return (messages||[]).map(m => ({ role:m.role||'user', content:[{ type:'input_text', text:String(m.content??'') }] }));
+}
+function extractResponsesText(data){
+  if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
+  const c = data?.output?.[0]?.content;
+  if(Array.isArray(c)) return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
   return '';
 }
-
-async function postJSON(url, body, key){
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok){
-    const txt = await resp.text().catch(()=> '');
-    const err = new Error(parseApiErr(txt) || `HTTP ${resp.status}`);
-    err.status = resp.status;
-    err.raw = txt;
-    throw err;
-  }
-  return await resp.json();
-}
-
-async function callChatCompletions(model, messages, { wantsJson=false, maxTokens, temperature } = {}){
-  const body = {
-    model,
-    messages,
-    ...(Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {})
+async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature }={}){
+  const tryBody = (tokenParam='max_output_tokens', style='messages') => {
+    const body = { model, input: responsesInput(messages, style) };
+    if(Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
+    if(typeof temperature==='number') body.temperature = temperature;
+    if(wantsJson){
+      body.text = {
+        format: {
+          type: 'json_schema',
+          name: 'mt_output',
+          strict: true,
+          schema: { type:'object', additionalProperties:true }
+        }
+      };
+    }
+    return body;
   };
-  if (typeof temperature === 'number') body.temperature = temperature;
-  if (wantsJson) body.response_format = { type: 'json_object' };
-  return await postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
-}
 
-function buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam='max_output_tokens', inputStyle='messages' }){
-  const input = (inputStyle === 'string')
-    ? (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content ?? '')}`).join('\n')
-    : (messages||[]).map(m => ({
-        role: m.role || 'user',
-        content: [{ type: 'input_text', text: String(m.content ?? '') }]
-      }));
+  // attempt matrix to dodge vendor-variant quirks
+  const attempts = [
+    tryBody('max_output_tokens','messages'),
+    tryBody('max_completion_tokens','messages'),
+    tryBody('max_output_tokens','string'),
+  ];
 
-  const body = { model, input };
-  if (Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
-  if (typeof temperature === 'number') body.temperature = temperature;
-
-  if (wantsJson){
-    body.text = {
-      format: {
-        type: 'json_schema',
-        name: 'mt_output',
-        schema: { type: 'object', additionalProperties: true }
-      }
-    };
-  }
-  return body;
-}
-
-async function fireResponses(body){
-  const resp = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${EngineState.openaiKey}` },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok){
-    const txt = await resp.text().catch(()=> '');
-    const err = new Error(parseApiErr(txt) || `HTTP ${resp.status}`);
-    err.status = resp.status;
-    err.raw = txt;
-    throw err;
-  }
-  return await resp.json();
-}
-
-async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature } = {}){
   let lastErr;
-  try {
-    const A = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_output_tokens', inputStyle:'messages' });
-    const d = await fireResponses(A);
-    return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
-  } catch(eA){
-    lastErr = eA;
-    const m = (eA.message||'').toLowerCase();
-    if (/max_completion_tokens|unsupported.*max_output_tokens/.test(m)){
-      try{
-        const B = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_completion_tokens', inputStyle:'messages' });
-        const d = await fireResponses(B);
-        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
-      }catch(eB){ lastErr = eB; }
-    }
-    if (/invalid.*input|must be.*string|content.*must be/i.test(m)){
-      try{
-        const C = buildResponsesBody({ model, messages, wantsJson, maxTokens, temperature, tokenParam:'max_output_tokens', inputStyle:'string' });
-        const d = await fireResponses(C);
-        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
-      }catch(eC){ lastErr = eC; }
-    }
-    if (/temperature/.test(m)){
-      try{
-        const D = buildResponsesBody({ model, messages, wantsJson, maxTokens, tokenParam:'max_output_tokens', inputStyle:'messages' });
-        const d = await fireResponses(D);
-        return { choices:[{ message:{ content: extractResponsesText(d) }}], raw: d };
-      }catch(eD){ lastErr = eD; }
-    }
+  for(const body of attempts){
+    try {
+      const d = await postJSON('https://api.openai.com/v1/responses', body, EngineState.openaiKey);
+      return { choices: [{ message: { content: extractResponsesText(d) } }], raw:d };
+    } catch(e){ lastErr = e; }
   }
   throw lastErr || new Error('Responses API call failed');
 }
 
-async function callOpenAI(model, messages, options = {}) {
+/* Single entry point */
+async function callOpenAI(model, messages, options={}){
   const key = EngineState.openaiKey;
-  if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
-  if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
-
+  if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
+  if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
   const wantsJson = options?.response_format?.type === 'json_object';
   const maxTokens = options?.max_tokens;
-  const temperature = (typeof options?.temperature === 'number') ? options.temperature : undefined;
+  const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
 
   try{
-    if (modelFamily(model) === 'responses'){
+    if(modelFamily(model)==='responses'){
       return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
     } else {
-      return await callChatCompletions(model, messages, { wantsJson, maxTokens, temperature });
+      return await callChat(model, messages, { wantsJson, maxTokens, temperature });
     }
   }catch(primaryErr){
-    const msg = (primaryErr.message||'').toLowerCase();
-    if (primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
-    if (/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
-    try{
-      if (modelFamily(model) === 'responses'){
-        return await callChatCompletions(model, messages, { wantsJson, maxTokens, temperature });
-      } else {
-        return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
-      }
-    }catch(secondaryErr){
-      const combo = new Error(`[primary ${primaryErr.status||''}] ${primaryErr.message} | [secondary ${secondaryErr.status||''}] ${secondaryErr.message}`);
-      combo.status = secondaryErr.status || primaryErr.status || 400;
-      throw combo;
+    // graceful cross-fallback for transient or feature mismatches
+    const msg=(primaryErr.message||'').toLowerCase();
+    if(primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
+    if(/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
+    if(modelFamily(model)==='responses'){
+      return await callChat(model, messages, { wantsJson, maxTokens, temperature });
+    } else {
+      return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
     }
   }
 }
@@ -1515,14 +1458,22 @@ function gptRecord(){
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
         const blob=new Blob(chunks,{type:'audio/webm'});
-        const transcribeModel = 'gpt-4o-mini-transcribe';
-        const form=new FormData();form.append('model',transcribeModel);form.append('file',blob,'audio.webm');
-         try{
-           const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
-           const data=await resp.json();const text=data?.text?.trim();
-           if(text){$('objGPTInput').value=text;}
-         }catch(err){alert('Transcription error: '+err.message);}
-         updateGPTSend();
+        const form=new FormData();form.append('file',blob,'audio.webm');
+
+        async function tryTranscribe(modelName){
+          const fd=new FormData(form);
+          fd.append('model',modelName);
+          const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:fd});
+          if(!r.ok){const t=await r.text().catch(()=> ''); throw new Error(parseApiErr(t));}
+          return r.json();
+        }
+
+        let text='';
+        try{ text=(await tryTranscribe('gpt-4o-mini-transcribe'))?.text?.trim()||''; }
+        catch{ try{ text=(await tryTranscribe('whisper-1'))?.text?.trim()||''; }catch(_){} }
+
+        if(text){ $('objGPTInput').value=text; }
+        updateGPTSend();
        };
        rec.start();
        $('btnGPTRecord').disabled=true;
@@ -2043,28 +1994,26 @@ const VideoCoach=(function(){
     setStatus('Stopped. You can Re-score after editing transcript.');
     setTimeout(scoreNow,250);
   }
-  // === PATCH: Replace VideoCoach.scoreViaChatGPT with JSON-only call ===
+  // JSON-only scorer used by Video mode
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey){ throw new Error('no_key'); }
     const model = EngineState.openaiModel;
     const maxTokens = EngineState.openaiMaxTokens || 600;
-    const tokenParam = chatTokenParam(model, maxTokens);
 
     const messages = [
-      { role: 'system', content: 'You are a judge. Return ONLY a valid JSON object that matches the requested shape. No preface or code fences.' },
-      { role: 'user',   content: buildJudgeJSONPrompt(type, transcript) }
+      { role:'system', content:'You are a judge. Return ONLY a valid JSON object that matches the requested shape. No preface or code fences.' },
+      { role:'user',   content: buildJudgeJSONPrompt(type, transcript) }
     ];
 
-    const data = await callOpenAI(
-      model,
-      messages,
-      { temperature: 0, ...tokenParam, response_format: { type: 'json_object' } }
-    );
+    const data = await callOpenAI(model, messages, {
+      temperature: 0,
+      max_tokens: maxTokens,
+      response_format: { type:'json_object' }
+    });
 
     const content = data?.choices?.[0]?.message?.content || '{}';
-    const obj = extractFirstJson(content) || {};
+    const obj = (function tryParse(s){ try{ return JSON.parse(s); }catch{ return extractFirstJson(s) || {}; } })(content);
 
-    // Normalize to what renderReport() expects
     const conf = RUBRICS[type];
     const cats = {}, comments = {};
     conf.cats.forEach(c=>{
@@ -2100,7 +2049,11 @@ const VideoCoach=(function(){
 
   function scoreNow(){
     const type=$('videoType').value||'opening';
-    const raw=$('videoTranscript').value||'';
+    const raw=($('videoTranscript').value||'').trim();
+    if(!raw){
+      $('videoStatus').textContent='Nothing to score — paste or record a transcript first.';
+      return;
+    }
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
@@ -2173,26 +2126,18 @@ const VideoCoach=(function(){
   }
 
   async function testChatGPT(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
-      return;
-    }
-    const testMsg = [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){ alert('Enable ChatGPT mode + key'); return; }
+    const messages = [
+      { role:'system', content:'Return ONLY JSON: {"ok":true}' },
+      { role:'user',   content:'Reply with {"ok":true} exactly (no code fences).' }
     ];
-    showProvenance('Testing ChatGPT\u2026');
     try{
-      const model = EngineState.openaiModel;
-      const tokenParam = chatTokenParam(model,30);
-      const data = await callOpenAI(model, testMsg, {response_format:{type:'json_object'}, ...tokenParam});
-      console.info('[ChatGPT][TEST] data=', data);
-      showProvenance('ChatGPT reachable \u2705');
-    }catch(e){
-      console.error('[ChatGPT][TEST] error', e);
-      const msg = (e && (e.message || e.toString())) || 'Unknown error';
-      showProvenance(`ChatGPT test error: ${e.status || ''} ${msg}`, true);
-    }
+      const data = await callOpenAI(EngineState.openaiModel, messages, { response_format:{ type:'json_object' }, max_tokens:20, temperature:0 });
+      const raw = data?.choices?.[0]?.message?.content || '';
+      const j = extractFirstJson(raw) || {};
+      if(j.ok === true){ showProvenance('ChatGPT reachable \u2705'); }
+      else { showProvenance('ChatGPT responded but not JSON-ok \u2753', true); }
+    }catch(e){ showProvenance(`ChatGPT test error: ${e.status||''} ${e.message}`, true); }
   }
 
   async function gptWrite(){
