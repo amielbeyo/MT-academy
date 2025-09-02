@@ -770,7 +770,11 @@ async function analyzeBodyLanguage(blob){
 
 async function ratePosture(){
   try{
-    const blob=await fetch($('videoPreview').src).then(r=>r.blob());
+    const blob=lastVideoBlob;
+    if(!blob){
+      $('videoStatus').textContent='No video available for posture scoring.';
+      return;
+    }
     setStatus('Scoring body language...');
     const res=await analyzeBodyLanguage(blob);
     let tips=res.advice,gestures='';
@@ -1641,7 +1645,7 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
-  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null;
+  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null,lastVideoBlob=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -2000,7 +2004,23 @@ const VideoCoach=(function(){
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
     catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
     chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
-    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
+    if(rec){
+      rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
+      rec.onstop=()=>{
+        const blob=new Blob(chunks,{type:'video/webm'});
+        lastVideoBlob=blob;
+        const url=URL.createObjectURL(blob);
+        $('btnDownloadRecording').href=url;
+        $('btnPlayRecording').onclick=()=>{
+          const v=$('videoPreview');
+          v.srcObject=null;
+          v.src=url;
+          v.controls=true;
+          v.play();
+        };
+      };
+      rec.start();
+    }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
     try{
@@ -2027,6 +2047,7 @@ const VideoCoach=(function(){
 
   function handleUpload(file){
     if(!file) return; uploaded=true; micOnly=false;
+    lastVideoBlob=file;
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
     uploadedURL=URL.createObjectURL(file);
     const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play();
