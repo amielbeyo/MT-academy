@@ -643,7 +643,6 @@ const MT_SCORING = (() => {
   };
 })();
 </script>
-<script src="posture.js"></script>
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 const ChatGPTScoring = (() => {
@@ -1908,6 +1907,17 @@ const VideoCoach=(function(){
     setTimeout(scoreNow,250);
   }
 
+  async function loadPostureModule(){
+    if(window.analyzeBodyLanguage) return;
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='posture.js';
+      s.onload=res;
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+
   async function ratePosture(){
     try{
       if(rec && rec.state!=='inactive'){ rec.stop(); setTimeout(ratePosture,300); return; }
@@ -1916,6 +1926,7 @@ const VideoCoach=(function(){
         $('videoStatus').textContent='No video available for posture scoring.';
         return;
       }
+      await loadPostureModule();
       setStatus('Scoring body language...');
       const res=await analyzeBodyLanguage(blob);
       let tips=res.advice,gestures='';
