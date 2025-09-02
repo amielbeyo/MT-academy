@@ -156,7 +156,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger.</li>
+            <li>Select a model. "gpt-4o-mini" is cost-effective; "gpt-4o" is better; "gpt-5" is latest.</li>
           </ol>
           <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
           <label class="small">OpenAI API Key
@@ -167,6 +167,7 @@ a.inline{color:var(--accent);text-decoration:underline}
               <select id="openaiModel" class="input">
                 <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
                 <option value="gpt-4o">gpt-4o (better)</option>
+                <option value="gpt-5">gpt-5 (latest)</option>
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
@@ -634,8 +635,17 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
+  // GPT-5 and mini models use max_completion_tokens
+  const key = (/-mini$/i.test(model) || /^gpt-5/i.test(model)) ? 'max_completion_tokens' : 'max_tokens';
   return { [key]: maxTokens };
+}
+
+function getTemperatureParam(model, temperature = 0.7){
+  // GPT-5 only supports default temperature (1), others support custom values
+  if (/^gpt-5/i.test(model)) {
+    return {}; // Don't include temperature parameter for GPT-5
+  }
+  return { temperature };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -1275,10 +1285,11 @@ Task:
    try{
     const model=EngineState.openaiModel||'gpt-4o-mini';
     const tokenParam=chatTokenParam(model,150);
+    const tempParam=getTemperatureParam(model,0.7);
     const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
      headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
+     body:JSON.stringify({model,messages:gptChat,...tempParam,...tokenParam})
     });
    const data=await resp.json();
    const text=data?.choices?.[0]?.message?.content?.trim()||'';
@@ -1298,10 +1309,11 @@ Task:
   try{
    const model=EngineState.openaiModel||'gpt-4o-mini';
    const tokenParam=chatTokenParam(model,150);
+   const tempParam=getTemperatureParam(model,0.7);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
      headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
+     body:JSON.stringify({model,messages:gptChat,...tempParam,...tokenParam})
     });
    const data=await resp.json();
    const reply=data?.choices?.[0]?.message?.content?.trim()||'';
@@ -1441,13 +1453,14 @@ Scoring rule:
     try{
       const model = EngineState.openaiModel || 'gpt-4o-mini';
       const tokenParam = chatTokenParam(model,200);
+      const tempParam = getTemperatureParam(model,0.7);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
         body: JSON.stringify({
           model,
           messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
+          ...tempParam,
           ...tokenParam
         })
       });
@@ -1900,6 +1913,7 @@ const VideoCoach=(function(){
     const model = EngineState.openaiModel || 'gpt-4o-mini';
     const maxTokens = EngineState.openaiMaxTokens || 600;
     const tokenParam = chatTokenParam(model, maxTokens);
+    const tempParam = getTemperatureParam(model, 0);
 
     const prompt = buildChatGPTPrompt(type, transcript);
     const messages = [{role:'user',content:prompt}];
@@ -1920,7 +1934,7 @@ const VideoCoach=(function(){
         body: JSON.stringify({
           model,
           messages,
-          temperature: 0,
+          ...tempParam,
           ...tokenParam,
           response_format: { type: 'json_object' }
         }),
@@ -2114,10 +2128,11 @@ const VideoCoach=(function(){
     try{
       const model=EngineState.openaiModel||'gpt-4o-mini';
       const tokenParam=chatTokenParam(model,maxTokens);
+      const tempParam=getTemperatureParam(model,0.7);
       const resp=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
+        body:JSON.stringify({model,messages,...tempParam,...tokenParam})
       });
       const data=await resp.json();
       const text=data?.choices?.[0]?.message?.content?.trim()||'';
