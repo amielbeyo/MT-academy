@@ -1080,7 +1080,7 @@ async function callOpenAI(model, messages, options={}){
     _openaiClient.apiKey=key;
   }
   const max = Number(
-    options.max_tokens ?? options.max_completion_tokens ?? options.max_output_tokens ?? EngineState.openaiMaxTokens || 400
+    options.max_tokens ?? options.max_completion_tokens ?? options.max_output_tokens ?? EngineState.openaiMaxTokens ?? 400
   );
   const req={
     model,
