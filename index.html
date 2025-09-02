@@ -45,6 +45,7 @@ gtag('config', 'G-3QMGWMD9KZ');
   "logo": "https://mocktrialacademy.com/favicon.svg"
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/openai@4.47.3/dist/openai.min.js"></script>
 <style>
 /* Softer color palette */
 :root{--bg:linear-gradient(135deg,#3b82f6 70%,#f59e0b);--card:#f1f5f9;--muted:#6b7280;--text:#0f172a;--accent:#3b82f6;--secondary:#f59e0b}
@@ -851,17 +852,6 @@ function extractFirstJson(str){
 // === Reliability + parsing helpers ===
 function pickRandom(a){ return a[Math.floor(Math.random()*a.length)] }
 
-async function callOpenAIWithFallback(messages, options){
-  const primary = EngineState.openaiModel;
-  try { return await callOpenAI(primary, messages, options); }
-  catch(e){
-    const msg=(e?.message||'').toLowerCase();
-    if((e.status===404 || /model|does not exist|unknown model/.test(msg)) && primary!=='gpt-4o-mini'){
-      try { return await callOpenAI('gpt-4o-mini', messages, options); } catch(_){}
-    }
-    throw e;
-  }
-}
 
 const OBJECTION_ALIASES = {
   'hearsay within hearsay':'Hearsay within Hearsay',
@@ -1078,148 +1068,37 @@ function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
 
-/* --- OpenAI API helper (fixed for Responses API) --- */
-
-/* === PLUGIN A: Unified OpenAI adapter (Chat Completions + Responses) === */
-function modelFamily(m){ return /^(gpt-5|o5)/i.test(String(m||'')) ? 'responses' : 'chat'; }
-function parseApiErr(txt){ try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; } }
-function isTempError(err){
-  const msg = (err?.message||'').toLowerCase();
-  return [400,422].includes(err?.status) && msg.includes('temperature');
-}
-async function postJSON(url, body, key){
-  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`}, body:JSON.stringify(body) });
-  if(!r.ok){ const t = await r.text().catch(()=> ''); const e = new Error(parseApiErr(t) || `HTTP ${r.status}`); e.status=r.status; e.raw=t; throw e; }
-  return r.json();
-}
-
-/* Chat Completions (4o/mini etc.) */
-async function callChat(model, messages, { wantsJson=false, maxTokens, tokenKey='max_tokens', temperature }={}){
-  async function tryOnce(useCompletion, omitTemp){
-    const body = { model, messages };
-    if(Number.isFinite(maxTokens)){
-      const key = useCompletion ? 'max_completion_tokens' : tokenKey;
-      body[key] = maxTokens;
-    }
-    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
-    if(wantsJson){
-      body.response_format = { type: 'json_object' };
-    }
-    return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
-  }
-
-  try{
-    return await tryOnce(false,false);
-  }catch(e1){
-    const msg=(e1.message||'').toLowerCase();
-    if([400,422].includes(e1.status) && /max_completion_tokens/.test(msg)){
-      try{ return await tryOnce(true,false); }
-      catch(e2){ if(isTempError(e2)) return await tryOnce(true,true); throw e2; }
-    }
-    if(isTempError(e1)) return await tryOnce(false,true);
-    throw e1;
-  }
-}
-
-/* Responses (gpt-5 / o5) with proper text.format.name */
-function responsesInput(messages, as='messages'){
-  if(as==='string'){
-    return (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content??'')}`).join('\n');
-  }
-  return (messages||[]).map(m => ({
-    role: m.role || 'user',
-    content: [{ type:'input_text', text: String(m.content ?? '') }]
-  }));
-}
-function extractResponsesText(data){
-  if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
-  const c = data?.output?.[0]?.content;
-  if(Array.isArray(c)){
-    const j = c.find(x=>x.type==='output_json' || x.type==='json');
-    if(j && j.json) return JSON.stringify(j.json);
-    return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
-  }
-  return '';
-}
-async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature, tokenKey }={}){
-  const buildBody = (tokenParam='max_output_tokens', style='messages', omitTemp=false) => {
-    const body = { model, input: responsesInput(messages, style) };
-    if(Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
-    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
-    if(wantsJson){
-      body.text = {
-        format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'mt_output',
-            schema: { type:'object', additionalProperties:true }
-          }
-        }
-      };
-    }
-    return body;
-  };
-
-  const attempts = [
-    ...(tokenKey ? [{token:tokenKey, style:'messages'}] : []),
-    {token:'max_output_tokens', style:'messages'},
-    {token:'max_completion_tokens', style:'messages'},
-    {token:'max_output_tokens', style:'string'}
-  ];
-
-  let lastErr;
-  for(const omitTemp of [false,true]){
-    for(const a of attempts){
-      try{
-        const d = await postJSON('https://api.openai.com/v1/responses', buildBody(a.token, a.style, omitTemp), EngineState.openaiKey);
-        return { choices: [{ message: { content: extractResponsesText(d) } }], raw:d };
-      }catch(e){ lastErr = e; }
-    }
-    if(!isTempError(lastErr)) break;
-  }
-  throw lastErr || new Error('Responses API call failed');
-}
-
-/* Single entry point */
+/* --- OpenAI API helper (unified via Responses API) --- */
+let _openaiClient;
 async function callOpenAI(model, messages, options={}){
-  const key = EngineState.openaiKey;
+  const key=EngineState.openaiKey;
+  if(typeof messages==='string') messages=[{role:'user',content:messages}];
   if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
-  if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
-  const wantsJson = options?.response_format?.type === 'json_object';
-  const tokenInfo = (()=>{
-    if(Number.isFinite(options?.max_tokens)) return {maxTokens: options.max_tokens, tokenKey: 'max_tokens'};
-    if(Number.isFinite(options?.max_completion_tokens)) return {maxTokens: options.max_completion_tokens, tokenKey: 'max_completion_tokens'};
-    if(Number.isFinite(options?.max_output_tokens)) return {maxTokens: options.max_output_tokens, tokenKey: 'max_output_tokens'};
-    return {maxTokens: undefined, tokenKey: undefined};
-  })();
-  const {maxTokens, tokenKey} = tokenInfo;
-  const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
-  const family = modelFamily(model);
-  const primaryTokens = family==='responses' ? Math.min(maxTokens ?? 400, 400) : maxTokens;
-
-  const primary = () => family==='responses'
-    ? callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey })
-    : callChat(model, messages, { wantsJson, maxTokens: primaryTokens, temperature, tokenKey });
-  const secondary = () => family==='responses'
-    ? callChat(model, messages, { wantsJson, maxTokens, temperature })
-    : callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature });
-
-  try{
-    let data = await primary();
-    const content = data?.choices?.[0]?.message?.content || '';
-    if((wantsJson && !extractFirstJson(content)) || (!wantsJson && !content.trim())){
-      data = await secondary();
-    }
-    return data;
-  }catch(primaryErr){
-    const msg=(primaryErr.message||'').toLowerCase();
-    if(primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
-    if(/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
-    return await secondary();
+  if(!_openaiClient){
+    _openaiClient=new OpenAI({apiKey:key,dangerouslyAllowBrowser:true});
+  }else{
+    _openaiClient.apiKey=key;
   }
+  const max = Number(
+    options.max_tokens ?? options.max_completion_tokens ?? options.max_output_tokens ?? EngineState.openaiMaxTokens || 400
+  );
+  const req={
+    model,
+    input:(messages||[]).map(m=>({role:m.role||'user',content:[{type:'text',text:String(m.content??'') }]})),
+    max_output_tokens:max
+  };
+  if(typeof options.temperature==='number') req.temperature=options.temperature;
+  if(options.response_format?.type==='json_object'){
+    req.response_format={
+      type:'json_schema',
+      json_schema:{name:'mt_output',schema:{type:'object',additionalProperties:true}}
+    };
+  }
+  const res=await _openaiClient.responses.create(req);
+  const text=res.output_text || res.output?.[0]?.content?.[0]?.text || '';
+  return {choices:[{message:{content:text}}],raw:res};
 }
-
-window.callOpenAI = callOpenAI;
+window.callOpenAI=callOpenAI;
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
@@ -1510,7 +1389,7 @@ async function gptNew(){
     ];
     const model=EngineState.openaiModel;
     const tokenParam=chatTokenParam(model,250);
-    const data=await callOpenAIWithFallback(messages,{response_format:{type:'json_object'},...tokenParam});
+    const data=await callOpenAI(model,messages,{response_format:{type:'json_object'},...tokenParam});
     let raw=data?.choices?.[0]?.message?.content||'';
     let obj=extractFirstJson(raw);
 
@@ -1520,7 +1399,7 @@ async function gptNew(){
         {role:'system',content:`Return exactly 5 lines:\nFACT: ...\nQUESTION: ...\nANSWER: <one of [${OBJECTION_CHOICES.join(', ')}]>\nRULE: ...\nWHY: ...`},
         {role:'user',content:userPrompt}
       ];
-      const data2=await callOpenAIWithFallback(messages2,{...chatTokenParam(model,220), temperature:0});
+      const data2=await callOpenAI(model,messages2,{...chatTokenParam(model,220), temperature:0});
       raw=data2?.choices?.[0]?.message?.content||'';
       obj=parseObjectionLoose(raw)||obj;
     }
@@ -2395,7 +2274,8 @@ const VideoCoach=(function(){
     ];
 
     try{
-      const data=await callOpenAIWithFallback(messages, { ...chatTokenParam(EngineState.openaiModel, EngineState.openaiMaxTokens||400), temperature:0.7 });
+      const model=EngineState.openaiModel;
+      const data=await callOpenAI(model, messages, { ...chatTokenParam(model, EngineState.openaiMaxTokens||400), temperature:0.7 });
       const text=data?.choices?.[0]?.message?.content?.trim();
       if(text) { out.value=text; }
       else { throw new Error('empty-output'); }
