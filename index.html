@@ -1887,6 +1887,11 @@ const VideoCoach=(function(){
     return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
   }
 
+  function buildChatGPTMessages(type, transcript){
+    const prompt = buildChatGPTPrompt(type, transcript);
+    return [{role:'user', content: prompt}];
+  }
+
   function parseChatGPTScoreResponse(text){
     const obj = extractFirstJson(text);
     if(!obj) throw new Error('bad_json');
@@ -1901,8 +1906,8 @@ const VideoCoach=(function(){
     const maxTokens = EngineState.openaiMaxTokens || 600;
     const tokenParam = chatTokenParam(model, maxTokens);
 
-    const prompt = buildChatGPTPrompt(type, transcript);
-    const messages = [{role:'user',content:prompt}];
+    const messages = buildChatGPTMessages(type, transcript);
+    const prompt = messages[0].content;
 
     async function callOnce(signal){
       if(DEBUG_CHATGPT){
