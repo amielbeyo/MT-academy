@@ -7,8 +7,9 @@
  window.dataLayer = window.dataLayer || [];
  function gtag(){dataLayer.push(arguments);}
  gtag('js', new Date());
- gtag('config', 'G-3QMGWMD9KZ');
+gtag('config', 'G-3QMGWMD9KZ');
 </script>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>MT academy</title>
@@ -167,10 +168,12 @@ a.inline{color:var(--accent);text-decoration:underline}
               <select id="openaiModel" class="input">
                 <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
                 <option value="gpt-4o">gpt-4o (better)</option>
+                <option value="gpt-5-mini">gpt-5-mini (new)</option>
+                <option value="gpt-5">gpt-5 (strongest)</option>
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
-              <input id="openaiMaxTokens" class="input" type="number" value="600" min="200" max="2000">
+              <input id="openaiMaxTokens" class="input" type="number" value="400" min="200" max="2000">
             </label>
           </div>
           <div class="row" style="margin-top:8px">
@@ -349,6 +352,13 @@ a.inline{color:var(--accent);text-decoration:underline}
     <p class="small">For recommendations, contact the creator at <a href="mailto:amielbeyo1@gmail.com">amielbeyo1@gmail.com</a>.</p>
   </section>
 </div>
+
+<script>
+// Make helpers globally available to code outside the guard
+window.$ = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
+window.Q = (sel) => (typeof document !== 'undefined' ? Array.from(document.querySelectorAll(sel)) : []);
+window.escHTML = (s) => s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])) : '';
+</script>
 
 <script>
 // Detailed Arizona Mock Trial Rules of Evidence
@@ -634,8 +644,8 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
-  return { [key]: maxTokens };
+  if (!Number.isFinite(maxTokens)) return {};
+  return { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -801,12 +811,13 @@ function showProvenance(msg, isErr=false){
 }
 
 /* Utilities */
-const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
+const $ = window.$;
+const Q = window.Q;
+const escHTML = window.escHTML;
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
-function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
 /* Robust JSON extraction (handles ```json fences) */
 function extractFirstJson(str){
@@ -919,9 +930,146 @@ const EngineState = {
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
   set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
-  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
-  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',400) },
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||400) }
 };
+
+function tryExtractMessage(txt){
+  try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
+}
+
+/* --- OpenAI API helper (fixed for Responses API) --- */
+
+/* === PLUGIN A: Unified OpenAI adapter (Chat Completions + Responses) === */
+function modelFamily(m){ return /^(gpt-5|o5)/i.test(String(m||'')) ? 'responses' : 'chat'; }
+function parseApiErr(txt){ try { return JSON.parse(txt)?.error?.message || txt; } catch { return txt; } }
+function isTempError(err){
+  const msg = (err?.message||'').toLowerCase();
+  return [400,422].includes(err?.status) && msg.includes('temperature');
+}
+async function postJSON(url, body, key){
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`}, body:JSON.stringify(body) });
+  if(!r.ok){ const t = await r.text().catch(()=> ''); const e = new Error(parseApiErr(t) || `HTTP ${r.status}`); e.status=r.status; e.raw=t; throw e; }
+  return r.json();
+}
+
+/* Chat Completions (4o/mini etc.) */
+async function callChat(model, messages, { wantsJson=false, maxTokens, tokenKey='max_tokens', temperature }={}){
+  async function tryOnce(useCompletion, omitTemp){
+    const body = { model, messages };
+    if(Number.isFinite(maxTokens)){
+      const key = useCompletion ? 'max_completion_tokens' : tokenKey;
+      body[key] = maxTokens;
+    }
+    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
+    if(wantsJson){
+      body.response_format = { type: 'json_object' };
+    }
+    return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
+  }
+
+  try{
+    return await tryOnce(false,false);
+  }catch(e1){
+    const msg=(e1.message||'').toLowerCase();
+    if([400,422].includes(e1.status) && /max_completion_tokens/.test(msg)){
+      try{ return await tryOnce(true,false); }
+      catch(e2){ if(isTempError(e2)) return await tryOnce(true,true); throw e2; }
+    }
+    if(isTempError(e1)) return await tryOnce(false,true);
+    throw e1;
+  }
+}
+
+/* Responses (gpt-5 / o5) with proper text.format.name */
+function responsesInput(messages, as='messages'){
+  if(as==='string'){
+    return (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content??'')}`).join('\n');
+  }
+  return (messages||[]).map(m => ({ role:m.role||'user', content:[{ type:'text', text:String(m.content??'') }] }));
+}
+function extractResponsesText(data){
+  if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
+  const c = data?.output?.[0]?.content;
+  if(Array.isArray(c)) return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
+  return '';
+}
+async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature, tokenKey }={}){
+  const buildBody = (tokenParam='max_output_tokens', style='messages', omitTemp=false) => {
+    const body = { model, input: responsesInput(messages, style) };
+    if(Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
+    if(typeof temperature==='number' && !omitTemp) body.temperature = temperature;
+    if(wantsJson){
+      body.text = {
+        format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'mt_output',
+            schema: { type:'object', additionalProperties:true }
+          }
+        }
+      };
+    }
+    return body;
+  };
+
+  const attempts = [
+    ...(tokenKey ? [{token:tokenKey, style:'messages'}] : []),
+    {token:'max_output_tokens', style:'messages'},
+    {token:'max_completion_tokens', style:'messages'},
+    {token:'max_output_tokens', style:'string'}
+  ];
+
+  let lastErr;
+  for(const omitTemp of [false,true]){
+    for(const a of attempts){
+      try{
+        const d = await postJSON('https://api.openai.com/v1/responses', buildBody(a.token, a.style, omitTemp), EngineState.openaiKey);
+        return { choices: [{ message: { content: extractResponsesText(d) } }], raw:d };
+      }catch(e){ lastErr = e; }
+    }
+    if(!isTempError(lastErr)) break;
+  }
+  throw lastErr || new Error('Responses API call failed');
+}
+
+/* Single entry point */
+async function callOpenAI(model, messages, options={}){
+  const key = EngineState.openaiKey;
+  if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
+  if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
+  const wantsJson = options?.response_format?.type === 'json_object';
+  const maxTokens =
+    options?.max_tokens ??
+    options?.max_completion_tokens ??
+    options?.max_output_tokens;
+  const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
+  const family = modelFamily(model);
+  const primaryTokens = family==='responses' ? Math.min(maxTokens ?? 400, 400) : maxTokens;
+
+  const primary = () => family==='responses'
+    ? callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature })
+    : callChat(model, messages, { wantsJson, maxTokens: primaryTokens, temperature });
+  const secondary = () => family==='responses'
+    ? callChat(model, messages, { wantsJson, maxTokens, temperature })
+    : callResponses(model, messages, { wantsJson, maxTokens: primaryTokens, temperature });
+
+  try{
+    let data = await primary();
+    const content = data?.choices?.[0]?.message?.content || '';
+    if((wantsJson && !extractFirstJson(content)) || (!wantsJson && !content.trim())){
+      data = await secondary();
+    }
+    return data;
+  }catch(primaryErr){
+    const msg=(primaryErr.message||'').toLowerCase();
+    if(primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
+    if(/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
+    return await secondary();
+  }
+}
+
+window.callOpenAI = callOpenAI;
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
@@ -960,7 +1108,7 @@ function attachVideoGateHandlers(){
   $('btnUseChatGPT').addEventListener('click', ()=>{
     const key=$('openaiKey').value.trim();
     const model=$('openaiModel').value;
-    const maxt=Number($('openaiMaxTokens').value)||600;
+    const maxt=Number($('openaiMaxTokens').value)||400;
     if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
@@ -1183,18 +1331,13 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
   if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
   try{
    const messages=[
-    {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
-    {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
-   ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
-   const tokenParam=chatTokenParam(model,250);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify({model,messages,response_format:{type:'json_object'},...tokenParam})
-   });
-   const data=await resp.json();
-   const raw=data?.choices?.[0]?.message?.content||'';
+   {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
+   {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
+  ];
+   const model = EngineState.openaiModel;
+   const tokenParam = chatTokenParam(model,250);
+   const data = await callOpenAI(model, messages, {response_format:{type:'json_object'}, ...tokenParam});
+   const raw = data?.choices?.[0]?.message?.content || '';
    const obj=extractFirstJson(raw);
    if(obj&&obj.fact&&obj.q&&obj.ans){
     cur=obj;
@@ -1270,18 +1413,13 @@ Task:
   $('objGPTControls').hidden=false;
   $('btnGPTRule').hidden=false;
   $('objGPTInput').value='';
-  gptSendLocked=false;
-  updateGPTSend();
+ gptSendLocked=false;
+ updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
-    const tokenParam=chatTokenParam(model,150);
-    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const text=data?.choices?.[0]?.message?.content?.trim()||'';
+    const model = EngineState.openaiModel;
+    const tokenParam = chatTokenParam(model,150);
+    const data = await callOpenAI(model, gptChat, {temperature:0.7, ...tokenParam});
+    const text = data?.choices?.[0]?.message?.content?.trim() || '';
    gptChat.push({role:'assistant',content:text});
    appendChat('chatgpt',text);
   }catch(e){
@@ -1296,15 +1434,10 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
-   const tokenParam=chatTokenParam(model,150);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const reply=data?.choices?.[0]?.message?.content?.trim()||'';
+   const model = EngineState.openaiModel;
+   const tokenParam = chatTokenParam(model,150);
+   const data = await callOpenAI(model, gptChat, {temperature:0.7, ...tokenParam});
+   const reply = data?.choices?.[0]?.message?.content?.trim() || '';
    gptChat.push({role:'assistant',content:reply});
    appendChat('chatgpt',reply);
   }catch(e){
@@ -1357,14 +1490,23 @@ function gptRecord(){
          $('btnGPTRecord').disabled=false;
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
-         const blob=new Blob(chunks,{type:'audio/webm'});
-         const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('file',blob,'audio.webm');
-         try{
-           const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
-           const data=await resp.json();const text=data?.text?.trim();
-           if(text){$('objGPTInput').value=text;}
-         }catch(err){alert('Transcription error: '+err.message);}
-         updateGPTSend();
+        const blob=new Blob(chunks,{type:'audio/webm'});
+        const form=new FormData();form.append('file',blob,'audio.webm');
+
+        async function tryTranscribe(modelName){
+          const fd=new FormData(form);
+          fd.append('model',modelName);
+          const r=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:fd});
+          if(!r.ok){const t=await r.text().catch(()=> ''); throw new Error(parseApiErr(t));}
+          return r.json();
+        }
+
+        let text='';
+        try{ text=(await tryTranscribe('gpt-4o-mini-transcribe'))?.text?.trim()||''; }
+        catch{ try{ text=(await tryTranscribe('whisper-1'))?.text?.trim()||''; }catch(_){} }
+
+        if(text){ $('objGPTInput').value=text; }
+        updateGPTSend();
        };
        rec.start();
        $('btnGPTRecord').disabled=true;
@@ -1439,19 +1581,9 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel;
       const tokenParam = chatTokenParam(model,200);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body: JSON.stringify({
-          model,
-          messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
-          ...tokenParam
-        })
-      });
-      const data = await resp.json();
+      const data = await callOpenAI(model, [{role:'user', content: prompt}], {temperature:0.7, ...tokenParam});
       const text = data?.choices?.[0]?.message?.content?.trim() || '';
 
       try{
@@ -1476,6 +1608,21 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 })();
 
 /* Video Coach (ChatGPT integration + fallback) */
+// === PATCH: JSON-only judge prompt for Video scoring ===
+function buildJudgeJSONPrompt(type, transcript){
+  const rm = STATES[CURRENT_STATE]?.rubricMap || {};
+  const rubric = rm[type] || rm.opening;
+  return `${rubric}
+
+Transcript (verbatim):
+${transcript}
+
+Rules:
+- Return ONLY a JSON object (no prose, no code fences).
+- Include: "total", "categories", "comments", "explanation", "notes" (and "qa" if you have it).
+- "total" must equal the rubric-weighted sum of category scores (rounded).`;
+}
+
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null;
 
@@ -1880,102 +2027,42 @@ const VideoCoach=(function(){
     setStatus('Stopped. You can Re-score after editing transcript.');
     setTimeout(scoreNow,250);
   }
-
-  function buildChatGPTPrompt(type, transcript){
-    const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
-    const rubric = rubricMap[type] || rubricMap.opening;
-    return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
-  }
-
-  function parseChatGPTScoreResponse(text){
-    const obj = extractFirstJson(text);
-    if(!obj) throw new Error('bad_json');
-    return obj;
-  }
-
-  // Hardened: timeout + retry + JSON-safe parsing + logs
+  // JSON-only scorer used by Video mode
   async function scoreViaChatGPT(type, transcript){
-    const key = EngineState.openaiKey;
-    if(!key){ throw new Error('no_key'); }
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
-    const maxTokens = EngineState.openaiMaxTokens || 600;
-    const tokenParam = chatTokenParam(model, maxTokens);
+    if(!EngineState.openaiKey){ throw new Error('no_key'); }
+    const model = EngineState.openaiModel;
+    const maxTokens = EngineState.openaiMaxTokens || 400;
 
-    const prompt = buildChatGPTPrompt(type, transcript);
-    const messages = [{role:'user',content:prompt}];
+    const messages = [
+      { role:'system', content:'You are a judge. Return ONLY a valid JSON object that matches the requested shape. No preface or code fences.' },
+      { role:'user',   content: buildJudgeJSONPrompt(type, transcript) }
+    ];
 
-    async function callOnce(signal){
-      if(DEBUG_CHATGPT){
-        const tokenKey = Object.keys(tokenParam)[0];
-        console.info('[ChatGPT] model=', model, `${tokenKey}=`, maxTokens);
-        const preview = (prompt || '').slice(0, 400);
-        console.info('[ChatGPT] outbound preview:', preview);
-      }
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Authorization':`Bearer ${key}`
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0,
-          ...tokenParam,
-          response_format: { type: 'json_object' }
-        }),
-        signal
-      });
-      if(resp.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
-      if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
-      if(!resp.ok){
-        const t=await resp.text().catch(()=> '');
-        const e=new Error('chatgpt_error'); e.detail=t;
-        if(/insufficient_quota|exceeded.*quota/i.test(t)) e.code='insufficient_quota';
-        throw e;
-      }
-      const data = await resp.json();
-      const content = data?.choices?.[0]?.message?.content;
-      const raw = Array.isArray(content) ? content.map(p=>p.text||'').join('') : (content || '');
-      if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', raw.length);
-      }
-      const parsed = parseChatGPTScoreResponse(raw);
-      const conf = RUBRICS[type] || {cats:[]};
-      const cats = {}, comments = {};
-      conf.cats.forEach(c=>{
-        const cv = parsed?.categories?.[c.key];
-        cats[c.key] = typeof cv === 'number' ? cv : 6;
-        const cm = parsed?.comments?.[c.key];
-        if(typeof cm === 'string') comments[c.key] = cm;
-      });
-      return {
-        total: Number(parsed.total ?? (parsed.score * 10)) || 0,
-        explanation: parsed.explanation || '',
-        notes: parsed.notes || '',
-        categories: cats,
-        comments,
-        qa: Array.isArray(parsed.qa) ? parsed.qa : []
-      };
-    }
+    const tokenOpt = chatTokenParam(model, maxTokens);
 
-    const ctrl = new AbortController();
-    const t = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 12000);
+    const data = await callOpenAI(model, messages, {
+      ...tokenOpt,
+      response_format: { type:'json_object' }
+    });
 
-    try{
-      try{
-        return await callOnce(ctrl.signal);
-      }catch(firstErr){
-        clearTimeout(t);
-        const ctrl2 = new AbortController();
-        const t2 = setTimeout(()=>{ try{ ctrl2.abort(); }catch(_){} }, 12000);
-        try{
-          return await callOnce(ctrl2.signal);
-        }finally{ clearTimeout(t2); }
-      }
-    }finally{
-      clearTimeout(t);
-    }
+    const content = data?.choices?.[0]?.message?.content || '{}';
+    const obj = (function tryParse(s){ try{ return JSON.parse(s); }catch{ return extractFirstJson(s) || {}; } })(content);
+
+    const conf = RUBRICS[type];
+    const cats = {}, comments = {};
+    conf.cats.forEach(c=>{
+      cats[c.key] = (typeof obj?.categories?.[c.key] === 'number') ? obj.categories[c.key] : 6;
+      comments[c.key] = (typeof obj?.comments?.[c.key] === 'string') ? obj.comments[c.key] : '';
+    });
+
+    return {
+      total: Number(obj.total ?? 0) || 0,
+      explanation: obj.explanation || '',
+      notes: obj.notes || '',
+      categories: cats,
+      comments,
+      qa: Array.isArray(obj.qa) ? obj.qa : []
+    };
   }
 
   function scoreWithBuiltin(type, txt){
@@ -1996,7 +2083,11 @@ const VideoCoach=(function(){
 
   function scoreNow(){
     const type=$('videoType').value||'opening';
-    const raw=$('videoTranscript').value||'';
+    const raw=($('videoTranscript').value||'').trim();
+    if(!raw){
+      $('videoStatus').textContent='Nothing to score — paste or record a transcript first.';
+      return;
+    }
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
@@ -2068,33 +2159,35 @@ const VideoCoach=(function(){
     <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
   }
 
-  async function testChatGPT(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
-      return;
+    async function testChatGPT(){
+      if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+        alert('Enable ChatGPT mode + key'); return;
+      }
+      const model = EngineState.openaiModel || '';
+
+      const messages = [
+        { role:'system', content:'Return ONLY JSON: {"ok":true}' },
+        { role:'user',   content:'Reply with {"ok":true} exactly (no code fences).' }
+      ];
+
+      const tokenOpt = chatTokenParam(model, 20);
+
+      try{
+        const data = await callOpenAI(model, messages, {
+          ...tokenOpt,
+          response_format: { type:'json_object' }
+        });
+        const raw = data?.choices?.[0]?.message?.content || '';
+        const j = (function(){ try{ return JSON.parse(raw); }catch{ return null; } })();
+        if (j && j.ok === true) {
+          showProvenance('ChatGPT reachable \u2705');
+        } else {
+          showProvenance('ChatGPT responded but not JSON-ok \u2753', true);
+        }
+      }catch(e){
+        showProvenance(`ChatGPT test error: ${e.status||''} ${e.message}`, true);
+      }
     }
-    const testMsg = [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
-    ];
-    showProvenance('Testing ChatGPT\u2026');
-    try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
-      const tokenParam = chatTokenParam(model,30);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}` },
-        body: JSON.stringify({ model, messages: testMsg, response_format:{type:'json_object'}, ...tokenParam })
-      });
-      const data = await resp.json();
-      console.info('[ChatGPT][TEST] HTTP', resp.status, 'data=', data);
-      if(resp.ok){ showProvenance('ChatGPT reachable \u2705'); }
-      else{ showProvenance('ChatGPT test failed (see console).', true); }
-    }catch(e){
-      console.error('[ChatGPT][TEST] error', e);
-      showProvenance('ChatGPT test error (see console).', true);
-    }
-  }
 
   async function gptWrite(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
@@ -2110,18 +2203,13 @@ const VideoCoach=(function(){
       {role:'system',content:'You are an expert high school mock trial coach.'},
       {role:'user',content:`I am working on a ${type}. Here are my materials:\n${notes}\n\nGoal:\n${goal}\n\nPlease write a polished ${type} for me.`}
     ];
-    const maxTokens = EngineState.openaiMaxTokens || 600;
+    const maxTokens = EngineState.openaiMaxTokens || 400;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
-      const tokenParam=chatTokenParam(model,maxTokens);
-      const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
-      });
-      const data=await resp.json();
-      const text=data?.choices?.[0]?.message?.content?.trim()||'';
-      out.value=text;
+      const model = EngineState.openaiModel;
+      const tokenParam = chatTokenParam(model,maxTokens);
+      const data = await callOpenAI(model, messages, {temperature:0.7, ...tokenParam});
+      const text = data?.choices?.[0]?.message?.content?.trim() || '';
+      out.value = text;
     }catch(e){
       console.error('[GPT Write]',e);
       out.value='ChatGPT error.';
