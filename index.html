@@ -977,18 +977,6 @@ async function callChatCompletions(model, messages, options, key, temperature, w
   return await resp.json();
 }
 
-function shouldUseResponses(err){
-  const msg = (err?.message || '').toLowerCase();
-  return (
-    err?.status === 400 || err?.status === 404 || err?.status === 422
-  ) && (
-    msg.includes('use the responses api') ||
-    msg.includes('does not support chat.completions') ||
-    msg.includes('unrecognized request argument: messages') ||
-    msg.includes('unknown parameter: messages')
-  );
-}
-
 async function callResponses(model, messages, options, key, temperature, wantsJson, maxTokens){
   const input = (messages || []).map(m => ({
     role: m.role || 'user',
@@ -1042,14 +1030,23 @@ async function callOpenAI(model, messages, options = {}) {
   const wantsJson  = options.response_format?.type === 'json_object';
   const maxTokens  = options.max_tokens;
 
+  // Try Chat Completions first for any model
   try{
     return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
-  }catch(err){
-    if (shouldUseResponses(err)){
-      console.warn('[Chat Completions says to use Responses API] -> switching. Details:', err?.message || err);
-      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
+  }catch(err1){
+    // If it's a request/endpoint mismatch (typical 400/404/422), try Responses API once
+    if ([400,404,422].includes(err1?.status)){
+      try{
+        console.warn('[Chat \u2192 4xx, switching to Responses] ', err1.message || err1);
+        return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
+      }catch(err2){
+        // Throw both messages to surface the real reason in console/UI
+        const combo = new Error(`[chat ${err1?.status}] ${err1?.message || ''} | [responses ${err2?.status}] ${err2?.message || ''}`.trim());
+        combo.status = err2?.status || err1?.status || 400;
+        throw combo;
+      }
     }
-    throw err;
+    throw err1;
   }
 }
 
@@ -2159,7 +2156,8 @@ const VideoCoach=(function(){
       showProvenance('ChatGPT reachable \u2705');
     }catch(e){
       console.error('[ChatGPT][TEST] error', e);
-      showProvenance('ChatGPT test error (see console).', true);
+      const msg = (e && (e.message || e.toString())) || 'Unknown error';
+      showProvenance(`ChatGPT test error: ${e.status || ''} ${msg}`, true);
     }
   }
 
