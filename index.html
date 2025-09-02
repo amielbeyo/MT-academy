@@ -267,8 +267,10 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
+      <button id="btnRatePosture" class="btn secondary">Rate Body Language</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="postureFeedback" class="small" style="margin-top:4px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -1465,7 +1467,8 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
-  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null, micOnly=false, uploaded=false, uploadedURL=null;
+  let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
+      micOnly=false, uploaded=false, uploadedURL=null, lastVideoBlob=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -1824,7 +1827,7 @@ const VideoCoach=(function(){
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
     catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
     chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
-    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
     try{
@@ -1851,6 +1854,7 @@ const VideoCoach=(function(){
 
   function handleUpload(file){
     if(!file) return; uploaded=true; micOnly=false;
+    lastVideoBlob=file;
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
     uploadedURL=URL.createObjectURL(file);
     const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play();
@@ -1867,6 +1871,35 @@ const VideoCoach=(function(){
     $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
     setStatus('Stopped. You can Re-score after editing transcript.');
     setTimeout(scoreNow,250);
+  }
+
+  async function loadPostureModule(){
+    if(window.analyzeBodyLanguage) return;
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='posture.js';
+      s.onload=res;
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ratePosture(){
+    try{
+      const blob=lastVideoBlob;
+      if(!blob){
+        $('videoStatus').textContent='No video available for posture scoring.';
+        return;
+      }
+      await loadPostureModule();
+      setStatus('Scoring body language...');
+      const res=await analyzeBodyLanguage(blob);
+      const timelineHtml=res.events.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}</li>`).join('');
+      $('postureFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div>${res.advice?`<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(res.advice)}</div>`:''}${res.events.length?`<div class="small" style="margin-top:4px"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
+      $('videoStatus').textContent='Body language scored.';
+    }catch(e){
+      $('videoStatus').textContent='Body analysis failed: '+(e&&e.message?e.message:'');
+    }
   }
 
   function buildChatGPTPrompt(type, transcript){
@@ -2120,6 +2153,7 @@ const VideoCoach=(function(){
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
+    $('btnRatePosture')?.addEventListener('click', ratePosture);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
