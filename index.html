@@ -644,7 +644,7 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  return { max_tokens: maxTokens };
+  return Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {};
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -937,6 +937,13 @@ function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
 
+function isTempError(err){
+  const msg = (err && String(err.message || err)).toLowerCase();
+  return [400,422].includes(err?.status)
+    && msg.includes('temperature')
+    && (msg.includes('unsupported') || msg.includes('only the default') || msg.includes('does not support'));
+}
+
 function extractResponsesText(data){
   // Prefer the helper the API returns
   if (typeof data?.output_text === 'string' && data.output_text.trim()){
@@ -955,16 +962,16 @@ function extractResponsesText(data){
 }
 
 async function callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens){
-  async function tryOnce(useMaxCompletion){
+  async function tryOnce(useMaxCompletion, omitTemp){
     const body = {
       model,
       messages,
-      temperature,
       ...(Number.isFinite(maxTokens)
         ? (useMaxCompletion ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens })
         : {}),
       ...(wantsJson ? { response_format: { type: 'json_object' } } : {})
     };
+    if (!omitTemp && typeof temperature === 'number') body.temperature = temperature;
 
     const resp = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -981,21 +988,38 @@ async function callChatCompletions(model, messages, options, key, temperature, w
   }
 
   try {
-    // First try with classic 'max_tokens'
-    return await tryOnce(false);
-  } catch (e) {
-    // If API tells us to use 'max_completion_tokens', retry with it
-    const msg = (e && e.message) || '';
-    if ([400, 422].includes(e.status) && /max_tokens/i.test(msg) && /max_completion_tokens/i.test(msg)){
-      console.warn('[chat] retrying with max_completion_tokens');
-      return await tryOnce(true);
+    // First pass: classic max_tokens + given temperature
+    return await tryOnce(false, false);
+  } catch (e1) {
+    const m1 = (e1.message || '').toLowerCase();
+
+    // If it wants max_completion_tokens, retry with that
+    if ([400,422].includes(e1.status) && /max_tokens/.test(m1) && /max_completion_tokens/.test(m1)) {
+      try {
+        console.warn('[chat] retrying with max_completion_tokens');
+        return await tryOnce(true, false);
+      } catch (e2) {
+        // If temperature is the issue now, drop/default it
+        if (isTempError(e2)) {
+          console.warn('[chat] retrying without temperature');
+          return await tryOnce(true, true);
+        }
+        throw e2;
+      }
     }
-    throw e;
+
+    // If temperature itself is the problem, drop it and retry
+    if (isTempError(e1)) {
+      console.warn('[chat] retrying without temperature');
+      return await tryOnce(false, true);
+    }
+
+    throw e1;
   }
 }
 
 async function callResponses(model, messages, options, key, temperature, wantsJson, maxTokens){
-  function buildBody(paramName){
+  function buildBody(paramName, omitTemp){
     const input = (messages || []).map(m => ({
       role: m.role || 'user',
       content: [{ type: 'input_text', text: String(m.content ?? '') }]
@@ -1003,9 +1027,10 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
     const body = {
       model,
       input,
-      temperature,
       ...(Number.isFinite(maxTokens) ? { [paramName]: maxTokens } : {})
     };
+    if (!omitTemp && typeof temperature === 'number') body.temperature = temperature;
+
     if (wantsJson){
       body.response_format = {
         type: 'json_schema',
@@ -1017,7 +1042,7 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
     return body;
   }
 
-  async function tryOnce(paramName){
+  async function tryOnce(paramName, omitTemp){
     const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -1025,7 +1050,7 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
         'Authorization': `Bearer ${key}`,
         'OpenAI-Beta': 'assistants=v2'
       },
-      body: JSON.stringify(buildBody(paramName))
+      body: JSON.stringify(buildBody(paramName, omitTemp))
     });
     if (!resp.ok){
       const txt = await resp.text().catch(()=> '');
@@ -1038,17 +1063,34 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
     return { choices: [{ message: { content: text } }], raw: data };
   }
 
+  // 1) Try with max_output_tokens + given temperature
   try {
-    // First try the current Responses param name
-    return await tryOnce('max_output_tokens');
-  } catch (e) {
-    const msg = (e && e.message) || '';
-    // Some deployments ask for max_completion_tokens instead
-    if ([400, 422].includes(e.status) && /max_(output|tokens)/i.test(msg) && /max_completion_tokens/i.test(msg)){
-      console.warn('[responses] retrying with max_completion_tokens');
-      return await tryOnce('max_completion_tokens');
+    return await tryOnce('max_output_tokens', false);
+  } catch (e1) {
+    const m1 = (e1.message || '').toLowerCase();
+
+    // 2) If it wants max_completion_tokens, switch
+    if ([400,422].includes(e1.status) && /max_(output|tokens)/.test(m1) && /max_completion_tokens/.test(m1)) {
+      try {
+        console.warn('[responses] retrying with max_completion_tokens');
+        return await tryOnce('max_completion_tokens', false);
+      } catch (e2) {
+        // 3) If temperature still not allowed, drop it
+        if (isTempError(e2)) {
+          console.warn('[responses] retrying without temperature');
+          return await tryOnce('max_completion_tokens', true);
+        }
+        throw e2;
+      }
     }
-    throw e;
+
+    // 3) If temperature is the issue on the first try, drop it
+    if (isTempError(e1)) {
+      console.warn('[responses] retrying without temperature');
+      return await tryOnce('max_output_tokens', true);
+    }
+
+    throw e1;
   }
 }
 
@@ -1057,7 +1099,7 @@ async function callOpenAI(model, messages, options = {}) {
   if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
   if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
 
-  const temperature = options.temperature ?? 0;
+  const temperature = (typeof options.temperature === 'number') ? options.temperature : undefined;
   const wantsJson  = options.response_format?.type === 'json_object';
   const maxTokens  = options.max_tokens;
 
