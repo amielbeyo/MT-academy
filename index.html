@@ -996,7 +996,17 @@ async function callResponsesDeterministic(model, messages, { key, wantsJson, max
     input,
     ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
   };
-  if (wantsJson) body.text = { format: { type: 'json_object' } };
+  if (wantsJson) {
+    body.text = {
+      format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'mt_output',
+          schema: { type: 'object', additionalProperties: true }
+        }
+      }
+    };
+  }
 
   const resp = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
