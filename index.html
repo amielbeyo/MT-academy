@@ -951,15 +951,30 @@ async function postJSON(url, body, key){
 }
 
 /* Chat Completions (4o/mini etc.) */
-async function callChat(model, messages, { wantsJson=false, maxTokens, temperature }={}){
-  const body = { model, messages };
-  if(Number.isFinite(maxTokens)) body.max_tokens = maxTokens;
-  if(typeof temperature==='number') body.temperature = temperature;
-  if(wantsJson){
-    // schema isn’t required here; json_object is simplest & robust
-    body.response_format = { type: 'json_object' };
+async function callChat(model, messages, { wantsJson=false, maxTokens, tokenKey='max_tokens', temperature }={}){
+  async function tryOnce(useCompletion){
+    const body = { model, messages };
+    if(Number.isFinite(maxTokens)){
+      const key = useCompletion ? 'max_completion_tokens' : tokenKey;
+      body[key] = maxTokens;
+    }
+    if(typeof temperature==='number') body.temperature = temperature;
+    if(wantsJson){
+      // schema isn’t required here; json_object is simplest & robust
+      body.response_format = { type: 'json_object' };
+    }
+    return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
   }
-  return postJSON('https://api.openai.com/v1/chat/completions', body, EngineState.openaiKey);
+
+  try{
+    return await tryOnce(false);
+  }catch(e){
+    const msg=(e.message||'').toLowerCase();
+    if([400,422].includes(e.status) && /max_completion_tokens/.test(msg)){
+      return await tryOnce(true);
+    }
+    throw e;
+  }
 }
 
 /* Responses (gpt-5 / o5) with proper text.format.name */
@@ -975,7 +990,7 @@ function extractResponsesText(data){
   if(Array.isArray(c)) return c.find(x=>x.type==='output_text')?.text || c.find(x=>typeof x.text==='string')?.text || c[0]?.text || '';
   return '';
 }
-async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature }={}){
+async function callResponses(model, messages, { wantsJson=false, maxTokens, temperature, tokenKey }={}){
   const tryBody = (tokenParam='max_output_tokens', style='messages') => {
     const body = { model, input: responsesInput(messages, style) };
     if(Number.isFinite(maxTokens)) body[tokenParam] = maxTokens;
@@ -996,6 +1011,7 @@ async function callResponses(model, messages, { wantsJson=false, maxTokens, temp
 
   // attempt matrix to dodge vendor-variant quirks
   const attempts = [
+    ...(tokenKey ? [tryBody(tokenKey,'messages')] : []),
     tryBody('max_output_tokens','messages'),
     tryBody('max_completion_tokens','messages'),
     tryBody('max_output_tokens','string'),
@@ -1017,17 +1033,19 @@ async function callOpenAI(model, messages, options={}){
   if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
   if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
   const wantsJson = options?.response_format?.type === 'json_object';
-  const maxTokens =
-    options?.max_tokens ??
-    options?.max_completion_tokens ??
-    options?.max_output_tokens;
+  const tokenKey =
+    options?.max_tokens !== undefined ? 'max_tokens' :
+    options?.max_completion_tokens !== undefined ? 'max_completion_tokens' :
+    options?.max_output_tokens !== undefined ? 'max_output_tokens' :
+    undefined;
+  const maxTokens = tokenKey ? options[tokenKey] : undefined;
   const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
 
   try{
     if(modelFamily(model)==='responses'){
-      return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
+      return await callResponses(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
     } else {
-      return await callChat(model, messages, { wantsJson, maxTokens, temperature });
+      return await callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
     }
   }catch(primaryErr){
     // graceful cross-fallback for transient or feature mismatches
@@ -1035,9 +1053,9 @@ async function callOpenAI(model, messages, options={}){
     if(primaryErr.status && [401,403].includes(primaryErr.status)) throw primaryErr;
     if(/insufficient_quota|rate limit|billing|key|unauthor/.test(msg)) throw primaryErr;
     if(modelFamily(model)==='responses'){
-      return await callChat(model, messages, { wantsJson, maxTokens, temperature });
+      return await callChat(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
     } else {
-      return await callResponses(model, messages, { wantsJson, maxTokens, temperature });
+      return await callResponses(model, messages, { wantsJson, maxTokens, temperature, tokenKey });
     }
   }
 }
