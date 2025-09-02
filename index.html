@@ -955,70 +955,101 @@ function extractResponsesText(data){
 }
 
 async function callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens){
-  const body = {
-    model,
-    messages,
-    temperature,
-    ...(Number.isFinite(maxTokens) ? { max_tokens: maxTokens } : {}),
-    ...(wantsJson ? { response_format: { type: 'json_object' } } : {})
-  };
+  async function tryOnce(useMaxCompletion){
+    const body = {
+      model,
+      messages,
+      temperature,
+      ...(Number.isFinite(maxTokens)
+        ? (useMaxCompletion ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens })
+        : {}),
+      ...(wantsJson ? { response_format: { type: 'json_object' } } : {})
+    };
 
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
-    body: JSON.stringify(body)
-  });
-  if (!resp.ok){
-    const txt = await resp.text().catch(()=> '');
-    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
-    err.status = resp.status;
-    throw err;
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok){
+      const txt = await resp.text().catch(()=> '');
+      const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.json();
   }
-  return await resp.json();
+
+  try {
+    // First try with classic 'max_tokens'
+    return await tryOnce(false);
+  } catch (e) {
+    // If API tells us to use 'max_completion_tokens', retry with it
+    const msg = (e && e.message) || '';
+    if ([400, 422].includes(e.status) && /max_tokens/i.test(msg) && /max_completion_tokens/i.test(msg)){
+      console.warn('[chat] retrying with max_completion_tokens');
+      return await tryOnce(true);
+    }
+    throw e;
+  }
 }
 
 async function callResponses(model, messages, options, key, temperature, wantsJson, maxTokens){
-  const input = (messages || []).map(m => ({
-    role: m.role || 'user',
-    content: [{ type: 'input_text', text: String(m.content ?? '') }]
-  }));
-
-  const body = {
-    model,
-    input,
-    temperature,
-    ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
-  };
-
-  if (wantsJson){
-    body.response_format = {
-      type: 'json_schema',
-      json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
+  function buildBody(paramName){
+    const input = (messages || []).map(m => ({
+      role: m.role || 'user',
+      content: [{ type: 'input_text', text: String(m.content ?? '') }]
+    }));
+    const body = {
+      model,
+      input,
+      temperature,
+      ...(Number.isFinite(maxTokens) ? { [paramName]: maxTokens } : {})
     };
-  } else if (options.response_format){
-    body.response_format = options.response_format;
+    if (wantsJson){
+      body.response_format = {
+        type: 'json_schema',
+        json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
+      };
+    } else if (options.response_format) {
+      body.response_format = options.response_format;
+    }
+    return body;
   }
 
-  const resp = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-      'OpenAI-Beta': 'assistants=v2'
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!resp.ok){
-    const txt = await resp.text().catch(()=> '');
-    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
-    err.status = resp.status;
-    throw err;
+  async function tryOnce(paramName){
+    const resp = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`,
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      body: JSON.stringify(buildBody(paramName))
+    });
+    if (!resp.ok){
+      const txt = await resp.text().catch(()=> '');
+      const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+      err.status = resp.status;
+      throw err;
+    }
+    const data = await resp.json();
+    const text = extractResponsesText(data);
+    return { choices: [{ message: { content: text } }], raw: data };
   }
 
-  const data = await resp.json();
-  const text = extractResponsesText(data);
-  return { choices: [{ message: { content: text } }], raw: data };
+  try {
+    // First try the current Responses param name
+    return await tryOnce('max_output_tokens');
+  } catch (e) {
+    const msg = (e && e.message) || '';
+    // Some deployments ask for max_completion_tokens instead
+    if ([400, 422].includes(e.status) && /max_(output|tokens)/i.test(msg) && /max_completion_tokens/i.test(msg)){
+      console.warn('[responses] retrying with max_completion_tokens');
+      return await tryOnce('max_completion_tokens');
+    }
+    throw e;
+  }
 }
 
 async function callOpenAI(model, messages, options = {}) {
