@@ -937,13 +937,6 @@ function tryExtractMessage(txt){
   try { const j = JSON.parse(txt); return j?.error?.message || txt; } catch { return txt; }
 }
 
-function isTempError(err){
-  const msg = (err && String(err.message || err)).toLowerCase();
-  return [400,422].includes(err?.status)
-    && msg.includes('temperature')
-    && (msg.includes('unsupported') || msg.includes('only the default') || msg.includes('does not support'));
-}
-
 function extractResponsesText(data){
   // Prefer the helper the API returns
   if (typeof data?.output_text === 'string' && data.output_text.trim()){
@@ -966,6 +959,12 @@ function contentFromChat(resp){
     const t = resp?.choices?.[0]?.message?.content;
     return (typeof t === 'string' ? t : '').trim();
   }catch{ return ''; }
+}
+
+function modelFamily(model){
+  const m = String(model || '').toLowerCase();
+  if (/^(gpt-5|o5)/.test(m)) return 'responses';
+  return 'chat';
 }
 
 async function callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens){
@@ -1004,17 +1003,19 @@ async function callChatCompletions(model, messages, options, key, temperature, w
         console.warn('[chat] retrying with max_completion_tokens');
         return await tryOnce(true, false);
       } catch (e2) {
-        if (isTempError(e2)) {
+        if ([400,422].includes(e2.status) && /temperature/.test((e2.message||'').toLowerCase())) {
           console.warn('[chat] retrying without temperature');
           return await tryOnce(true, true);
         }
         throw e2;
       }
     }
-    if (isTempError(e1)) {
+
+    if ([400,422].includes(e1.status) && /temperature/.test(m1)) {
       console.warn('[chat] retrying without temperature');
       return await tryOnce(false, true);
     }
+
     throw e1;
   }
 }
@@ -1025,20 +1026,21 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
       role: m.role || 'user',
       content: [{ type: 'input_text', text: String(m.content ?? '') }]
     }));
+
     const body = {
       model,
       input,
       ...(Number.isFinite(maxTokens) ? { [paramName]: maxTokens } : {})
     };
+
+    // GPT-5 family often rejects explicit temperature; only include when provided AND allowed
     if (!omitTemp && typeof temperature === 'number') body.temperature = temperature;
 
-    if (wantsJson){
-      body.response_format = {
-        type: 'json_schema',
-        json_schema: { name: 'mt_output', schema: { type: 'object', additionalProperties: true } }
-      };
+    // 🔑 Responses API wants JSON via text.format
+    if (wantsJson) {
+      body.text = { format: 'json_object' };
     } else if (options.response_format) {
-      body.response_format = options.response_format;
+      // ignore legacy response_format on Responses; it's unsupported
     }
     return body;
   }
@@ -1064,27 +1066,32 @@ async function callResponses(model, messages, options, key, temperature, wantsJs
     return { choices: [{ message: { content: text } }], raw: data };
   }
 
+  // Try with max_output_tokens, then switch to max_completion_tokens if asked.
   try {
-    return await tryOnce('max_output_tokens', false);
+    return await tryOnce('max_output_tokens', /*omitTemp*/ false);
   } catch (e1) {
-    const m1 = (e1.message || '').toLowerCase();
+    const msg = (e1.message || '').toLowerCase();
 
-    if ([400,422].includes(e1.status) && /max_(output|tokens)/.test(m1) && /max_completion_tokens/.test(m1)) {
+    if ([400,422].includes(e1.status) && /max_(output|tokens)/.test(msg) && /max_completion_tokens/.test(msg)) {
       try {
         console.warn('[responses] retrying with max_completion_tokens');
         return await tryOnce('max_completion_tokens', false);
       } catch (e2) {
-        if (isTempError(e2)) {
+        // If temperature is disallowed, drop it.
+        if ([400,422].includes(e2.status) && /temperature/.test((e2.message||'').toLowerCase())) {
           console.warn('[responses] retrying without temperature');
           return await tryOnce('max_completion_tokens', true);
         }
         throw e2;
       }
     }
-    if (isTempError(e1)) {
+
+    // Temperature not supported message → drop it and retry once.
+    if ([400,422].includes(e1.status) && /temperature/.test(msg)) {
       console.warn('[responses] retrying without temperature');
       return await tryOnce('max_output_tokens', true);
     }
+
     throw e1;
   }
 }
@@ -1094,38 +1101,52 @@ async function callOpenAI(model, messages, options = {}) {
   if (!key){ const e = new Error('Missing OpenAI key'); e.status = 401; throw e; }
   if (!model){ const e = new Error('No model selected'); e.status = 400; throw e; }
 
+  const family      = modelFamily(model);
+  const wantsJson   = options.response_format?.type === 'json_object';
+  const maxTokens   = options.max_tokens;
   const temperature = (typeof options.temperature === 'number') ? options.temperature : undefined;
-  const wantsJson  = options.response_format?.type === 'json_object';
-  const maxTokens  = options.max_tokens;
 
-  try {
-    const chatResp = await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
-    const txt = contentFromChat(chatResp);
-
-    if (wantsJson && (!txt || !extractFirstJson(txt))) {
-      console.warn('[chat] empty/non-JSON \u2192 trying Responses');
-      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
-    }
-
-    if (!wantsJson && !txt) {
-      console.warn('[chat] empty content \u2192 trying Responses');
-      return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
-    }
-
-    return chatResp;
-
-  } catch (err1) {
-    if ([400,404,422].includes(err1?.status)){
-      try{
-        console.warn('[Chat \u2192 4xx, switching to Responses] ', err1.message || err1);
-        return await callResponses(model, messages, options, key, temperature, wantsJson, maxTokens);
-      }catch(err2){
-        const combo = new Error(`[chat ${err1?.status}] ${err1?.message || ''} | [responses ${err2?.status}] ${err2?.message || ''}`.trim());
-        combo.status = err2?.status || err1?.status || 400;
+  // Prefer the endpoint that matches the family
+  if (family === 'responses') {
+    try {
+      return await callResponses(model, messages, options, key, /*omit temp unless needed*/ undefined, wantsJson, maxTokens);
+    } catch (e1) {
+      // As a last resort, try chat once (some deployments allow GPT-5 via chat)
+      try {
+        console.warn('[responses failed] \u2192 trying chat once');
+        return await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
+      } catch (e2) {
+        const combo = new Error(`[responses ${e1?.status}] ${e1?.message||''} | [chat ${e2?.status}] ${e2?.message||''}`.trim());
+        combo.status = e2?.status || e1?.status || 400;
         throw combo;
       }
     }
-    throw err1;
+  } else {
+    // family === 'chat'
+    try{
+      const chatResp = await callChatCompletions(model, messages, options, key, temperature, wantsJson, maxTokens);
+      const txt = contentFromChat(chatResp);
+
+      // If we asked for JSON but got empty/non-JSON, or totally empty text \u2192 try Responses once.
+      if ((wantsJson && (!txt || !extractFirstJson(txt))) || (!wantsJson && !txt)) {
+        console.warn('[chat] empty/non-JSON \u2192 trying Responses');
+        return await callResponses(model, messages, options, key, /*omit temp*/ undefined, wantsJson, maxTokens);
+      }
+      return chatResp;
+
+    }catch(err1){
+      if ([400,404,422].includes(err1?.status)){
+        try{
+          console.warn('[Chat \u2192 4xx, switching to Responses] ', err1.message || err1);
+          return await callResponses(model, messages, options, key, /*omit temp*/ undefined, wantsJson, maxTokens);
+        }catch(err2){
+          const combo = new Error(`[chat ${err1?.status}] ${err1?.message || ''} | [responses ${err2?.status}] ${err2?.message || ''}`.trim());
+          combo.status = err2?.status || err1?.status || 400;
+          throw combo;
+        }
+      }
+      throw err1;
+    }
   }
 }
 
