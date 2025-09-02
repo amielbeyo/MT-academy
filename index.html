@@ -985,10 +985,10 @@ async function callChatDeterministic(model, messages, { key, wantsJson, maxToken
 }
 
 /* --- DETERMINISTIC: RESPONSES (GPT-5 / O5 family) --- */
-async function callResponsesDeterministic(model, messages, { key, wantsJson, maxTokens }){
+async function callResponsesDeterministic(model, messages, { key, wantsJson, maxTokens }) {
   const input = (messages || []).map(m => ({
     role: m.role || 'user',
-    content: [{ type: 'text', text: String(m.content ?? '') }]
+    content: [{ type: 'input_text', text: String(m.content ?? '') }]
   }));
 
   const body = {
@@ -996,6 +996,7 @@ async function callResponsesDeterministic(model, messages, { key, wantsJson, max
     input,
     ...(Number.isFinite(maxTokens) ? { max_output_tokens: maxTokens } : {})
   };
+
   if (wantsJson) {
     body.text = {
       format: {
@@ -1012,20 +1013,33 @@ async function callResponsesDeterministic(model, messages, { key, wantsJson, max
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`,
-      'OpenAI-Beta': 'assistants=v2'
+      'Authorization': `Bearer ${key}`
     },
     body: JSON.stringify(body)
   });
-  if (!resp.ok){
-    const txt = await resp.text().catch(()=> '');
-    const err = new Error(tryExtractMessage(txt) || `HTTP ${resp.status}`);
+
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => '');
+    const err = new Error((() => { try { return JSON.parse(txt)?.error?.message } catch { return txt } })() || `HTTP ${resp.status}`);
     err.status = resp.status;
     throw err;
   }
+
   const data = await resp.json();
-  const text = extractResponsesText(data);
-  return { choices: [{ message: { content: text } }], raw: data };
+
+  // normalize to the shape your callers expect
+  let text = '';
+  if (typeof data?.output_text === 'string' && data.output_text.trim()) {
+    text = data.output_text.trim();
+  } else if (Array.isArray(data?.output?.[0]?.content)) {
+    const c = data.output[0].content;
+    text = c.find(x => x.type === 'output_text')?.text
+        || c.find(x => typeof x.text === 'string')?.text
+        || c[0]?.text
+        || '';
+  }
+
+  return { choices: [{ message: { content: String(text || '') } }], raw: data };
 }
 
 /* --- SINGLE ENTRY POINT (NO FALLBACKS/RETRIES) --- */
