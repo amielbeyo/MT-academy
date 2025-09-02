@@ -1014,7 +1014,10 @@ async function callOpenAI(model, messages, options={}){
   if(!key){ const e=new Error('Missing OpenAI key'); e.status=401; throw e; }
   if(!model){ const e=new Error('No model selected'); e.status=400; throw e; }
   const wantsJson = options?.response_format?.type === 'json_object';
-  const maxTokens = options?.max_tokens;
+  const maxTokens =
+    options?.max_tokens ??
+    options?.max_completion_tokens ??
+    options?.max_output_tokens;
   const temperature = (typeof options?.temperature==='number') ? options.temperature : undefined;
 
   try{
@@ -2005,9 +2008,14 @@ const VideoCoach=(function(){
       { role:'user',   content: buildJudgeJSONPrompt(type, transcript) }
     ];
 
+    const isResponses = /^(gpt-5|o5)/i.test(model);
+    const tokenOpt = isResponses
+      ? { max_completion_tokens: maxTokens }
+      : { max_tokens: maxTokens };
+
     const data = await callOpenAI(model, messages, {
       temperature: 0,
-      max_tokens: maxTokens,
+      ...tokenOpt,
       response_format: { type:'json_object' }
     });
 
@@ -2125,20 +2133,37 @@ const VideoCoach=(function(){
     <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
   }
 
-  async function testChatGPT(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){ alert('Enable ChatGPT mode + key'); return; }
-    const messages = [
-      { role:'system', content:'Return ONLY JSON: {"ok":true}' },
-      { role:'user',   content:'Reply with {"ok":true} exactly (no code fences).' }
-    ];
-    try{
-      const data = await callOpenAI(EngineState.openaiModel, messages, { response_format:{ type:'json_object' }, max_tokens:20, temperature:0 });
-      const raw = data?.choices?.[0]?.message?.content || '';
-      const j = extractFirstJson(raw) || {};
-      if(j.ok === true){ showProvenance('ChatGPT reachable \u2705'); }
-      else { showProvenance('ChatGPT responded but not JSON-ok \u2753', true); }
-    }catch(e){ showProvenance(`ChatGPT test error: ${e.status||''} ${e.message}`, true); }
-  }
+    async function testChatGPT(){
+      if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+        alert('Enable ChatGPT mode + key'); return;
+      }
+      const model = EngineState.openaiModel || '';
+      const isResponses = /^(gpt-5|o5)/i.test(model);
+
+      const messages = [
+        { role:'system', content:'Return ONLY JSON: {"ok":true}' },
+        { role:'user',   content:'Reply with {"ok":true} exactly (no code fences).' }
+      ];
+
+      const tokenOpt = isResponses ? { max_completion_tokens: 20 } : { max_tokens: 20 };
+
+      try{
+        const data = await callOpenAI(model, messages, {
+          ...tokenOpt,
+          temperature: 0,
+          response_format: { type:'json_object' }
+        });
+        const raw = data?.choices?.[0]?.message?.content || '';
+        const j = (function(){ try{ return JSON.parse(raw); }catch{ return null; } })();
+        if (j && j.ok === true) {
+          showProvenance('ChatGPT reachable \u2705');
+        } else {
+          showProvenance('ChatGPT responded but not JSON-ok \u2753', true);
+        }
+      }catch(e){
+        showProvenance(`ChatGPT test error: ${e.status||''} ${e.message}`, true);
+      }
+    }
 
   async function gptWrite(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
