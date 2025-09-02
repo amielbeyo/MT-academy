@@ -305,7 +305,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="controls small">
       <input id="rulesSearch" placeholder="Search by number or topic (e.g., 403, hearsay)" style="width:320px;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:#061122;color:#e6eef6">
       <button id="btnClearSearch" class="btn secondary">Clear</button>
-      <a class="btn secondary" target="_blank" href="https://lawforkids.org/programs/mock-trial/document-center/tournament-documents/1612-az-rules-converted-from-nhsmtc-rules-august-2023/file">Official PDF</a>
+      <a class="btn secondary" target="_blank" rel="noopener noreferrer" href="https://lawforkids.org/programs/mock-trial/document-center/tournament-documents/1612-az-rules-converted-from-nhsmtc-rules-august-2023/file">Official PDF</a>
     </div>
     <div class="small" style="margin-top:8px">Click a rule to view its full text word for word.</div>
     <div id="rulesList" class="small" style="margin-top:8px"></div>
@@ -355,9 +355,15 @@ a.inline{color:var(--accent);text-decoration:underline}
 
 <script>
 // Make helpers globally available to code outside the guard
-window.$ = (id) => (typeof document !== 'undefined' ? document.getElementById(id) : null);
-window.Q = (sel) => (typeof document !== 'undefined' ? Array.from(document.querySelectorAll(sel)) : []);
+window.$ = id => (document?.getElementById ? document.getElementById(id) : null);
+window.Q = sel => (document?.querySelectorAll ? Array.from(document.querySelectorAll(sel)) : []);
 window.escHTML = (s) => s ? String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])) : '';
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('a[target="_blank"]').forEach(a => {
+    a.rel = (a.rel||'').includes('noopener') ? a.rel : (a.rel ? a.rel+' noopener noreferrer' : 'noopener noreferrer');
+  });
+});
 </script>
 
 <script>
@@ -646,7 +652,7 @@ const MT_SCORING = (() => {
 function chatTokenParam(model, maxTokens){
   if (!Number.isFinite(maxTokens)) return {};
   const isResponses = /^(gpt-5|o5)/i.test(String(model||''));
-  return isResponses ? { max_output_tokens: maxTokens } : { max_tokens: maxTokens };
+  return isResponses ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -820,6 +826,15 @@ function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 
+function requireChatGPT(orShowGateway=true){
+  const ok = EngineState.mode==='chatgpt' && !!EngineState.openaiKey;
+  if(!ok && orShowGateway && typeof openVideoGate==='function') openVideoGate();
+  return ok;
+}
+function lock(btns, yes){
+  (Array.isArray(btns)?btns:[btns]).filter(Boolean).forEach(b=>b.disabled=!!yes);
+}
+
 /* Robust JSON extraction (handles ```json fences) */
 function extractFirstJson(str){
   if(!str) return null;
@@ -987,7 +1002,10 @@ function responsesInput(messages, as='messages'){
   if(as==='string'){
     return (messages||[]).map(m => `${(m.role||'user').toUpperCase()}: ${String(m.content??'')}`).join('\n');
   }
-  return (messages||[]).map(m => ({ role:m.role||'user', content:[{ type:'text', text:String(m.content??'') }] }));
+  return (messages||[]).map(m => ({
+    role: m.role || 'user',
+    content: [{ type:'input_text', text: String(m.content ?? '') }]
+  }));
 }
 function extractResponsesText(data){
   if(typeof data?.output_text==='string' && data.output_text.trim()) return data.output_text.trim();
@@ -1322,74 +1340,83 @@ function appendJudgeDecision(res){
  out.scrollTop=out.scrollHeight;
 }
 function populate(){const sel=$('objSelect');sel.innerHTML=OBJECTION_CHOICES.map(c=>`<option>${c}</option>`).join('')}
-function pool(){const f=$('objFilter').value||'all',d=$('objDiff').value||'both';return DB.filter(x=>(f==='all'||cat(x.ans)===f)&&passDiff(x.ans,d))}
-function newQ(){const p=pool();cur=p.length?p[Math.floor(Math.random()*(p.length))]:DB[Math.floor(Math.random()*DB.length)];$('objFact').textContent=cur.fact;$('objQ').textContent=cur.q;const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');$('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';$('objSelect').selectedIndex=0}
+function pool(){
+  const f=$('objFilter').value||'all', d=$('objDiff').value||'both';
+  const list = DB.filter(x => (f==='all' || cat(x.ans)===f) && passDiff(x.ans,d));
+  return list.length ? list : DB.slice();
+}
+function newQ(){
+  const p=pool();
+  cur=p[Math.floor(Math.random()*p.length)];
+  $('objFact').textContent=cur.fact;
+  $('objQ').textContent=cur.q;
+  const r=$('objResult'); r.hidden=true; r.classList.remove('ok','bad');
+  $('objRule').textContent=''; $('objWhy').textContent=''; $('objRuling').textContent='';
+  $('objSelect').selectedIndex=0;
+}
  function updStats(c,ok){stats[c]=stats[c]||{attempts:0,correct:0};stats[c].attempts++;if(ok)stats[c].correct++;save('mtpl.objStats',stats);renderStats()}
- function renderStats(){const cats=['Hearsay','611 Control','Foundation','Opinion/Experts','Character/404','Relevance/403','Policy Exclusions'];$('objStats').textContent=cats.map(k=>{const s=stats[k]||{attempts:0,correct:0};const pct=s.attempts?Math.round(100*s.correct/s.attempts):0;return `${k.split('/')[0]} ${pct}% (${s.correct}/${s.attempts})`}).join(' \u00b7 ')}
+function renderStats(){
+  const cats=['Hearsay','611 Control','Foundation','Opinion/Experts','Character/404','Relevance/403','Policy Exclusions'];
+  $('objStats').textContent = cats.map(k=>{
+    const s=stats[k]||{attempts:0,correct:0};
+    const pct = s.attempts ? Math.round(100*s.correct/s.attempts) : 0;
+    const label = k.replace('/403','').replace('/404','');
+    return `${label} ${pct}% (${s.correct}/${s.attempts})`;
+  }).join(' \u00b7 ');
+}
 function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
- async function gptNew(){
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
-   return;
-  }
-  const diff=$('objGPTDiff').value||'easy';
+async function gptNew(){
+  if(!requireChatGPT(true)) return;
+  const btn=$('btnGPTNew'); lock(btn,true);
   $('objGPTChat').hidden=true;
-  let userPrompt=`Generate a ${diff} difficulty objection drill.`;
-  if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
+  const diff=$('objGPTDiff').value||'easy';
+  let userPrompt=`Generate a ${diff} difficulty objection drill.`+(diff==='difficult'?' Use a nuanced fact pattern requiring multiple rules or exceptions.':'');
   try{
-   const messages=[
-   {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
-   {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
-  ];
-   const model = EngineState.openaiModel;
-   const tokenParam = chatTokenParam(model,250);
-   const data = await callOpenAI(model, messages, {response_format:{type:'json_object'}, ...tokenParam});
-   const raw = data?.choices?.[0]?.message?.content || '';
-   const obj=extractFirstJson(raw);
-   if(obj&&obj.fact&&obj.q&&obj.ans){
-    cur=obj;
-    $('objFact').textContent=obj.fact;
-    $('objQ').textContent=obj.q;
-    const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');
-    $('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';
-    if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
-   } else {
-    alert('Bad response from ChatGPT.');
-   }
+    const messages=[
+      {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. One correct answer. Return JSON: {fact,q,ans,rule,why}.`},
+      {role:'user',content:userPrompt}
+    ];
+    const model=EngineState.openaiModel;
+    const tokenParam=chatTokenParam(model,250);
+    const data=await callOpenAI(model,messages,{response_format:{type:'json_object'},...tokenParam});
+    const raw=data?.choices?.[0]?.message?.content||'';
+    const obj=extractFirstJson(raw);
+    if(obj&&obj.fact&&obj.q&&obj.ans){
+      cur=obj; $('objFact').textContent=obj.fact; $('objQ').textContent=obj.q;
+      const r=$('objResult'); r.hidden=true; r.classList.remove('ok','bad');
+      $('objRule').textContent=''; $('objWhy').textContent=''; $('objRuling').textContent='';
+      if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
+      $('btnGPTRule').disabled=true;
+    } else {
+      alert('ChatGPT returned unexpected format.');
+    }
   }catch(e){
-   console.error('[GPT Prompt]',e);
-   alert('ChatGPT error');
-  }
- }
- async function gptArgue(){
-  if(!cur){alert('Get a prompt first.');return;}
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
-   return;
-  }
- const role = $('objGPTRole').value || 'chatgpt';
+    console.error('[GPT Prompt]',e); alert(tryExtractMessage(e.message)||'ChatGPT error');
+  }finally{ lock(btn,false); }
+}
+async function gptArgue(){
+  if(!cur){ alert('Get a prompt first.'); return; }
+  if(!requireChatGPT(true)) return;
+  const btn=$('btnGPTArgue'); lock(btn,true);
+  const role=$('objGPTRole').value||'chatgpt';
 
- // Stronger system guardrails: NO NEW FACTS, NO HYPOTHETICALS
- const systemMsg = {
-  role: 'system',
-  content:
- `${STATES[CURRENT_STATE].judgePrompt}
+  const systemMsg={
+    role:'system',
+    content:`${STATES[CURRENT_STATE].judgePrompt}
 You are acting as opposing counsel in a mock trial objection argument.
 Constraints (must follow):
 - Do NOT invent or add any facts, events, injuries, statements, or timelines beyond the SCENARIO block.
 - Do NOT use hypotheticals or "for example" stories.
 - If the question lacks foundation or requires inference beyond the SCENARIO, object on that basis (e.g., Rule 602 speculation, Rule 611, etc.) WITHOUT adding facts.
 - Keep responses concise, transcript-style (1–3 sentences), grounded ONLY in the SCENARIO facts and the rules of evidence.`
- };
+  };
 
- let userMsg;
- if (role === 'chatgpt') {
-  // Opposing counsel states an objection ONLY from the given scenario
-  userMsg = {
-    role: 'user',
-    content:
- `SCENARIO (verbatim)
+  let userMsg;
+  if(role==='chatgpt'){
+    userMsg={
+      role:'user',
+      content:`SCENARIO (verbatim)
 Fact: ${cur.fact}
 Question: ${cur.q}
 
@@ -1398,13 +1425,11 @@ Task for Opposing Counsel:
 - Do NOT make up what happened next. Do NOT add facts or examples. No hypotheticals.
 - Keep it to 1–3 sentences max.
 - End with: "Counsel, your response?"`
-  };
- } else {
-  // User will object; opposing counsel should only prompt, still bound by SCENARIO
-  userMsg = {
-    role: 'user',
-    content:
- `SCENARIO (verbatim)
+    };
+  } else {
+    userMsg={
+      role:'user',
+      content:`SCENARIO (verbatim)
 Fact: ${cur.fact}
 Question: ${cur.q}
 
@@ -1412,47 +1437,45 @@ Task:
 - Briefly set the scene (1 sentence max) WITHOUT adding any facts.
 - Ask me to state my objection based ONLY on the SCENARIO.
 - After I object, respond ONLY as opposing counsel, still WITHOUT adding facts. Keep each turn 1–3 sentences.`
-  };
- }
- gptChat=[systemMsg,userMsg];
+    };
+  }
+  gptChat=[systemMsg,userMsg];
   const out=$('objGPTChat');
-  out.hidden=false;
-  out.innerHTML='';
-  $('objGPTControls').hidden=false;
-  $('btnGPTRule').hidden=false;
+  out.hidden=false; out.innerHTML='';
+  $('objGPTControls').hidden=false; $('btnGPTRule').hidden=false; $('btnGPTRule').disabled=true;
   $('objGPTInput').value='';
- gptSendLocked=false;
- updateGPTSend();
-   try{
-    const model = EngineState.openaiModel;
-    const tokenParam = chatTokenParam(model,150);
-    const data = await callOpenAI(model, gptChat, {temperature:0.7, ...tokenParam});
-    const text = data?.choices?.[0]?.message?.content?.trim() || '';
-   gptChat.push({role:'assistant',content:text});
-   appendChat('chatgpt',text);
+  gptSendLocked=false; updateGPTSend();
+  try{
+    const model=EngineState.openaiModel;
+    const tokenParam=chatTokenParam(model,150);
+    const data=await callOpenAI(model,gptChat,{temperature:0.7,...tokenParam});
+    const text=data?.choices?.[0]?.message?.content?.trim()||'';
+    gptChat.push({role:'assistant',content:text}); appendChat('chatgpt',text);
   }catch(e){
     console.error('[GPT Argue]',e);
-    appendChat('chatgpt','ChatGPT error.');
-   }
-  }
-  async function gptSend(){
-   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
-   const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
-   updateGPTSend();
-  gptChat.push({role:'user',content:txt});
-  appendChat('user',txt);
+    appendChat('chatgpt', tryExtractMessage(e.message)||'ChatGPT error.');
+  }finally{ lock(btn,false); }
+}
+
+async function gptSend(){
+  if(!requireChatGPT(true)) return;
+  const inp=$('objGPTInput'); const txt=inp.value.trim(); if(!txt) return;
+  const btn=$('btnGPTSend'); lock(btn,true); inp.value=''; updateGPTSend();
+  gptChat.push({role:'user',content:txt}); appendChat('user',txt);
   try{
-   const model = EngineState.openaiModel;
-   const tokenParam = chatTokenParam(model,150);
-   const data = await callOpenAI(model, gptChat, {temperature:0.7, ...tokenParam});
-   const reply = data?.choices?.[0]?.message?.content?.trim() || '';
-   gptChat.push({role:'assistant',content:reply});
-   appendChat('chatgpt',reply);
+    const model=EngineState.openaiModel;
+    const tokenParam=chatTokenParam(model,150);
+    const data=await callOpenAI(model,gptChat,{temperature:0.7,...tokenParam});
+    const reply=data?.choices?.[0]?.message?.content?.trim()||'';
+    gptChat.push({role:'assistant',content:reply}); appendChat('chatgpt',reply);
   }catch(e){
-   console.error('[GPT Send]',e);
-   appendChat('chatgpt','ChatGPT error.');
+    console.error('[GPT Send]',e); appendChat('chatgpt', tryExtractMessage(e.message)||'ChatGPT error.');
+  }finally{
+    lock(btn,false);
+    const userMsgs=(gptChat||[]).filter(m=>m.role==='user');
+    $('btnGPTRule').disabled = userMsgs.length <= 1;
   }
-  }
+}
 function gptRecord(){
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
   $('objGPTInput').value='';
@@ -1611,7 +1634,7 @@ Scoring rule:
       appendChat('chatgpt','ChatGPT error.');
     }
   }
-function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('btnShowModel').addEventListener('click',model);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
+function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('btnShowModel').addEventListener('click',model);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('btnGPTRule').disabled=true;$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
  return{wire}
 })();
 
@@ -2198,30 +2221,25 @@ const VideoCoach=(function(){
     }
 
   async function gptWrite(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
-      return;
-    }
+    if(!requireChatGPT(true)) return;
     const type=$('writeType').value;
     const notes=$('gptWriteInput').value.trim();
     const goal=$('gptWriteGoal').value.trim();
-    const out=$('gptWriteOutput');
-    out.value='(ChatGPT thinking...)';
+    const out=$('gptWriteOutput'); const btn=$('btnGPTWrite');
+    out.value='(Generating draft...)'; lock(btn,true);
     const messages=[
       {role:'system',content:'You are an expert high school mock trial coach.'},
-      {role:'user',content:`I am working on a ${type}. Here are my materials:\n${notes}\n\nGoal:\n${goal}\n\nPlease write a polished ${type} for me.`}
+      {role:'user',content:`Write a polished ${type}. Materials:\n${notes||'(no notes)'}\n\nGoal:\n${goal||'(no specific goal)'}\n\nConstraints: concise, persuasive, concrete.`}
     ];
-    const maxTokens = EngineState.openaiMaxTokens || 400;
     try{
-      const model = EngineState.openaiModel;
-      const tokenParam = chatTokenParam(model,maxTokens);
-      const data = await callOpenAI(model, messages, {temperature:0.7, ...tokenParam});
-      const text = data?.choices?.[0]?.message?.content?.trim() || '';
-      out.value = text;
+      const model=EngineState.openaiModel;
+      const tokenParam=chatTokenParam(model, EngineState.openaiMaxTokens||400);
+      const data=await callOpenAI(model,messages,{temperature:0.7,...tokenParam});
+      out.value=data?.choices?.[0]?.message?.content?.trim()||'(empty response)';
     }catch(e){
       console.error('[GPT Write]',e);
-      out.value='ChatGPT error.';
-    }
+      out.value='Error: '+(tryExtractMessage(e.message)||'ChatGPT error');
+    }finally{ lock(btn,false); }
   }
 
   function wire(){
@@ -2550,6 +2568,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
       if(id==='video'){ maybeShowVideoGate(); }
     }
+
+    window.addEventListener('hashchange', ()=>{
+      const h = location.hash.slice(1);
+      if(h) showSection(h);
+    });
 
     document.querySelectorAll('#navMenu .tab').forEach(link=>{
       link.addEventListener('click',e=>{
