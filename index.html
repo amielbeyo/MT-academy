@@ -2548,30 +2548,23 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 
 <script>
-/* ==================== Gemini-only Posture Coach (fast) ====================
-
-What it does (fast path):
-- Uses ONLY your transcript + simple timing stats (from the page timer) — no video upload.
-- Sends a compact, structured prompt to Gemini for posture/gesture scoring + timestamped tips.
-- Tiny progress bar with ETA to keep the UI lively.
-
-How to use:
-- Paste a Gemini key (Google AI Studio) in the field.
-- Make sure your transcript is in #videoTranscript and your timer reflects your take.
-- Press "Gemini Posture Coach".
-
-=========================================================================== */
+/* ========= Gemini-only Posture Coach — hardened, with error surfacing ========= */
 
 (function GeminiPostureCoach(){
   const $ = id => document.getElementById(id);
   const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
 
-  // Progress UI (simple, optimistic)
+  // UI helpers
+  function setStatus(msg, isErr=false){
+    const s = $('#videoStatus'); if(!s) return;
+    s.textContent = msg;
+    s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
+  }
   const Progress = {
     start(label='Working…', estimateSec=7){
       this.t0 = performance.now();
       this.est = Math.max(3, estimateSec|0) * 1000;
-      this.timer && clearInterval(this.timer);
+      clearInterval(this.timer);
       $('#postureProgress').style.display='block';
       $('#postureProgressBar').style.width='0%';
       $('#postureProgressText').textContent=label;
@@ -2584,27 +2577,25 @@ How to use:
       },120);
     },
     end(msg='Done'){
-      this.timer && clearInterval(this.timer);
+      clearInterval(this.timer);
       $('#postureProgressBar').style.width='100%';
       $('#postureProgressText').textContent=msg;
       setTimeout(()=>{ $('#postureProgress').style.display='none'; }, 600);
     }
   };
 
+  // Small heuristics to help Gemini be snappy & specific
   function words(s){ return (s||'').trim().split(/\s+/).filter(Boolean); }
-  function parseTimer(){
-    // Reads MM:SS from #videoTimer if present; falls back to transcript heuristics
+  function parseTimerMMSS(){
     const t = ($('#videoTimer')?.textContent||'').trim();
     const m = t.match(/^(\d{2}):(\d{2})$/);
     if(!m) return null;
-    const mm = parseInt(m[1],10), ss = parseInt(m[2],10);
+    const mm = +m[1], ss = +m[2];
     return (isFinite(mm)&&isFinite(ss)) ? (mm*60+ss) : null;
   }
-
   function quickHeuristics(transcript){
     const wd = words(transcript);
-    const secsFromUI = parseTimer();
-    // duration fallback: estimate 130 wpm if timer unknown
+    const secsFromUI = parseTimerMMSS();
     const estSecs = secsFromUI ?? Math.max(30, Math.round((wd.length/130)*60));
     const wpm = Math.max(60, Math.round(wd.length / (estSecs/60)));
     const fillerCount = (transcript.match(/\b(um+|uh+|er+|ah+|like|you know)\b/gi)||[]).length;
@@ -2612,40 +2603,32 @@ How to use:
     return {words: wd.length, seconds: estSecs, wpm, fillerCount, signposts};
   }
 
-  function fmtMMSS(s){
-    const mm = Math.floor(s/60);
-    const ss = Math.floor(s%60);
-    return `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  }
-
   function buildPrompt(transcript){
     const h = quickHeuristics(transcript);
-    // We pass compact context so Gemini responds instantly and consistently
-    return (
-`You are a presentation posture & gesture coach for mock trial speakers.
+    return `You are a presentation posture & gesture coach for mock trial speakers.
 Use ONLY delivery cues (no content critique). Return concise, timestamped tips.
 
 CONTEXT
 - Words: ${h.words}
-- Approx duration (sec): ${h.seconds} (timer on page ${parseTimer()!==null?'provided':'estimated'})
+- Approx duration (sec): ${h.seconds} (${parseTimerMMSS()!==null?'timer provided':'estimated'})
 - Approx WPM: ${h.wpm}
 - Fillers found: ${h.fillerCount}
-- Signposts/roadmap cues found: ${h.signposts}
+- Signposts/roadmap cues: ${h.signposts}
 
-TRANSCRIPT (verbatim):
+TRANSCRIPT:
 ${transcript.slice(0, 12000)}
 
 TASK
 1) Score delivery posture (0–10) and gesture usage (0–10).
 2) Give 6–10 timestamped bullets (MM:SS) with SPECIFIC physical actions:
-   - head position (e.g., “level head, focus at eye-line”)
-   - shoulders & stance (e.g., “square shoulders”, “anchor feet”)
-   - hands (e.g., “mid-torso open palms”, “count on fingers”, “pause hands”)
+   - head (e.g., “level head”)
+   - shoulders/stance (“square shoulders”, “anchor feet”)
+   - hands (“mid-torso open palms”, “count on fingers”, “pause hands”)
    - movement pacing (reduce fidgeting vs. add purposeful movement)
-3) Adapt tips to nearby lines in transcript (roughly align across equal intervals).
-4) Ultra concise (keep total under 2200 characters).
+3) Space tips every ~20–30s across duration.
+4) Ultra concise (under 2200 chars).
 
-FORMAT STRICTLY:
+FORMAT (strict):
 Score:
 - Posture: <0-10>
 - Gestures: <0-10>
@@ -2657,61 +2640,110 @@ Plan:
 - 01:15 — <tip>
 - 01:35 — <tip>
 - 01:55 — <tip>
-(continue as needed up to about two minutes; if longer, keep spacing every ~20–30s)
 
 Notes:
-- 2 short lines with overall priorities to practice next time.`
-    );
+- <two short priority lines>`;
+  }
+
+  function showErrorBox(title, detail){
+    const box = document.createElement('div');
+    box.className='small';
+    box.style.cssText='margin-top:8px;padding:8px;background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d;border-radius:6px;white-space:pre-wrap';
+    box.textContent = `${title}\n${detail||''}`;
+    $('#postureResults').appendChild(box);
+  }
+
+  function keyLooksValid(k){
+    // AI Studio browser keys usually start with AIza...
+    return /^AIza[0-9A-Za-z_\-]{20,}$/.test(k);
+  }
+
+  async function callGemini(key, prompt, {timeoutMs=9000}={}){
+    const ctrl = new AbortController();
+    const to = setTimeout(()=>ctrl.abort(), timeoutMs);
+    try{
+      const res = await fetch(
+        'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key='+encodeURIComponent(key),
+        { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ contents:[{parts:[{text:prompt}]}] }),
+          signal: ctrl.signal
+        }
+      );
+      const text = await res.text();
+      let data; try{ data = JSON.parse(text); }catch{ data = { raw:text }; }
+      return { ok: res.ok, status: res.status, data };
+    } finally { clearTimeout(to); }
   }
 
   async function runGemini(){
     const key = ($('#geminiKey')?.value||'').trim();
     const transcript = ($('#videoTranscript')?.value||'').trim();
 
-    if(!key){ alert('Paste a Gemini API key.'); return; }
-    if(!transcript){ alert('Add/paste your transcript first.'); return; }
-
     $('#postureResults').innerHTML = '';
-    $('#videoStatus').textContent = 'Gemini posture scoring…';
+
+    // Fast client-side guards
+    if(!key){
+      showErrorBox('Missing Gemini API key', 'Paste a key from Google AI Studio.');
+      setStatus('Missing Gemini key', true); return;
+    }
+    if(!keyLooksValid(key)){
+      showErrorBox('This key does not look valid',
+        'Keys usually start with AIza… and must allow your site as a browser referrer.');
+      setStatus('Invalid Gemini key format', true); return;
+       }
+    if(!transcript || words(transcript).length < 12){
+      showErrorBox('Transcript too short', 'Paste the speech transcript (at least one or two sentences).');
+      setStatus('Transcript required for posture plan', true); return;
+    }
+
+    setStatus('Gemini posture scoring…');
+    Progress.start('Gemini posture scoring', 6);
 
     const prompt = buildPrompt(transcript);
 
-    // Snappy progress (single request)
-    Progress.start('Gemini posture scoring', 6);
-
     try{
-      const body = {
-        contents: [{ parts: [{ text: prompt }]}]
-      };
-      const resp = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+encodeURIComponent(key),
-        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
-      );
+      // First try (full prompt)
+      let r = await callGemini(key, prompt, {timeoutMs: 9000});
 
-      const data = await resp.json();
-      const text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n')?.trim() || 'No response.';
+      // Simple retry with a slightly shorter prompt if needed
+      if(!r.ok){
+        const shortPrompt = prompt.slice(0, 6000);
+        r = await callGemini(key, shortPrompt, {timeoutMs: 9000});
+      }
+
+      if(!r.ok){
+        const msg = r?.data?.error?.message || JSON.stringify(r.data||{}, null, 2);
+        showErrorBox(`Gemini error (HTTP ${r.status})`, msg);
+        setStatus(`Gemini error (${r.status})`, true);
+        Progress.end('Failed');
+        return;
+      }
+
+      // Extract text
+      const text =
+        r.data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n')?.trim()
+        || r.data?.text
+        || '(No content returned)';
 
       const box = document.createElement('div');
-      box.className = 'small';
+      box.className='small';
       box.style.cssText='white-space:pre-wrap';
       box.textContent = text;
-
       $('#postureResults').appendChild(box);
-      $('#videoStatus').textContent = 'Gemini posture plan ready.';
+
+      setStatus('Gemini posture plan ready.');
       Progress.end('Complete');
-    }catch(e){
-      console.error(e);
-      $('#videoStatus').textContent = 'Gemini request failed (see console).';
+
+    }catch(err){
+      console.error('[Gemini]', err);
+      showErrorBox('Network/timeout error', String(err?.message||err));
+      setStatus('Gemini request failed', true);
       Progress.end('Failed');
     }
   }
 
-  function wire(){
-    $('#btnGeminiCoach')?.addEventListener('click', runGemini);
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', wire);
-  else wire();
+  function wire(){ $('#btnGeminiCoach')?.addEventListener('click', runGemini); }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 })();
 </script>
 
