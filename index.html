@@ -2548,7 +2548,7 @@ Optional
 
 const PostureCoach = (() => {
   // Tunables
-  const SAMPLE_FPS = 2;        // analysis framerate
+  const SAMPLE_FPS = 1;        // analysis framerate (samples per second)
   const MIN_SECONDS = 3;       // guard for super short clips
   const HEAD_TILT_WARN = 8;    // degrees
   const SLOUCH_WARN = 10;      // degrees (neck->torso angle forward)
@@ -2731,7 +2731,7 @@ const PostureCoach = (() => {
 
     // Make sure we have duration to sample
     const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max( $('videoTimer').textContent ? 1 : 0, MIN_SECONDS );
-    const totalSamples = Math.max( Math.floor(duration * SAMPLE_FPS), 6 );
+    const totalSamples = Math.max(Math.floor(duration * SAMPLE_FPS), 6);
 
     // Prepare drawing
     const ctx = ensureOverlayCanvasSized(video);
