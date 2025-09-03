@@ -2666,8 +2666,10 @@ const PostureCoach = (() => {
     if(analyzing) return;
     const video = $('#videoPreview');
     const btn   = $('#btnPostureAnalyze');
-    analyzing = true; btn && (btn.disabled = true);
-    $('#videoStatus').textContent = 'Analyzing posture & gestures…';
+    const origText = btn?.textContent;
+    analyzing = true;
+    if(btn){ btn.disabled = true; btn.textContent = 'Analyzing…'; }
+    $('#videoStatus').textContent = 'Loading posture analyzer…';
     $('#postureResults').innerHTML = '';
 
     // Tuned for < 1 minute wall time
@@ -2677,7 +2679,10 @@ const PostureCoach = (() => {
 
     try{
       // 1) Load models with tiny progress
-      Progress.start(3, 'Loading models'); const h = await ensureHuman(); Progress.tick('Models ready');
+      Progress.start(3, 'Loading models');
+      const h = await ensureHuman();
+      $('#videoStatus').textContent = 'Analyzing posture & gestures…';
+      Progress.tick('Models ready');
 
       // 2) Build timestamps (beats from transcript preferred)
       const transcript = ($('#videoTranscript').value || '').trim();
@@ -2825,7 +2830,11 @@ const PostureCoach = (() => {
       $('#postureResults').textContent = '';
       Progress.end('Failed');
     } finally {
-      analyzing = false; btn && (btn.disabled = false);
+      analyzing = false;
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = origText || 'Analyze Posture';
+      }
     }
   }
 
@@ -2836,9 +2845,14 @@ const PostureCoach = (() => {
   return { wire, analyze };
 })();
 
-document.addEventListener('DOMContentLoaded', () => {
+function initPostureCoach(){
   try { PostureCoach.wire(); } catch(e){ console.error(e); }
-});
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', initPostureCoach);
+} else {
+  initPostureCoach();
+}
 </script>
 
 </body>
