@@ -2756,7 +2756,20 @@ const PostureCoach = (() => {
 
     // Make sure we have duration to sample
     const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max( $('videoTimer').textContent ? 1 : 0, MIN_SECONDS );
-    const totalSamples = Math.max( Math.floor(duration * SAMPLE_FPS), 6 );
+    // Determine timestamps to sample. If a transcript is available, analyze one
+    // representative frame per line/sentence to focus on speaking segments.
+    const transcript = ($('videoTranscript').value || '').trim();
+    const lines = transcript.split(/\n+/).filter(Boolean);
+    const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
+    const sampleTimes = [];
+    if (beats.length) {
+      const step = duration / beats.length;
+      for (let i = 0; i < beats.length; i++) sampleTimes.push((i + 0.5) * step);
+    } else {
+      const totalSamples = Math.max(Math.floor(duration * SAMPLE_FPS), 6);
+      const step = duration / totalSamples;
+      for (let i = 0; i < totalSamples; i++) sampleTimes.push(i * step);
+    }
 
     // Prepare drawing
     const ctx = ensureOverlayCanvasSized(video);
@@ -2771,10 +2784,6 @@ const PostureCoach = (() => {
     const samples = [];
     const handsSeries = [];
     const keySeries = [];
-
-    // We sample by timeupdate seeking when possible
-    let i = 0;
-    const stepSec = duration / totalSamples;
 
     // If video is seekable, seek to frames; else just read current
     const seekable = video.seekable && video.seekable.length > 0 && isFinite(duration);
@@ -2826,8 +2835,7 @@ const PostureCoach = (() => {
     }
 
     // Run samples
-    for (i = 0; i < totalSamples; i++) {
-      const t = i * stepSec;
+    for (const t of sampleTimes) {
       // eslint-disable-next-line no-await-in-loop
       await sampleAt(t);
     }
@@ -2839,7 +2847,8 @@ const PostureCoach = (() => {
     const slouchAvg = samples.reduce((a,s)=>a+s.slouch,0)/samples.length;
     const shoulderAvg = samples.reduce((a,s)=>a+s.shoulderOffset,0)/samples.length;
     const mvVar = movementVariance(keySeries);
-    const gestRate = gestureActivity(handsSeries) * SAMPLE_FPS; // rough gestures/sec
+    const sampleRate = samples.length / duration; // samples per second
+    const gestRate = gestureActivity(handsSeries) * sampleRate; // gestures/sec
 
     // Timestamped suggestions (pick the worst slices)
     function topMoments(fn, label, direction='high') {
