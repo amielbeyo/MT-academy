@@ -115,7 +115,6 @@ textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);bo
 hr.sep{border:0;border-top:1px solid rgba(0,0,0,.1);margin:12px 0}
 a.inline{color:var(--accent);text-decoration:underline}
 .hidden-link{color:inherit;text-decoration:none}
-#postureProgressText{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -150,7 +149,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
     <div class="modal">
       <h2 id="videoGateTitle">Choose how to score your performance</h2>
-      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring, continue with the built-in scorer, or skip straight to the Gemini posture coach.</div>
+      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring or continue with the built-in scorer.</div>
       <div class="row">
         <div class="choice">
           <h3>Option A — Use my ChatGPT account (recommended)</h3>
@@ -184,11 +183,6 @@ a.inline{color:var(--accent);text-decoration:underline}
           <p class="small">On-device heuristics. Scores structure, delivery, common cues—not as nuanced as a judge.</p>
           <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
-        </div>
-        <div class="choice">
-          <h3>Option C — Gemini posture coach only</h3>
-          <p class="small">Skip rubric scoring. After continuing, paste a Gemini API key in the video section for posture tips.</p>
-          <button id="btnUseGeminiOnly" class="btn secondary">Use Gemini Coach Only</button>
         </div>
       </div>
       <hr class="sep">
@@ -274,25 +268,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
-    <div class="controls">
-      <label class="small" style="min-width:260px">
-        Gemini API Key
-        <input id="geminiKey" class="input" type="password" placeholder="AIz...">
-      </label>
-      <button id="btnGeminiCoach" class="btn primary" title="Fast Gemini posture/gesture scoring">Gemini Posture Coach</button>
-    </div>
-
-    <!-- Lightweight progress -->
-    <div id="postureProgress" class="small" style="display:none;margin-top:8px">
-      <div id="postureProgressText" style="margin-bottom:6px">Starting…</div>
-      <div style="height:8px;background:var(--secondary);border-radius:9999px;overflow:hidden">
-        <div id="postureProgressBar" style="height:8px;width:0%;background:var(--accent)"></div>
-      </div>
-    </div>
-
-    <!-- Results -->
-    <div id="postureResults" class="small" style="margin-top:8px"></div>
-
     <div id="videoFeedback" class="small"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
@@ -938,7 +913,7 @@ function makeRubricMap(stateName, abbr){
 
 /* Global engine state */
 const EngineState = {
-  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt' | 'gemini'
+  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
   set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
@@ -954,9 +929,6 @@ function renderModeBadge(){
   if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
     b.textContent='Mode: ChatGPT (OpenAI API)';
     if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
-  } else if(EngineState.mode==='gemini'){
-    b.textContent='Mode: Gemini (posture coach only)';
-    if(banner) banner.innerHTML = 'Using <strong>Gemini posture coach only</strong>; rubric scoring disabled.';
   } else {
     b.textContent='Mode: Built-in (less accurate)';
     if(banner) banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong>.';
@@ -997,10 +969,6 @@ function attachVideoGateHandlers(){
   $('btnForgetKey').addEventListener('click', ()=>{
     EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
     alert('Removed saved API key. Falling back to built-in scoring.');
-  });
-  $('btnUseGeminiOnly').addEventListener('click', ()=>{
-    EngineState.mode='gemini'; closeVideoGate(); renderModeBadge();
-    $('videoStatus').textContent='Gemini-only mode: use the posture coach after recording.';
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
@@ -2107,11 +2075,6 @@ const VideoCoach=(function(){
       });
       return;
     }
-    if(EngineState.mode==='gemini'){
-      $('videoStatus').textContent='Gemini-only mode: rubric scoring skipped.';
-      showProvenance('No rubric scoring (Gemini-only).', true);
-      return;
-    }
     scoreWithBuiltin(type, raw);
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
   }
@@ -2545,206 +2508,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch(e){ console.error(e) }
 });
 } // end browser check
-</script>
-
-<script>
-/* ========= Gemini-only Posture Coach — hardened, with error surfacing ========= */
-
-(function GeminiPostureCoach(){
-  const $ = id => document.getElementById(id);
-  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-
-  // UI helpers
-  function setStatus(msg, isErr=false){
-    const s = $('#videoStatus'); if(!s) return;
-    s.textContent = msg;
-    s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
-  }
-  const Progress = {
-    start(label='Working…', estimateSec=7){
-      this.t0 = performance.now();
-      this.est = Math.max(3, estimateSec|0) * 1000;
-      clearInterval(this.timer);
-      $('#postureProgress').style.display='block';
-      $('#postureProgressBar').style.width='0%';
-      $('#postureProgressText').textContent=label;
-      this.timer=setInterval(()=>{
-        const frac = Math.min(0.95,(performance.now()-this.t0)/this.est);
-        const p = Math.round(frac*100);
-        $('#postureProgressBar').style.width = p+'%';
-        const eta = Math.max(0, Math.ceil((this.est - (performance.now()-this.t0))/1000));
-        $('#postureProgressText').textContent = `${label} • ${p}% • ETA ${eta}s`;
-      },120);
-    },
-    end(msg='Done'){
-      clearInterval(this.timer);
-      $('#postureProgressBar').style.width='100%';
-      $('#postureProgressText').textContent=msg;
-      setTimeout(()=>{ $('#postureProgress').style.display='none'; }, 600);
-    }
-  };
-
-  // Small heuristics to help Gemini be snappy & specific
-  function words(s){ return (s||'').trim().split(/\s+/).filter(Boolean); }
-  function parseTimerMMSS(){
-    const t = ($('#videoTimer')?.textContent||'').trim();
-    const m = t.match(/^(\d{2}):(\d{2})$/);
-    if(!m) return null;
-    const mm = +m[1], ss = +m[2];
-    return (isFinite(mm)&&isFinite(ss)) ? (mm*60+ss) : null;
-  }
-  function quickHeuristics(transcript){
-    const wd = words(transcript);
-    const secsFromUI = parseTimerMMSS();
-    const estSecs = secsFromUI ?? Math.max(30, Math.round((wd.length/130)*60));
-    const wpm = Math.max(60, Math.round(wd.length / (estSecs/60)));
-    const fillerCount = (transcript.match(/\b(um+|uh+|er+|ah+|like|you know)\b/gi)||[]).length;
-    const signposts = (transcript.match(/\b(first|second|third|to begin|next|finally|in conclusion|therefore|because|the evidence (will|does) show)\b/gi)||[]).length;
-    return {words: wd.length, seconds: estSecs, wpm, fillerCount, signposts};
-  }
-
-  function buildPrompt(transcript){
-    const h = quickHeuristics(transcript);
-    return `You are a presentation posture & gesture coach for mock trial speakers.
-Use ONLY delivery cues (no content critique). Return concise, timestamped tips.
-
-CONTEXT
-- Words: ${h.words}
-- Approx duration (sec): ${h.seconds} (${parseTimerMMSS()!==null?'timer provided':'estimated'})
-- Approx WPM: ${h.wpm}
-- Fillers found: ${h.fillerCount}
-- Signposts/roadmap cues: ${h.signposts}
-
-TRANSCRIPT:
-${transcript.slice(0, 12000)}
-
-TASK
-1) Score delivery posture (0–10) and gesture usage (0–10).
-2) Give 6–10 timestamped bullets (MM:SS) with SPECIFIC physical actions:
-   - head (e.g., “level head”)
-   - shoulders/stance (“square shoulders”, “anchor feet”)
-   - hands (“mid-torso open palms”, “count on fingers”, “pause hands”)
-   - movement pacing (reduce fidgeting vs. add purposeful movement)
-3) Space tips every ~20–30s across duration.
-4) Ultra concise (under 2200 chars).
-
-FORMAT (strict):
-Score:
-- Posture: <0-10>
-- Gestures: <0-10>
-
-Plan:
-- 00:15 — <tip>
-- 00:35 — <tip>
-- 00:55 — <tip>
-- 01:15 — <tip>
-- 01:35 — <tip>
-- 01:55 — <tip>
-
-Notes:
-- <two short priority lines>`;
-  }
-
-  function showErrorBox(title, detail){
-    const box = document.createElement('div');
-    box.className='small';
-    box.style.cssText='margin-top:8px;padding:8px;background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d;border-radius:6px;white-space:pre-wrap';
-    box.textContent = `${title}\n${detail||''}`;
-    $('#postureResults').appendChild(box);
-  }
-
-  function keyLooksValid(k){
-    // AI Studio browser keys usually start with AIza...
-    return /^AIza[0-9A-Za-z_\-]{20,}$/.test(k);
-  }
-
-  async function callGemini(key, prompt, {timeoutMs=9000}={}){
-    const ctrl = new AbortController();
-    const to = setTimeout(()=>ctrl.abort(), timeoutMs);
-    try{
-      const res = await fetch(
-        'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key='+encodeURIComponent(key),
-        { method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ contents:[{parts:[{text:prompt}]}] }),
-          signal: ctrl.signal
-        }
-      );
-      const text = await res.text();
-      let data; try{ data = JSON.parse(text); }catch{ data = { raw:text }; }
-      return { ok: res.ok, status: res.status, data };
-    } finally { clearTimeout(to); }
-  }
-
-  async function runGemini(){
-    const key = ($('#geminiKey')?.value||'').trim();
-    const transcript = ($('#videoTranscript')?.value||'').trim();
-
-    $('#postureResults').innerHTML = '';
-
-    // Fast client-side guards
-    if(!key){
-      showErrorBox('Missing Gemini API key', 'Paste a key from Google AI Studio.');
-      setStatus('Missing Gemini key', true); return;
-    }
-    if(!keyLooksValid(key)){
-      showErrorBox('This key does not look valid',
-        'Keys usually start with AIza… and must allow your site as a browser referrer.');
-      setStatus('Invalid Gemini key format', true); return;
-       }
-    if(!transcript || words(transcript).length < 12){
-      showErrorBox('Transcript too short', 'Paste the speech transcript (at least one or two sentences).');
-      setStatus('Transcript required for posture plan', true); return;
-    }
-
-    setStatus('Gemini posture scoring…');
-    Progress.start('Gemini posture scoring', 6);
-
-    const prompt = buildPrompt(transcript);
-
-    try{
-      // First try (full prompt)
-      let r = await callGemini(key, prompt, {timeoutMs: 9000});
-
-      // Simple retry with a slightly shorter prompt if needed
-      if(!r.ok){
-        const shortPrompt = prompt.slice(0, 6000);
-        r = await callGemini(key, shortPrompt, {timeoutMs: 9000});
-      }
-
-      if(!r.ok){
-        const msg = r?.data?.error?.message || JSON.stringify(r.data||{}, null, 2);
-        showErrorBox(`Gemini error (HTTP ${r.status})`, msg);
-        setStatus(`Gemini error (${r.status})`, true);
-        Progress.end('Failed');
-        return;
-      }
-
-      // Extract text
-      const text =
-        r.data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n')?.trim()
-        || r.data?.text
-        || '(No content returned)';
-
-      const box = document.createElement('div');
-      box.className='small';
-      box.style.cssText='white-space:pre-wrap';
-      box.textContent = text;
-      $('#postureResults').appendChild(box);
-
-      setStatus('Gemini posture plan ready.');
-      Progress.end('Complete');
-
-    }catch(err){
-      console.error('[Gemini]', err);
-      showErrorBox('Network/timeout error', String(err?.message||err));
-      setStatus('Gemini request failed', true);
-      Progress.end('Failed');
-    }
-  }
-
-  function wire(){ $('#btnGeminiCoach')?.addEventListener('click', runGemini); }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', wire); else wire();
-})();
 </script>
 
 </body>
