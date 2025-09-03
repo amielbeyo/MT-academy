@@ -2721,22 +2721,27 @@ const PostureCoach = (() => {
 
   async function ensureHuman() {
     if (human) return human;
-    if (!globalThis._humanModule) {
-      globalThis._humanModule = import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
+    try {
+      if (!globalThis._humanModule) {
+        globalThis._humanModule = import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
+      }
+      const mod = await globalThis._humanModule;
+      const HumanLib = mod.Human || mod.default;
+      const backend = globalThis.navigator?.gpu ? 'webgpu' : 'webgl';
+      human = new HumanLib({
+        backend,
+        filter: { enabled: true },
+        modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models',
+        face: { enabled: true },
+        body: { enabled: true, modelPath: 'blazepose.json' },
+        hand: { enabled: true },
+      });
+      await human.load();
+      return human;
+    } catch (e) {
+      console.error('Failed to load posture analyzer', e);
+      throw e;
     }
-    const mod = await globalThis._humanModule;
-    const HumanLib = mod.Human || mod.default;
-    const backend = globalThis.navigator?.gpu ? 'webgpu' : 'webgl';
-    human = new HumanLib({
-      backend,
-      filter: { enabled: true },
-      modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models',
-      face: { enabled: true },
-      body: { enabled: true, modelPath: 'blazepose.json' },
-      hand: { enabled: true },
-    });
-    await human.load();
-    return human;
   }
 
   async function analyze() {
@@ -2750,14 +2755,15 @@ const PostureCoach = (() => {
     $('postureResults').innerHTML = 'Analyzing posture & gestures (on-device)…';
     $('videoStatus').textContent = 'Analyzing posture & gestures (free, private)…';
 
-    const h = await ensureHuman();
+    try {
+      const h = await ensureHuman();
 
-    // Downscaled canvas speeds up pose detection without affecting metrics
-    const off = document.createElement('canvas');
-    off.width = ANALYSIS_SIZE;
-    off.height = ANALYSIS_SIZE;
-    const offCtx = off.getContext('2d');
-    offCtx.imageSmoothingEnabled = false;
+      // Downscaled canvas speeds up pose detection without affecting metrics
+      const off = document.createElement('canvas');
+      off.width = ANALYSIS_SIZE;
+      off.height = ANALYSIS_SIZE;
+      const offCtx = off.getContext('2d');
+      offCtx.imageSmoothingEnabled = false;
 
     // Make sure we have duration to sample
     const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max( $('videoTimer').textContent ? 1 : 0, MIN_SECONDS );
@@ -2942,9 +2948,7 @@ const PostureCoach = (() => {
         <tbody>${rows || '<tr><td colspan="3">Looks solid! Minor tweaks: keep head level, square shoulders, mid-torso gestures.</td></tr>'}</tbody>
       </table>
     `;
-
     $('videoStatus').textContent = 'Posture/gesture analysis complete.';
-    analyzing = false;
 
     // Expose compact summary for Gemini (optional)
     PostureCoach._lastSummary = {
@@ -2957,7 +2961,14 @@ const PostureCoach = (() => {
       fidgetVar: +mvVar.toFixed(3),
       tips: tsTips.sort((a,b)=>a.t-b.t).map(t => ({ t: fmtTime(t.t), tip: t.tip, line: beatAt(t.t).slice(0,140) }))
     };
+  } catch (e) {
+    console.error(e);
+    $('videoStatus').textContent = 'Posture analysis failed (see console).';
+    $('postureResults').textContent = '';
+  } finally {
+    analyzing = false;
   }
+}
 
   async function geminiCoach() {
     const key = ($('geminiKey')?.value || '').trim();
