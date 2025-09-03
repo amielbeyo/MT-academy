@@ -2546,14 +2546,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 } // end browser check
 </script><script>
-/* ==================== Posture & Gesture Coach — Single Fast Mode ====================
-
-- One button: #btnPostureAnalyze
-- Fast, on-device (Human ESM): WebGPU/WebGL
-- Determinate progress bar with ETA
-- Under ~55s cap for full run
-- Time-stamped movement/gesture recommendations aligned to transcript beats
-*/
+/* ==================== Posture & Gesture Coach — Single Fast Mode (hardened) ==================== */
 const PostureCoach = (() => {
   let human = null;
   let analyzing = false;
@@ -2585,25 +2578,52 @@ const PostureCoach = (() => {
     end(msg='Done') {
       $('#postureProgressBar').style.width = '100%';
       $('#postureProgressText').textContent = msg;
-      setTimeout(()=>{ $('#postureProgress').style.display='none'; }, 600);
+      setTimeout(()=>{ $('#postureProgress').style.display='none'; }, 700);
     }
   };
+
+  function setStatus(msg, isErr=false){
+    const s = $('#videoStatus'); if(!s) return;
+    s.textContent = msg;
+    s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
+  }
 
   function ensureOverlayCanvasSized(video){
     const canvas = $('#poseOverlay'); if(!canvas) return null;
     const rect = video.getBoundingClientRect();
     canvas.width  = video.videoWidth  || Math.max(640, Math.round(rect.width));
     canvas.height = video.videoHeight || Math.max(360, Math.round(rect.height));
+    canvas.style.display = 'block';
+    canvas.style.maxHeight = '36vh';
     return canvas.getContext('2d');
   }
 
+  // Load Human (ESM -> fallback UMD) so it never silently fails
   async function ensureHuman(){
     if(human) return human;
-    if(!globalThis._humanModule){
-      globalThis._humanModule = import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
+
+    // CSP / Safari / older browsers may block dynamic import of ESM
+    async function loadESM(){
+      const mod = await import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
+      return mod.Human || mod.default;
     }
-    const mod = await globalThis._humanModule;
-    const HumanLib = mod.Human || mod.default;
+    async function loadUMD(){
+      await new Promise((resolve, reject) => {
+        const el = document.createElement('script');
+        el.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js';
+        el.async = true;
+        el.onload = () => resolve();
+        el.onerror = () => reject(new Error('UMD load failed'));
+        document.head.appendChild(el);
+      });
+      if (!window.Human) throw new Error('Human UMD not available on window');
+      return window.Human;
+    }
+
+    let HumanLib;
+    try { HumanLib = await loadESM(); }
+    catch { HumanLib = await loadUMD(); }
+
     const backend = navigator?.gpu ? 'webgpu' : 'webgl';
     human = new HumanLib({
       backend,
@@ -2658,37 +2678,54 @@ const PostureCoach = (() => {
     const arr = series.map(kps=>{ const n=kps.find(k=>k.part==='nose'); return n?[n.x,n.y]:null; }).filter(Boolean);
     if(arr.length<3) return 0;
     const mean = arr.reduce((a,b)=>[a[0]+b[0],a[1]+b[1]],[0,0]).map(v=>v/arr.length);
-    const varSum=arr.reduce((s,[x,y])=>s+Math.pow(x-mean[0],2)+Math.pow(y-mean[1],2),0);
+    const varSum=arr.reduce((s,[x,y])=>s + (x-mean[0])**2 + (y-mean[1])**2, 0);
     return varSum/arr.length;
   }
 
   async function analyze(){
     if(analyzing) return;
-    const video = $('#videoPreview');
     const btn   = $('#btnPostureAnalyze');
+    const video = $('#videoPreview');
+
+    // Guardrails that previously made it “do nothing”
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      setStatus('Posture analysis requires HTTPS or localhost. Open this page over https://', true);
+      return;
+    }
+    if (!video) {
+      setStatus('Video element not found on page.', true);
+      return;
+    }
+    if (!video.src && !video.srcObject) {
+      setStatus('Load/record a video first (Upload Video or Start Recording).', true);
+      return;
+    }
+
     const origText = btn?.textContent;
     analyzing = true;
     if(btn){ btn.disabled = true; btn.textContent = 'Analyzing…'; }
-    $('#videoStatus').textContent = 'Loading posture analyzer…';
+    setStatus('Loading posture analyzer…');
     $('#postureResults').innerHTML = '';
 
-    // Tuned for < 1 minute wall time
+    // Tuned to stay < 1 minute
     const ANALYSIS_SIZE = 224;
-    const MAX_SECONDS   = 55;         // hard cap
-    const SAMPLE_FPS    = 1.0;        // balanced samples/sec
+    const MAX_SECONDS   = 55;
+    const SAMPLE_FPS    = 1.0;
 
     try{
-      // 1) Load models with tiny progress
+      // 1) Load models
       Progress.start(3, 'Loading models');
       const h = await ensureHuman();
-      $('#videoStatus').textContent = 'Analyzing posture & gestures…';
       Progress.tick('Models ready');
+      setStatus('Analyzing posture & gestures…');
 
-      // 2) Build timestamps (beats from transcript preferred)
+      // 2) Build timestamps
       const transcript = ($('#videoTranscript').value || '').trim();
       const lines = transcript.split(/\n+/).filter(Boolean);
       const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
-      const duration = (isFinite(video.duration)&&video.duration>0) ? video.duration : 30; // assume 30s if unknown
+      const fallbackDuration = 30;
+      const duration = (isFinite(video.duration) && video.duration > 0) ? video.duration : fallbackDuration;
+
       let times = [];
       if (beats.length){
         const step = duration / beats.length;
@@ -2699,33 +2736,32 @@ const PostureCoach = (() => {
         for (let i=0;i<total;i++) times.push((i+0.5)*step);
       }
 
-      // cap to fit < MAX_SECONDS using per-sample estimate
+      // Cap samples to wallclock
       const isGPU = (h?.config?.backend === 'webgpu');
-      const estMs = isGPU ? 85 : 115;           // per-sample estimate
-      const headroom = 2000;                    // finalization headroom
+      const estMs = isGPU ? 85 : 115;
+      const headroom = 2000;
       const maxSamples = Math.max(10, Math.floor((MAX_SECONDS*1000 - headroom)/estMs));
       times = times.slice(0, maxSamples);
 
-      // 3) Offscreen canvas + overlay
+      // 3) Prepare canvases
       const off = document.createElement('canvas');
       off.width = ANALYSIS_SIZE; off.height = ANALYSIS_SIZE;
       const offCtx = off.getContext('2d'); offCtx.imageSmoothingEnabled = false;
 
       const ctx = ensureOverlayCanvasSized(video);
-      $('#poseOverlay').style.display = 'block';
-      $('#poseOverlay').style.maxHeight = '36vh';
 
-      // 4) Run samples
+      // 4) Sample frames (works for seekable and non-seekable)
       const samples=[], handsSeries=[], keySeries=[];
-      const seekable = video.seekable && video.seekable.length>0 && isFinite(duration);
+      const seekable = !!(video.seekable && video.seekable.length > 0 && isFinite(duration));
       try { await video.play(); } catch(_) {}
 
       Progress.start(times.length, 'Analyzing frames');
+
       for (let i=0;i<times.length;i++){
         const t = clamp(times[i], 0, Math.max(0, duration-0.05));
         if(seekable){
           video.currentTime = t;
-          await new Promise(r => video.onseeked = () => r());
+          await new Promise(r => { const h = () => { video.onseeked = null; r(); }; video.onseeked = h; });
         }
         offCtx.clearRect(0,0,off.width,off.height);
         offCtx.drawImage(video, 0, 0, off.width, off.height);
@@ -2744,17 +2780,15 @@ const PostureCoach = (() => {
         });
         handsSeries.push(hands);
 
-        const stamp = t;
         const hv = handsVisible(hands);
         samples.push({
-          t: stamp,
+          t: t,
           headTilt: headTiltDeg(kp) ?? 0,
           slouch:   torsoAngle(kp)  ?? 0,
           shoulderOffset: shoulderSymmetry(kp) ?? 0,
           both: hv.both
         });
 
-        // minimal overlay (shoulders & arms)
         if(ctx){
           const {width,height}=ctx.canvas;
           ctx.clearRect(0,0,width,height);
@@ -2821,38 +2855,36 @@ const PostureCoach = (() => {
           <tbody>${rows || '<tr><td colspan="3">Looks solid! Minor tweaks: head level, square shoulders, mid-torso gestures.</td></tr>'}</tbody>
         </table>`;
 
-      $('#videoStatus').textContent = 'Analysis complete.';
+      setStatus('Analysis complete.');
       Progress.end('Complete');
 
     } catch (e){
       console.error(e);
-      $('#videoStatus').textContent = 'Posture analysis failed (see console).';
+      setStatus('Posture analysis failed — see console for details.', true);
       $('#postureResults').textContent = '';
       Progress.end('Failed');
     } finally {
       analyzing = false;
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = origText || 'Analyze Posture';
-      }
+      if(btn){ btn.disabled = false; btn.textContent = origText || 'Analyze Posture'; }
     }
   }
 
   function wire(){
-    $('#btnPostureAnalyze')?.addEventListener('click', analyze);
+    const btn = $('#btnPostureAnalyze');
+    if(btn) btn.addEventListener('click', analyze);
   }
 
   return { wire, analyze };
 })();
 
-function initPostureCoach(){
-  try { PostureCoach.wire(); } catch(e){ console.error(e); }
-}
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', initPostureCoach);
-} else {
-  initPostureCoach();
-}
+// Always wire — even if DOM already loaded
+(function initPostureCoach(){
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { try{ PostureCoach.wire(); }catch(e){ console.error(e);} });
+  } else {
+    try{ PostureCoach.wire(); }catch(e){ console.error(e); }
+  }
+})();
 </script>
 
 </body>
