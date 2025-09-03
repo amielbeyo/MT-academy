@@ -1352,15 +1352,19 @@ function gptRecord(){
    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
      gptRecStream=stream;
      try{
-       const rec=new MediaRecorder(stream);
+       const types=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus','audio/mpeg'];
+       const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+       const rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
        gptRecog=rec;const chunks=[];
        rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
        rec.onstop=async()=>{
          $('btnGPTRecord').disabled=false;
          $('btnGPTStopRecord').disabled=true;
          gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
-         const blob=new Blob(chunks,{type:'audio/webm'});
-         const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('file',blob,'audio.webm');
+         const type=rec.mimeType||mime||'audio/webm';
+         const blob=new Blob(chunks,{type});
+         const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':'webm';
+         const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('file',blob,`audio.${ext}`);
          try{
            const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
            const data=await resp.json();const text=data?.text?.trim();
@@ -1836,10 +1840,12 @@ const VideoCoach=(function(){
   async function startCamera(){
     micOnly=false; uploaded=false; setStatus('Requesting camera/mic\u2026');
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return; }
-    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; await $('videoPreview').play(); }
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
     catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
-    chunks=[]; try{ rec=new MediaRecorder(stream); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
-    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:'video/webm'}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); $('btnDownloadRecording').href=url; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play(); }; }; rec.start(); }
+    const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4'];
+    const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+    chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||'video/webm'; const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download='speech.'+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
     try{
@@ -1869,7 +1875,11 @@ const VideoCoach=(function(){
     lastVideoBlob=file;
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
     uploadedURL=URL.createObjectURL(file);
-    const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play();
+    const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play().catch(()=>{});
+    $('btnDownloadRecording').href=uploadedURL;
+    const ext=file.name.split('.').pop()||'video';
+    $('btnDownloadRecording').download='speech.'+ext;
+    $('btnPlayRecording').onclick=()=>{ const pv=$('videoPreview'); pv.srcObject=null; pv.src=uploadedURL; pv.controls=true; pv.play().catch(()=>{}); };
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
     setStatus('Playing uploaded video. Recording controls disabled; use transcript box for scoring.');
     if(timer){ clearInterval(timer); timer=null; }
