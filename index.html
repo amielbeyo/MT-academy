@@ -117,7 +117,8 @@ a.inline{color:var(--accent);text-decoration:underline}
 .hidden-link{color:inherit;text-decoration:none}
 #postureProgressText{color:var(--muted)}
 </style>
-<!-- Human: all-in-one body/face/hands pose estimator (client-side, loaded on-demand) -->
+<!-- Human: all-in-one body/face/hands pose estimator (client-side) -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js"></script>
 </head>
 <body>
 <div class="app">
@@ -275,22 +276,21 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
-      <div class="controls">
-        <!-- Single fast mode -->
-        <button id="btnPostureAnalyze" class="btn primary" title="Fast on-device scan with posture/gesture tips">Analyze Posture</button>
-      </div>
+    <div class="controls">
+      <!-- NEW: Free on-device analyzer -->
+      <button id="btnAnalyzePosture" class="btn primary" title="Analyze posture & gestures on-device (free)">Analyze Posture & Gestures</button>
+      <button id="btnToggleOverlay" class="btn secondary" title="Show/Hide skeleton overlay">Toggle Overlay</button>
+
+      <!-- Optional: Gemini text coach (paste your own key to use) -->
+      <label class="small" style="min-width:260px">
+        Gemini API Key (optional)
+        <input id="geminiKey" class="input" type="password" placeholder="AIz... (optional)">
+      </label>
+      <button id="btnGeminiCoach" class="btn secondary" title="Send transcript + posture summary for coaching">Gemini Posture Coach</button>
+    </div>
 
     <!-- NEW: Results & overlay -->
     <canvas id="poseOverlay" style="width:100%;max-height:0;display:none"></canvas>
-
-    <!-- Progress UI -->
-    <div id="postureProgress" class="small" style="display:none;margin-top:8px">
-      <div id="postureProgressText" style="margin-bottom:6px">Preparing…</div>
-      <div style="height:8px;background:var(--secondary);border-radius:9999px;overflow:hidden">
-        <div id="postureProgressBar" style="height:8px;width:0%;background:var(--accent)"></div>
-      </div>
-    </div>
-
     <div id="postureResults" class="small" style="margin-top:8px"></div>
 
     <div id="videoFeedback" class="small"></div>
@@ -2545,346 +2545,462 @@ document.addEventListener('DOMContentLoaded',()=>{
   }catch(e){ console.error(e) }
 });
 } // end browser check
-</script><script>
-/* ==================== Posture & Gesture Coach — Single Fast Mode (hardened) ==================== */
+</script>
+
+<script>
+/* ==================== Posture & Gesture Coach (free, on-device) ====================
+
+What it does
+- Uses Human (client-side) to sample your video (recorded or uploaded) at ~2 FPS
+- Extracts pose/face/hands landmarks and computes:
+  * Head tilt (°), slouch/forward-head posture, shoulder symmetry
+  * Hand visibility, gesture activity, arm openness/closedness
+  * Movement pacing (too static vs. too fidgety)
+- Produces timestamped tips that you can align with your speech
+- Draws an optional skeleton overlay on top of the video
+
+Optional
+- If you paste a Gemini API key, it sends ONLY your transcript + compact posture summary
+  to get additional coaching text (no video is uploaded; all vision runs locally).
+
+============================================================================= */
+
 const PostureCoach = (() => {
+  // Tunables
+  const SAMPLE_FPS = 2;        // analysis framerate
+  const MIN_SECONDS = 3;       // guard for super short clips
+  const HEAD_TILT_WARN = 8;    // degrees
+  const SLOUCH_WARN = 10;      // degrees (neck->torso angle forward)
+  const SHOULDER_DIFF_WARN = 0.04; // normalized width diff
+  const FIDGET_WARN = 0.35;    // per-second movement variance
+  const HANDS_LOST_WARN = 0.55;// fraction of seconds without both hands visible
+  const GESTURE_LOW_WARN = 0.08; // gestures/sec too low
+  const GESTURE_HIGH_WARN = 0.6; // gestures/sec too high
+
   let human = null;
+  let overlayEnabled = false;
   let analyzing = false;
 
+  // Utils
   const $ = (id) => document.getElementById(id);
-  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
-  const escapeHtml = (s='') => s.replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                                .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-                                .replace(/'/g,'&#39;');
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-  // Progress bar (determinate with ETA)
-  const Progress = {
-    start(total, label='Working…') {
-      this.total = Math.max(1, total|0);
-      this.done = 0; this.t0 = performance.now();
-      $('#postureProgress').style.display = 'block';
-      $('#postureProgressBar').style.width = '0%';
-      $('#postureProgressText').textContent = label;
-    },
-    tick(label) {
-      this.done++;
-      const p = clamp(Math.round((this.done/this.total)*100), 0, 100);
-      const dt = Math.max(1, performance.now() - this.t0);
-      const per = dt / this.done;
-      const etaMs = Math.max(0, (this.total - this.done) * per);
-      $('#postureProgressBar').style.width = p + '%';
-      $('#postureProgressText').textContent = `${label||'Working…'} • ${p}% • ETA ${Math.ceil(etaMs/1000)}s`;
-    },
-    end(msg='Done') {
-      $('#postureProgressBar').style.width = '100%';
-      $('#postureProgressText').textContent = msg;
-      setTimeout(()=>{ $('#postureProgress').style.display='none'; }, 700);
-    }
-  };
-
-  function setStatus(msg, isErr=false){
-    const s = $('#videoStatus'); if(!s) return;
-    s.textContent = msg;
-    s.style.color = isErr ? '#ef9a9a' : '#9aa4b2';
+  function getActiveVideoEl() {
+    const v = $('videoPreview');
+    return v;
   }
 
-  function ensureOverlayCanvasSized(video){
-    const canvas = $('#poseOverlay'); if(!canvas) return null;
+  function ensureOverlayCanvasSized(video) {
+    const canvas = $('poseOverlay');
+    if (!canvas) return null;
     const rect = video.getBoundingClientRect();
-    canvas.width  = video.videoWidth  || Math.max(640, Math.round(rect.width));
+    // Match rendered CSS size for overlay
+    canvas.width = video.videoWidth || Math.max(640, Math.round(rect.width));
     canvas.height = video.videoHeight || Math.max(360, Math.round(rect.height));
-    canvas.style.display = 'block';
-    canvas.style.maxHeight = '36vh';
     return canvas.getContext('2d');
   }
 
-  // Load Human (ESM -> fallback UMD) so it never silently fails
-  async function ensureHuman(){
-    if(human) return human;
+  function dist(a, b) {
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return Math.hypot(dx, dy);
+  }
 
-    // CSP / Safari / older browsers may block dynamic import of ESM
-    async function loadESM(){
-      const mod = await import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
-      return mod.Human || mod.default;
-    }
-    async function loadUMD(){
-      await new Promise((resolve, reject) => {
-        const el = document.createElement('script');
-        el.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js';
-        el.async = true;
-        el.onload = () => resolve();
-        el.onerror = () => reject(new Error('UMD load failed'));
-        document.head.appendChild(el);
+  function angleDeg(ax, ay, bx, by) {
+    const ang = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+    return ang;
+  }
+
+  function torsoAngle(keypoints) {
+    // Use shoulders and hips to estimate lean (forward-head/slouch proxy)
+    const lShoulder = keypoints.find(k => k.part === 'leftShoulder');
+    const rShoulder = keypoints.find(k => k.part === 'rightShoulder');
+    const lHip = keypoints.find(k => k.part === 'leftHip');
+    const rHip = keypoints.find(k => k.part === 'rightHip');
+    if (!(lShoulder && rShoulder && lHip && rHip)) return null;
+
+    const midShoulder = { x: (lShoulder.x + rShoulder.x)/2, y: (lShoulder.y + rShoulder.y)/2 };
+    const midHip = { x: (lHip.x + rHip.x)/2, y: (lHip.y + rHip.y)/2 };
+    // Angle of vector hip->shoulder relative to vertical
+    const ang = angleDeg(midHip.x, midHip.y, midShoulder.x, midShoulder.y);
+    const rel = Math.abs(90 - Math.abs(ang)); // 0 is upright, higher = lean
+    return rel;
+  }
+
+  function headTiltDeg(keypoints) {
+    const lEar = keypoints.find(k => k.part === 'leftEar') || keypoints.find(k => k.part === 'leftEyeOuter');
+    const rEar = keypoints.find(k => k.part === 'rightEar') || keypoints.find(k => k.part === 'rightEyeOuter');
+    const nose = keypoints.find(k => k.part === 'nose');
+    if (!(lEar && rEar && nose)) return null;
+    // Angle of ear->ear vs horizontal
+    const deg = Math.abs(angleDeg(lEar.x, lEar.y, rEar.x, rEar.y));
+    const tilt = Math.min(Math.abs(180 - deg), Math.abs(deg)); // deviation from horizontal
+    return tilt;
+    // (Smaller deviation -> more level; big deviation -> head tilt)
+  }
+
+  function shoulderSymmetry(keypoints) {
+    const lShoulder = keypoints.find(k => k.part === 'leftShoulder');
+    const rShoulder = keypoints.find(k => k.part === 'rightShoulder');
+    if (!(lShoulder && rShoulder)) return null;
+    return Math.abs(lShoulder.y - rShoulder.y); // normalized in [0..1] coordinates
+  }
+
+  function handsVisible(hands) {
+    // True if both wrists found with decent score
+    const left = hands.some(h => h.label === 'left' && h.score > 0.3);
+    const right = hands.some(h => h.label === 'right' && h.score > 0.3);
+    return { left, right, both: left && right };
+  }
+
+  function gestureActivity(handsSeries) {
+    // crude: count significant wrist movement between frames
+    let moves = 0, checks = 0;
+    for (let i = 1; i < handsSeries.length; i++) {
+      const prev = handsSeries[i-1];
+      const curr = handsSeries[i];
+      ['left', 'right'].forEach(side => {
+        const p = prev.find(h => h.label === side);
+        const c = curr.find(h => h.label === side);
+        if (p && c) {
+          const d = Math.hypot(c.x - p.x, c.y - p.y);
+          if (d > 0.025) moves++;
+          checks++;
+        }
       });
-      if (!window.Human) throw new Error('Human UMD not available on window');
-      return window.Human;
     }
+    return checks ? (moves / checks) : 0;
+  }
 
-    let HumanLib;
-    try { HumanLib = await loadESM(); }
-    catch { HumanLib = await loadUMD(); }
+  function movementVariance(series) {
+    // track nose movement variance as fidget proxy
+    const arr = series.map(kps => {
+      const nose = kps.find(k => k.part === 'nose');
+      return nose ? [nose.x, nose.y] : null;
+    }).filter(Boolean);
+    if (arr.length < 3) return 0;
+    const mean = arr.reduce((a,b)=>[a[0]+b[0], a[1]+b[1]],[0,0]).map(v=>v/arr.length);
+    const varSum = arr.reduce((s,[x,y]) => s + Math.pow(x-mean[0],2) + Math.pow(y-mean[1],2), 0);
+    return varSum / arr.length;
+  }
 
-    const backend = navigator?.gpu ? 'webgpu' : 'webgl';
-    human = new HumanLib({
-      backend,
+  function drawOverlay(ctx, res) {
+    if (!ctx || !overlayEnabled) return;
+    const { width, height } = ctx.canvas;
+    ctx.clearRect(0,0,width,height);
+    const kp = res?.body?.keypoints || [];
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    kp.forEach(k=>{
+      if (k.score > 0.4) {
+        ctx.beginPath();
+        ctx.arc(k.x*width, k.y*height, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+    });
+    // Simple lines (shoulders / arms)
+    function link(a,b){
+      const A = kp.find(k=>k.part===a), B = kp.find(k=>k.part===b);
+      if (A && B && A.score>0.4 && B.score>0.4) {
+        ctx.beginPath();
+        ctx.moveTo(A.x*width, A.y*height);
+        ctx.lineTo(B.x*width, B.y*height);
+        ctx.stroke();
+      }
+    }
+    ['leftShoulder-rightShoulder','leftShoulder-leftElbow','leftElbow-leftWrist',
+     'rightShoulder-rightElbow','rightElbow-rightWrist',
+     'leftShoulder-leftHip','rightShoulder-rightHip','leftHip-rightHip'
+    ].forEach(pair=>{
+      const [a,b]=pair.split('-'); link(a,b);
+    });
+  }
+
+  async function ensureHuman() {
+    if (human) return human;
+    human = new Human.Human({
+      backend: 'webgl',
+      filter: { enabled: true },
       modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models',
-      face: { enabled:false },
-      hand: { enabled:true, maxDetected:2 },
-      body: { enabled:true, modelPath:'blazepose.json' },
-      filter: { enabled:true }
+      face: { enabled: true },
+      body: { enabled: true, modelPath: 'blazepose.json' },
+      hand: { enabled: true },
     });
     await human.load();
     return human;
   }
 
-  // Simple helpers for metrics
-  function angleDeg(ax,ay,bx,by){ return Math.atan2(by-ay, bx-ax) * 180/Math.PI; }
-  function torsoAngle(kp){
-    const ls=kp.find(k=>k.part==='leftShoulder'), rs=kp.find(k=>k.part==='rightShoulder');
-    const lh=kp.find(k=>k.part==='leftHip'),      rh=kp.find(k=>k.part==='rightHip');
-    if(!(ls&&rs&&lh&&rh)) return null;
-    const ms={x:(ls.x+rs.x)/2,y:(ls.y+rs.y)/2}, mh={x:(lh.x+rh.x)/2,y:(lh.y+rh.y)/2};
-    return Math.abs(90 - Math.abs(angleDeg(mh.x,mh.y,ms.x,ms.y))); // 0=upright
-  }
-  function headTiltDeg(kp){
-    const le=kp.find(k=>k.part==='leftEar')||kp.find(k=>k.part==='leftEyeOuter');
-    const re=kp.find(k=>k.part==='rightEar')||kp.find(k=>k.part==='rightEyeOuter');
-    const nose=kp.find(k=>k.part==='nose');
-    if(!(le&&re&&nose)) return null;
-    const deg=Math.abs(angleDeg(le.x,le.y,re.x,re.y));
-    return Math.min(Math.abs(180-deg), Math.abs(deg));
-  }
-  function shoulderSymmetry(kp){
-    const ls=kp.find(k=>k.part==='leftShoulder'), rs=kp.find(k=>k.part==='rightShoulder');
-    return (ls&&rs)? Math.abs(ls.y - rs.y) : null;
-  }
-  function handsVisible(hands){
-    const left = hands.some(h=>h.label==='left' && h.score>0.3);
-    const right= hands.some(h=>h.label==='right'&& h.score>0.3);
-    return {left,right,both:left&&right};
-  }
-  function gestureActivity(series){
-    let moves=0, checks=0;
-    for(let i=1;i<series.length;i++){
-      const prev=series[i-1], curr=series[i];
-      ['left','right'].forEach(side=>{
-        const p=prev.find(h=>h.label===side), c=curr.find(h=>h.label===side);
-        if(p&&c){ const d=Math.hypot(c.x-p.x, c.y-p.y); if(d>0.025) moves++; checks++; }
-      });
-    }
-    return checks? (moves/checks) : 0;
-  }
-  function movementVariance(series){
-    const arr = series.map(kps=>{ const n=kps.find(k=>k.part==='nose'); return n?[n.x,n.y]:null; }).filter(Boolean);
-    if(arr.length<3) return 0;
-    const mean = arr.reduce((a,b)=>[a[0]+b[0],a[1]+b[1]],[0,0]).map(v=>v/arr.length);
-    const varSum=arr.reduce((s,[x,y])=>s + (x-mean[0])**2 + (y-mean[1])**2, 0);
-    return varSum/arr.length;
-  }
-
-  async function analyze(){
-    if(analyzing) return;
-    const btn   = $('#btnPostureAnalyze');
-    const video = $('#videoPreview');
-
-    // Guardrails that previously made it “do nothing”
-    if (!window.isSecureContext && location.hostname !== 'localhost') {
-      setStatus('Posture analysis requires HTTPS or localhost. Open this page over https://', true);
+  async function analyze() {
+    if (analyzing) return;
+    const video = getActiveVideoEl();
+    if (!video || (!video.src && !video.srcObject)) {
+      $('videoStatus').textContent = 'Load or record a video first.';
       return;
     }
-    if (!video) {
-      setStatus('Video element not found on page.', true);
-      return;
-    }
-    if (!video.src && !video.srcObject) {
-      setStatus('Load/record a video first (Upload Video or Start Recording).', true);
-      return;
-    }
-
-    const origText = btn?.textContent;
     analyzing = true;
-    if(btn){ btn.disabled = true; btn.textContent = 'Analyzing…'; }
-    setStatus('Loading posture analyzer…');
-    $('#postureResults').innerHTML = '';
+    $('postureResults').innerHTML = 'Analyzing posture & gestures (on-device)…';
+    $('videoStatus').textContent = 'Analyzing posture & gestures (free, private)…';
 
-    // Tuned to stay < 1 minute
-    const ANALYSIS_SIZE = 224;
-    const MAX_SECONDS   = 55;
-    const SAMPLE_FPS    = 1.0;
+    const h = await ensureHuman();
 
-    try{
-      // 1) Load models
-      Progress.start(3, 'Loading models');
-      const h = await ensureHuman();
-      Progress.tick('Models ready');
-      setStatus('Analyzing posture & gestures…');
+    // Make sure we have duration to sample
+    const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max( $('videoTimer').textContent ? 1 : 0, MIN_SECONDS );
+    const totalSamples = Math.max( Math.floor(duration * SAMPLE_FPS), 6 );
 
-      // 2) Build timestamps
-      const transcript = ($('#videoTranscript').value || '').trim();
-      const lines = transcript.split(/\n+/).filter(Boolean);
-      const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
-      const fallbackDuration = 30;
-      const duration = (isFinite(video.duration) && video.duration > 0) ? video.duration : fallbackDuration;
+    // Prepare drawing
+    const ctx = ensureOverlayCanvasSized(video);
+    if (ctx && overlayEnabled) {
+      $('poseOverlay').style.display = 'block';
+      $('poseOverlay').style.maxHeight = '50vh';
+    }
 
-      let times = [];
-      if (beats.length){
-        const step = duration / beats.length;
-        for (let i=0;i<beats.length;i++) times.push((i+0.5)*step);
-      } else {
-        const total = Math.max(Math.floor(duration * SAMPLE_FPS), 8);
-        const step  = duration / total;
-        for (let i=0;i<total;i++) times.push((i+0.5)*step);
+    // If the video is playing, we sample live. If not, try to play silently.
+    try { await video.play(); } catch (_) {}
+
+    const samples = [];
+    const handsSeries = [];
+    const keySeries = [];
+
+    // We sample by timeupdate seeking when possible
+    let i = 0;
+    const stepSec = duration / totalSamples;
+
+    // If video is seekable, seek to frames; else just read current
+    const seekable = video.seekable && video.seekable.length > 0 && isFinite(duration);
+
+    async function sampleAt(t) {
+      if (seekable) {
+        video.currentTime = clamp(t, 0, Math.max(0, duration - 0.05));
+        await new Promise(r => video.onseeked = () => r());
       }
+      const res = await h.detect(video);
 
-      // Cap samples to wallclock
-      const isGPU = (h?.config?.backend === 'webgpu');
-      const estMs = isGPU ? 85 : 115;
-      const headroom = 2000;
-      const maxSamples = Math.max(10, Math.floor((MAX_SECONDS*1000 - headroom)/estMs));
-      times = times.slice(0, maxSamples);
+      // body keypoints normalized
+      const bodyK = (res?.body?.keypoints || []).map(p => ({ part: p.part, x: p.normX ?? p.x, y: p.normY ?? p.y, score: p.score ?? 0 }));
+      keySeries.push(bodyK);
 
-      // 3) Prepare canvases
-      const off = document.createElement('canvas');
-      off.width = ANALYSIS_SIZE; off.height = ANALYSIS_SIZE;
-      const offCtx = off.getContext('2d'); offCtx.imageSmoothingEnabled = false;
-
-      const ctx = ensureOverlayCanvasSized(video);
-
-      // 4) Sample frames (works for seekable and non-seekable)
-      const samples=[], handsSeries=[], keySeries=[];
-      const seekable = !!(video.seekable && video.seekable.length > 0 && isFinite(duration));
-      try { await video.play(); } catch(_) {}
-
-      Progress.start(times.length, 'Analyzing frames');
-
-      for (let i=0;i<times.length;i++){
-        const t = clamp(times[i], 0, Math.max(0, duration-0.05));
-        if(seekable){
-          video.currentTime = t;
-          await new Promise(r => { const h = () => { video.onseeked = null; r(); }; video.onseeked = h; });
+      // hands simplified (use wrist keypoints if available)
+      const hands = [];
+      (res?.hand || []).forEach(hand => {
+        // estimate wrist as average of first few keypoints if needed
+        const kps = hand.keypoints || [];
+        if (kps.length) {
+          const wx = kps[0].x, wy = kps[0].y;
+          hands.push({ label: hand.label || 'unknown', x: kps[0].normX ?? wx, y: kps[0].normY ?? wy, score: hand.score ?? 0.5 });
         }
-        offCtx.clearRect(0,0,off.width,off.height);
-        offCtx.drawImage(video, 0, 0, off.width, off.height);
-        const res = await h.detect(off);
+      });
+      handsSeries.push(hands);
 
-        const kp = (res?.body?.keypoints||[]).map(p=>({ part:p.part, x:p.normX ?? p.x, y:p.normY ?? p.y, score:p.score ?? 0 }));
-        keySeries.push(kp);
+      // metrics
+      const tilt = headTiltDeg(bodyK);
+      const lean = torsoAngle(bodyK);
+      const sh = shoulderSymmetry(bodyK);
+      const hv = handsVisible(hands);
 
-        const hands=[];
-        (res?.hand||[]).forEach(hand=>{
-          const kps=hand.keypoints||[];
-          if(kps.length){
-            const wx=kps[0].x, wy=kps[0].y;
-            hands.push({ label: hand.label||'unknown', x:kps[0].normX ?? wx, y:kps[0].normY ?? wy, score: hand.score ?? 0.5 });
-          }
-        });
-        handsSeries.push(hands);
+      const stamp = clamp(t, 0, duration);
+      samples.push({
+        t: stamp,
+        headTilt: tilt ?? 0,
+        slouch: lean ?? 0,
+        shoulderOffset: sh ?? 0,
+        handsBoth: hv.both,
+        handsLeft: hv.left,
+        handsRight: hv.right,
+        raw: { bodyK }
+      });
 
-        const hv = handsVisible(hands);
-        samples.push({
-          t: t,
-          headTilt: headTiltDeg(kp) ?? 0,
-          slouch:   torsoAngle(kp)  ?? 0,
-          shoulderOffset: shoulderSymmetry(kp) ?? 0,
-          both: hv.both
-        });
+      drawOverlay(ctx, res);
+    }
 
-        if(ctx){
-          const {width,height}=ctx.canvas;
-          ctx.clearRect(0,0,width,height);
-          ctx.fillStyle='rgba(0,0,0,0.9)'; ctx.strokeStyle='rgba(0,0,0,0.9)'; ctx.lineWidth=2;
-          kp.forEach(k=>{ if(k.score>0.4){ ctx.beginPath(); ctx.arc(k.x*width,k.y*height,3,0,Math.PI*2); ctx.fill(); }});
-          function link(a,b){ const A=kp.find(k=>k.part===a), B=kp.find(k=>k.part===b);
-            if(A&&B&&A.score>0.4&&B.score>0.4){ ctx.beginPath(); ctx.moveTo(A.x*width,A.y*height); ctx.lineTo(B.x*width,B.y*height); ctx.stroke(); } }
-          ['leftShoulder-rightShoulder','leftShoulder-leftElbow','leftElbow-leftWrist','rightShoulder-rightElbow','rightElbow-rightWrist'].forEach(p=>{
-            const [a,b]=p.split('-'); link(a,b);
-          });
-        }
-        Progress.tick('Analyzing frames');
-      }
+    // Run samples
+    for (i = 0; i < totalSamples; i++) {
+      const t = i * stepSec;
+      // eslint-disable-next-line no-await-in-loop
+      await sampleAt(t);
+    }
 
-      // 5) Aggregate & recommendations
-      const handsLost = 1 - (samples.filter(s=>s.both).length / samples.length);
-      const avg = k => samples.reduce((a,s)=>a+(s[k]??0),0)/samples.length;
-      const headTiltAvg = avg('headTilt'), slouchAvg = avg('slouch'), shoulderAvg = avg('shoulderOffset');
-      const mvVar = movementVariance(keySeries);
-      const sampleRate = samples.length / Math.max(1,duration);
-      const gestRate = gestureActivity(handsSeries) * sampleRate;
+    // Aggregate
+    const secCount = Math.max(1, Math.round(duration));
+    const handsLostFrac = 1 - (samples.filter(s => s.handsBoth).length / samples.length);
+    const headTiltAvg = samples.reduce((a,s)=>a+s.headTilt,0)/samples.length;
+    const slouchAvg = samples.reduce((a,s)=>a+s.slouch,0)/samples.length;
+    const shoulderAvg = samples.reduce((a,s)=>a+s.shoulderOffset,0)/samples.length;
+    const mvVar = movementVariance(keySeries);
+    const gestRate = gestureActivity(handsSeries) * SAMPLE_FPS; // rough gestures/sec
 
-      function topMoments(fn, dir='high'){
-        const scored = samples.map(s=>({t:s.t, v: fn(s)??0}));
-        return scored.sort((a,b)=> dir==='high' ? b.v-a.v : a.v-b.v).slice(0,4);
-      }
-      const tips=[];
-      if(headTiltAvg > 8)  topMoments(s=>s.headTilt).forEach(x=> tips.push({t:x.t, tip:`Level your head (≈${Math.round(x.v)}° tilt).`}));
-      if(slouchAvg > 10)   topMoments(s=>s.slouch).forEach(x=>   tips.push({t:x.t, tip:`Straighten posture (reduce forward lean).`}));
-      if(shoulderAvg>0.04) topMoments(s=>s.shoulderOffset).forEach(x=> tips.push({t:x.t, tip:`Square shoulders; keep them level.`}));
-      if(handsLost  >0.55) topMoments(s=> (s.both?0:1),'high').forEach(x=> tips.push({t:x.t, tip:`Keep both hands in frame at chest height.`}));
-      if(gestRate   <0.08) tips.push({t:Math.min(duration*0.25,duration), tip:`Add purposeful gestures for key points (count on fingers).`});
-      if(gestRate   >0.60) tips.push({t:Math.min(duration*0.25,duration), tip:`Reduce fidgeting; pause hands for emphasis.`});
-      if(mvVar      >0.35) tips.push({t:Math.min(duration*0.50,duration), tip:`Anchor stance; reset to neutral between beats.`});
+    // Timestamped suggestions (pick the worst slices)
+    function topMoments(fn, label, direction='high') {
+      const scored = samples.map(s => ({ t: s.t, v: fn(s) ?? 0 }));
+      const sorted = scored.sort((a,b) => direction==='high' ? b.v - a.v : a.v - b.v).slice(0, 4);
+      return sorted.map(m => ({ t: m.t, label, value: +m.v.toFixed(3) }));
+    }
 
-      const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
-      const beatAt = (t) => {
-        if(!beats.length || !isFinite(duration) || duration<=0) return '';
-        const idx = clamp(Math.floor((t/duration)*beats.length),0,beats.length-1);
-        return beats[idx];
+    const tsTips = [];
+    // Head tilt
+    if (headTiltAvg > HEAD_TILT_WARN) {
+      topMoments(s=>s.headTilt, 'Head tilt high').forEach(x => tsTips.push({
+        t: x.t, tip: `Keep head level (tilt ${Math.round(x.value)}°). Imagine balancing a book.`
+      }));
+    }
+    // Slouch
+    if (slouchAvg > SLOUCH_WARN) {
+      topMoments(s=>s.slouch, 'Forward head/lean').forEach(x => tsTips.push({
+        t: x.t, tip: `Straighten posture (reduce forward lean ~${Math.round(x.value)}°). Roll shoulders back.`
+      }));
+    }
+    // Shoulder symmetry
+    if (shoulderAvg > SHOULDER_DIFF_WARN) {
+      topMoments(s=>s.shoulderOffset, 'Shoulders uneven').forEach(x => tsTips.push({
+        t: x.t, tip: `Square shoulders; keep them level. Quick reset breath can help.`
+      }));
+    }
+    // Hand visibility
+    if (handsLostFrac > HANDS_LOST_WARN) {
+      topMoments(s=> (s.handsBoth?0:1), 'Hands off-frame', 'high').forEach(x => tsTips.push({
+        t: x.t, tip: `Bring both hands into frame; use open, mid-torso gestures for clarity.`
+      }));
+    }
+    // Gesture rate
+    if (gestRate < GESTURE_LOW_WARN) {
+      tsTips.push({ t: clamp(duration*0.25,0,duration), tip: `Use purposeful gestures to mark key points (e.g., counting on fingers for your roadmap).`});
+    } else if (gestRate > GESTURE_HIGH_WARN) {
+      tsTips.push({ t: clamp(duration*0.25,0,duration), tip: `Reduce fidgeting; freeze for emphasis at key lines, then gesture deliberately.`});
+    }
+    // Fidgeting
+    if (mvVar > FIDGET_WARN) {
+      tsTips.push({ t: clamp(duration*0.5,0,duration), tip: `Anchor your stance (feet shoulder-width). Reset hands to neutral between points.`});
+    }
+
+    // Align tips with transcript beats (rough heuristic)
+    const transcript = ($('videoTranscript').value || '').trim();
+    const lines = transcript.split(/\n+/).filter(Boolean);
+    const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
+    const beatAt = (t) => {
+      if (!beats.length || !isFinite(duration) || duration <= 0) return '';
+      const idx = clamp(Math.floor((t / duration) * beats.length), 0, beats.length - 1);
+      return beats[idx];
+    };
+
+    // Render results
+    function fmtTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    const summary = `
+      <div class="kv" style="margin-top:8px">
+        <div>Avg head tilt</div><div>${headTiltAvg.toFixed(1)}° ${headTiltAvg > HEAD_TILT_WARN ? ' (try to level more)' : ''}</div>
+        <div>Avg forward lean</div><div>${slouchAvg.toFixed(1)}° ${slouchAvg > SLOUCH_WARN ? ' (reduce slouch)' : ''}</div>
+        <div>Shoulder offset</div><div>${(shoulderAvg*100).toFixed(1)}% ${shoulderAvg > SHOULDER_DIFF_WARN ? ' (square up)' : ''}</div>
+        <div>Hands visible both</div><div>${Math.round((1 - handsLostFrac)*100)}%</div>
+        <div>Gesture rate</div><div>${gestRate.toFixed(2)} per sec</div>
+        <div>Fidget variance</div><div>${mvVar.toFixed(3)}</div>
+      </div>
+    `;
+
+    const rows = tsTips.sort((a,b)=>a.t-b.t).map(x => `
+      <tr>
+        <td>${fmtTime(x.t)}</td>
+        <td>${Human.utils.escape(beatAt(x.t)) || '(beat)'}</td>
+        <td>${Human.utils.escape(x.tip)}</td>
+      </tr>
+    `).join('');
+
+    $('postureResults').innerHTML = `
+      <div class="small" style="margin-bottom:6px"><strong>Posture & Gesture Coach</strong> — on-device analysis complete.</div>
+      ${summary}
+      <div style="margin-top:8px"><strong>Timestamped tips</strong></div>
+      <table class="table"><thead><tr><th>Time</th><th>Nearby line</th><th>Suggestion</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3">Looks solid! Minor tweaks: keep head level, square shoulders, mid-torso gestures.</td></tr>'}</tbody>
+      </table>
+    `;
+
+    $('videoStatus').textContent = 'Posture/gesture analysis complete.';
+    analyzing = false;
+
+    // Expose compact summary for Gemini (optional)
+    PostureCoach._lastSummary = {
+      duration,
+      headTiltAvg: +headTiltAvg.toFixed(2),
+      slouchAvg: +slouchAvg.toFixed(2),
+      shoulderAvg: +shoulderAvg.toFixed(4),
+      handsBothPct: +((1 - handsLostFrac)*100).toFixed(1),
+      gestureRate: +gestRate.toFixed(2),
+      fidgetVar: +mvVar.toFixed(3),
+      tips: tsTips.sort((a,b)=>a.t-b.t).map(t => ({ t: fmtTime(t.t), tip: t.tip, line: beatAt(t.t).slice(0,140) }))
+    };
+  }
+
+  async function geminiCoach() {
+    const key = ($('geminiKey')?.value || '').trim();
+    if (!key) { alert('Paste a Gemini API key (from AI Studio) or skip this step.'); return; }
+    if (!PostureCoach._lastSummary) { alert('Run the on-device analysis first.'); return; }
+    const transcript = ($('videoTranscript').value || '').trim();
+    if (!transcript) { alert('Add a transcript to get tailored coaching.'); return; }
+
+    $('videoStatus').textContent = 'Contacting Gemini for extra coaching…';
+    try {
+      // Minimal JSON payload; model name can be changed by you later
+      const body = {
+        contents: [{
+          parts: [{ text:
+`You are a presentation coach. Given the speech transcript and objective posture metrics with timestamps,
+give a concise, timestamped posture/gesture coaching plan.
+- Do NOT comment on content quality, only delivery.
+- Use bullets with timecodes (MM:SS).
+- Include specific gestures (e.g., "open palms at chest height", "count on fingers", "pause hands").
+
+TRANSCRIPT:
+${transcript.slice(0, 12000)}
+
+METRICS(JSON):
+${JSON.stringify(PostureCoach._lastSummary, null, 2)}
+` }]
+        }]
       };
-      const fmt = (s)=>{ const m=Math.floor(s/60), ss=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`; };
-
-      const summaryHtml = `
-        <div class="kv" style="margin-top:8px">
-          <div>Avg head tilt</div><div>${headTiltAvg.toFixed(1)}°</div>
-          <div>Avg forward lean</div><div>${slouchAvg.toFixed(1)}°</div>
-          <div>Shoulder offset</div><div>${(shoulderAvg*100).toFixed(1)}%</div>
-          <div>Hands visible both</div><div>${Math.round((1-handsLost)*100)}%</div>
-          <div>Gesture rate</div><div>${gestRate.toFixed(2)}/s</div>
-          <div>Fidget variance</div><div>${mvVar.toFixed(3)}</div>
-        </div>`;
-
-      const rows = tips.sort((a,b)=>a.t-b.t).map(x=>`
-        <tr><td>${fmt(x.t)}</td>
-            <td>${escapeHtml(beatAt(x.t)) || '(beat)'}</td>
-            <td>${escapeHtml(x.tip)}</td></tr>`).join('');
-
-      $('#postureResults').innerHTML = `
-        <div class="small" style="margin-bottom:6px"><strong>Posture & Gesture Coach</strong> — scan complete.</div>
-        ${summaryHtml}
-        <div style="margin-top:8px"><strong>Timestamped recommendations</strong></div>
-        <table class="table"><thead><tr><th>Time</th><th>Nearby line</th><th>Recommendation</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="3">Looks solid! Minor tweaks: head level, square shoulders, mid-torso gestures.</td></tr>'}</tbody>
-        </table>`;
-
-      setStatus('Analysis complete.');
-      Progress.end('Complete');
-
-    } catch (e){
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='+encodeURIComponent(key), {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('\n') || 'Gemini returned no text.';
+      const box = document.createElement('div');
+      box.className = 'small';
+      box.style.cssText = 'margin-top:8px; padding:8px; background:var(--secondary); border-radius:6px';
+      box.innerHTML = `<div><strong>Gemini Coach (optional)</strong></div><div style="white-space:pre-wrap">${Human.utils.escape(text)}</div>`;
+      $('postureResults').appendChild(box);
+      $('videoStatus').textContent = 'Gemini coaching added below.';
+    } catch (e) {
+      $('videoStatus').textContent = 'Gemini request failed (see console).';
       console.error(e);
-      setStatus('Posture analysis failed — see console for details.', true);
-      $('#postureResults').textContent = '';
-      Progress.end('Failed');
-    } finally {
-      analyzing = false;
-      if(btn){ btn.disabled = false; btn.textContent = origText || 'Analyze Posture'; }
     }
   }
 
-  function wire(){
-    const btn = $('#btnPostureAnalyze');
-    if(btn) btn.addEventListener('click', analyze);
+  function toggleOverlay() {
+    overlayEnabled = !overlayEnabled;
+    const canvas = $('poseOverlay');
+    if (!canvas) return;
+    if (overlayEnabled) {
+      canvas.style.display = 'block';
+      canvas.style.maxHeight = '50vh';
+    } else {
+      canvas.style.display = 'none';
+    }
   }
 
-  return { wire, analyze };
+  function wire() {
+    $('btnAnalyzePosture')?.addEventListener('click', analyze);
+    $('btnToggleOverlay')?.addEventListener('click', toggleOverlay);
+    $('btnGeminiCoach')?.addEventListener('click', geminiCoach);
+  }
+
+  return { wire, analyze, toggleOverlay };
 })();
 
-// Always wire — even if DOM already loaded
-(function initPostureCoach(){
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { try{ PostureCoach.wire(); }catch(e){ console.error(e);} });
-  } else {
-    try{ PostureCoach.wire(); }catch(e){ console.error(e); }
-  }
-})();
+document.addEventListener('DOMContentLoaded', () => {
+  try { PostureCoach.wire(); } catch (e) { console.error(e); }
+});
 </script>
 
 </body>
