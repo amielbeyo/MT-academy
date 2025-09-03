@@ -267,10 +267,8 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
-      <button id="btnRatePosture" class="btn secondary">Rate Body Language</button>
     </div>
     <div id="videoFeedback" class="small"></div>
-    <div id="postureFeedback" class="small" style="margin-top:4px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -1895,37 +1893,6 @@ const VideoCoach=(function(){
     setTimeout(scoreNow,250);
   }
 
-  async function loadPostureModule(){
-    if(window.analyzeBodyLanguage) return;
-    await new Promise((res,rej)=>{
-      const s=document.createElement('script');
-      s.src='posture.js';
-      s.onload=res;
-      s.onerror=rej;
-      document.head.appendChild(s);
-    });
-  }
-
-  async function ratePosture(){
-    try{
-      const blob=lastVideoBlob;
-      if(!blob){
-        $('videoStatus').textContent='No video available for posture scoring.';
-        return;
-      }
-      await loadPostureModule();
-      setStatus('Scoring body language...');
-      const transcript=$('videoTranscript').value||'';
-      const res=await analyzeBodyLanguage(blob, transcript);
-      const ev=(res && Array.isArray(res.events))?res.events:[];
-      const timelineHtml=ev.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}${e.text?` - ${escHTML(e.text)}`:''}</li>`).join('');
-      $('postureFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div>${res.advice?`<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(res.advice)}</div>`:''}${ev.length?`<div class="small" style="margin-top:4px"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
-      $('videoStatus').textContent='Body language scored.';
-    }catch(e){
-      $('videoStatus').textContent='Body analysis failed: '+(e&&e.message?e.message:'');
-    }
-  }
-
   function buildChatGPTPrompt(type, transcript){
     const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
     const rubric = rubricMap[type] || rubricMap.opening;
@@ -2190,7 +2157,6 @@ const VideoCoach=(function(){
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
-    $('btnRatePosture')?.addEventListener('click', ratePosture);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
