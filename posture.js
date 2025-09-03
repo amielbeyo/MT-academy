@@ -1,4 +1,4 @@
-// Basic posture analysis using MediaPipe Pose
+// MediaPipe Pose-based posture analyzer returning posture, gesture, and movement scores with an event timeline
 async function ensurePose(){
   if(window.Pose && window.Pose.Pose){return true;}
   try{
