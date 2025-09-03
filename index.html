@@ -151,7 +151,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
     <div class="modal">
       <h2 id="videoGateTitle">Choose how to score your performance</h2>
-      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring, or continue with the built-in scorer.</div>
+      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring, continue with the built-in scorer, or skip straight to the Gemini posture coach.</div>
       <div class="row">
         <div class="choice">
           <h3>Option A — Use my ChatGPT account (recommended)</h3>
@@ -185,6 +185,11 @@ a.inline{color:var(--accent);text-decoration:underline}
           <p class="small">On-device heuristics. Scores structure, delivery, common cues—not as nuanced as a judge.</p>
           <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
+        </div>
+        <div class="choice">
+          <h3>Option C — Gemini posture coach only</h3>
+          <p class="small">Skip rubric scoring. After continuing, paste a Gemini API key in the video section for posture tips.</p>
+          <button id="btnUseGeminiOnly" class="btn secondary">Use Gemini Coach Only</button>
         </div>
       </div>
       <hr class="sep">
@@ -280,7 +285,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         Gemini API Key (optional)
         <input id="geminiKey" class="input" type="password" placeholder="AIz... (optional)">
       </label>
-      <button id="btnGeminiCoach" class="btn secondary" title="Send transcript + posture summary for coaching">Gemini Posture Coach</button>
+      <button id="btnGeminiCoach" class="btn secondary" title="Send transcript for Gemini coaching (can run before on-device analysis)">Gemini Posture Coach</button>
     </div>
 
     <!-- NEW: Results & overlay -->
@@ -932,7 +937,7 @@ function makeRubricMap(stateName, abbr){
 
 /* Global engine state */
 const EngineState = {
-  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
+  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt' | 'gemini'
   set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
@@ -948,6 +953,9 @@ function renderModeBadge(){
   if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
     b.textContent='Mode: ChatGPT (OpenAI API)';
     if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
+  } else if(EngineState.mode==='gemini'){
+    b.textContent='Mode: Gemini (posture coach only)';
+    if(banner) banner.innerHTML = 'Using <strong>Gemini posture coach only</strong>; rubric scoring disabled.';
   } else {
     b.textContent='Mode: Built-in (less accurate)';
     if(banner) banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong>.';
@@ -988,6 +996,10 @@ function attachVideoGateHandlers(){
   $('btnForgetKey').addEventListener('click', ()=>{
     EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
     alert('Removed saved API key. Falling back to built-in scoring.');
+  });
+  $('btnUseGeminiOnly').addEventListener('click', ()=>{
+    EngineState.mode='gemini'; closeVideoGate(); renderModeBadge();
+    $('videoStatus').textContent='Gemini-only mode: use the posture coach after recording.';
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
@@ -2033,9 +2045,9 @@ const VideoCoach=(function(){
   function scoreNow(){
     const type=$('videoType').value||'opening';
     const raw=$('videoTranscript').value||'';
-    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+  const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
 
-    if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
         scoreViaChatGPT(type, transcript).then(parsed=>{
           const det=detectObjections(type,transcript);
@@ -2092,6 +2104,11 @@ const VideoCoach=(function(){
           banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong> (ChatGPT unavailable).';
         }
       });
+      return;
+    }
+    if(EngineState.mode==='gemini'){
+      $('videoStatus').textContent='Gemini-only mode: rubric scoring skipped.';
+      showProvenance('No rubric scoring (Gemini-only).', true);
       return;
     }
     scoreWithBuiltin(type, raw);
@@ -2550,6 +2567,7 @@ const PostureCoach = (() => {
   // Tunables
   const SAMPLE_FPS = 2;        // analysis framerate
   const MIN_SECONDS = 3;       // guard for super short clips
+  const ANALYSIS_SIZE = 256;   // downscale for faster detection
   const HEAD_TILT_WARN = 8;    // degrees
   const SLOUCH_WARN = 10;      // degrees (neck->torso angle forward)
   const SHOULDER_DIFF_WARN = 0.04; // normalized width diff
@@ -2729,9 +2747,29 @@ const PostureCoach = (() => {
 
     const h = await ensureHuman();
 
+    // Downscaled canvas speeds up pose detection without affecting metrics
+    const off = document.createElement('canvas');
+    off.width = ANALYSIS_SIZE;
+    off.height = ANALYSIS_SIZE;
+    const offCtx = off.getContext('2d');
+    offCtx.imageSmoothingEnabled = false;
+
     // Make sure we have duration to sample
     const duration = isFinite(video.duration) && video.duration > 0 ? video.duration : Math.max( $('videoTimer').textContent ? 1 : 0, MIN_SECONDS );
-    const totalSamples = Math.max( Math.floor(duration * SAMPLE_FPS), 6 );
+    // Determine timestamps to sample. If a transcript is available, analyze one
+    // representative frame per line/sentence to focus on speaking segments.
+    const transcript = ($('videoTranscript').value || '').trim();
+    const lines = transcript.split(/\n+/).filter(Boolean);
+    const beats = lines.length ? lines : (transcript ? transcript.split(/[.?!]\s+/).filter(Boolean) : []);
+    const sampleTimes = [];
+    if (beats.length) {
+      const step = duration / beats.length;
+      for (let i = 0; i < beats.length; i++) sampleTimes.push((i + 0.5) * step);
+    } else {
+      const totalSamples = Math.max(Math.floor(duration * SAMPLE_FPS), 6);
+      const step = duration / totalSamples;
+      for (let i = 0; i < totalSamples; i++) sampleTimes.push(i * step);
+    }
 
     // Prepare drawing
     const ctx = ensureOverlayCanvasSized(video);
@@ -2747,10 +2785,6 @@ const PostureCoach = (() => {
     const handsSeries = [];
     const keySeries = [];
 
-    // We sample by timeupdate seeking when possible
-    let i = 0;
-    const stepSec = duration / totalSamples;
-
     // If video is seekable, seek to frames; else just read current
     const seekable = video.seekable && video.seekable.length > 0 && isFinite(duration);
 
@@ -2759,7 +2793,9 @@ const PostureCoach = (() => {
         video.currentTime = clamp(t, 0, Math.max(0, duration - 0.05));
         await new Promise(r => video.onseeked = () => r());
       }
-      const res = await h.detect(video);
+      offCtx.clearRect(0, 0, ANALYSIS_SIZE, ANALYSIS_SIZE);
+      offCtx.drawImage(video, 0, 0, ANALYSIS_SIZE, ANALYSIS_SIZE);
+      const res = await h.detect(off);
 
       // body keypoints normalized
       const bodyK = (res?.body?.keypoints || []).map(p => ({ part: p.part, x: p.normX ?? p.x, y: p.normY ?? p.y, score: p.score ?? 0 }));
@@ -2799,8 +2835,7 @@ const PostureCoach = (() => {
     }
 
     // Run samples
-    for (i = 0; i < totalSamples; i++) {
-      const t = i * stepSec;
+    for (const t of sampleTimes) {
       // eslint-disable-next-line no-await-in-loop
       await sampleAt(t);
     }
@@ -2812,7 +2847,8 @@ const PostureCoach = (() => {
     const slouchAvg = samples.reduce((a,s)=>a+s.slouch,0)/samples.length;
     const shoulderAvg = samples.reduce((a,s)=>a+s.shoulderOffset,0)/samples.length;
     const mvVar = movementVariance(keySeries);
-    const gestRate = gestureActivity(handsSeries) * SAMPLE_FPS; // rough gestures/sec
+    const sampleRate = samples.length / duration; // samples per second
+    const gestRate = gestureActivity(handsSeries) * sampleRate; // gestures/sec
 
     // Timestamped suggestions (pick the worst slices)
     function topMoments(fn, label, direction='high') {
@@ -2921,17 +2957,16 @@ const PostureCoach = (() => {
   async function geminiCoach() {
     const key = ($('geminiKey')?.value || '').trim();
     if (!key) { alert('Paste a Gemini API key (from AI Studio) or skip this step.'); return; }
-    if (!PostureCoach._lastSummary) { alert('Run the on-device analysis first.'); return; }
     const transcript = ($('videoTranscript').value || '').trim();
     if (!transcript) { alert('Add a transcript to get tailored coaching.'); return; }
-
-    $('videoStatus').textContent = 'Contacting Gemini for extra coaching…';
+    const summary = PostureCoach._lastSummary;
+    $('videoStatus').textContent = summary ? 'Contacting Gemini for extra coaching…' : 'Contacting Gemini for quick coaching…';
     try {
       // Minimal JSON payload; model name can be changed by you later
       const body = {
         contents: [{
           parts: [{ text:
-`You are a presentation coach. Given the speech transcript and objective posture metrics with timestamps,
+`You are a presentation coach. Given the speech transcript${summary ? ' and objective posture metrics with timestamps,' : ','}
 give a concise, timestamped posture/gesture coaching plan.
 - Do NOT comment on content quality, only delivery.
 - Use bullets with timecodes (MM:SS).
@@ -2940,8 +2975,7 @@ give a concise, timestamped posture/gesture coaching plan.
 TRANSCRIPT:
 ${transcript.slice(0, 12000)}
 
-METRICS(JSON):
-${JSON.stringify(PostureCoach._lastSummary, null, 2)}
+${summary ? 'METRICS(JSON):\n'+JSON.stringify(summary, null, 2) : 'NOTE: No on-device posture metrics are available yet.'}
 ` }]
         }]
       };
@@ -2955,7 +2989,7 @@ ${JSON.stringify(PostureCoach._lastSummary, null, 2)}
       const box = document.createElement('div');
       box.className = 'small';
       box.style.cssText = 'margin-top:8px; padding:8px; background:var(--secondary); border-radius:6px';
-      box.innerHTML = `<div><strong>Gemini Coach (optional)</strong></div><div style="white-space:pre-wrap">${escapeHtml(text)}</div>`;
+      box.innerHTML = `<div><strong>Gemini Coach${summary ? ' (optional)' : ' (no on-device metrics)'}</strong></div><div style="white-space:pre-wrap">${escapeHtml(text)}</div>`;
       $('postureResults').appendChild(box);
       $('videoStatus').textContent = 'Gemini coaching added below.';
     } catch (e) {
