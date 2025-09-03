@@ -116,7 +116,7 @@ hr.sep{border:0;border-top:1px solid rgba(0,0,0,.1);margin:12px 0}
 a.inline{color:var(--accent);text-decoration:underline}
 .hidden-link{color:inherit;text-decoration:none}
 </style>
-<!-- Human: all-in-one body/face/hands pose estimator (client-side, loaded on-demand; includes local fallback) -->
+<!-- Human: all-in-one body/face/hands pose estimator (client-side, loaded on-demand) -->
 </head>
 <body>
 <div class="app">
@@ -2723,9 +2723,7 @@ const PostureCoach = (() => {
     if (human) return human;
     try {
       if (!globalThis._humanModule) {
-        globalThis._humanModule = import('./vendor/human.esm.js').catch(() =>
-          import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js')
-        );
+        globalThis._humanModule = import('https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.esm.js');
       }
       const mod = await globalThis._humanModule;
       const HumanLib = mod.Human || mod.default;
@@ -2733,7 +2731,7 @@ const PostureCoach = (() => {
       human = new HumanLib({
         backend,
         filter: { enabled: true },
-        modelBasePath: 'https://raw.githubusercontent.com/vladmandic/human/master/models',
+        modelBasePath: 'https://cdn.jsdelivr.net/npm/@vladmandic/human/models',
         face: { enabled: true },
         body: { enabled: true, modelPath: 'blazepose.json' },
         hand: { enabled: true },
