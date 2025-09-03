@@ -13,7 +13,8 @@ async function ensurePose(){
   return !!(window.Pose && window.Pose.Pose);
 }
 
-async function analyzeBodyLanguage(blob){
+// blob: video file; transcript: optional text to map timeline events
+async function analyzeBodyLanguage(blob, transcript=''){
   if(!await ensurePose()){
     return {score:0,posture:0,gesture:0,movement:0,advice:'Pose model unavailable',events:[]};
   }
@@ -32,6 +33,7 @@ async function analyzeBodyLanguage(blob){
   let wristMove=0,bodyMove=0,lastL=null,lastR=null,lastHip=null;
   let wristStill=0;
   const events=[];
+  const lines=(transcript||'').split(/\n+/).filter(Boolean);
   let done=false, finish;
 
   function angle(a,b,c){
@@ -126,6 +128,15 @@ async function analyzeBodyLanguage(blob){
       if(knAvg>25) tips.push('avoid locking knees');
       if(wristAvg>0.02) tips.push('steady your hand gestures');
       if(bodyAvg>0.01) tips.push('reduce body movement');
+      // Attach transcript snippets to events for context
+      if(lines.length && video.duration){
+        const seg=video.duration/lines.length;
+        events.forEach(ev=>{
+          const idx=Math.min(lines.length-1,Math.floor(ev.time/seg));
+          ev.text=lines[idx]||'';
+        });
+      }
+
       resolve({
         score:+final.toFixed(1),
         posture:+postureScore.toFixed(1),

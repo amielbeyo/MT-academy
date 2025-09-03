@@ -1915,9 +1915,10 @@ const VideoCoach=(function(){
       }
       await loadPostureModule();
       setStatus('Scoring body language...');
-      const res=await analyzeBodyLanguage(blob);
+      const transcript=$('videoTranscript').value||'';
+      const res=await analyzeBodyLanguage(blob, transcript);
       const ev=(res && Array.isArray(res.events))?res.events:[];
-      const timelineHtml=ev.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}</li>`).join('');
+      const timelineHtml=ev.map(e=>`<li>${e.time}s: ${escHTML(e.issue)}${e.text?` - ${escHTML(e.text)}`:''}</li>`).join('');
       $('postureFeedback').innerHTML=`<div class="kv small"><div>Final Body Score</div><div>${res.score}/10</div><div>Posture</div><div>${res.posture}/10</div><div>Gesture</div><div>${res.gesture}/10</div><div>Movement</div><div>${res.movement}/10</div></div>${res.advice?`<div class="small" style="margin-top:4px"><strong>Body Tips:</strong> ${escHTML(res.advice)}</div>`:''}${ev.length?`<div class="small" style="margin-top:4px"><strong>Timeline:</strong><ul>${timelineHtml}</ul></div>`:''}`;
       $('videoStatus').textContent='Body language scored.';
     }catch(e){
