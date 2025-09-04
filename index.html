@@ -267,8 +267,10 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
+      <button id="btnAnalyzePosture" class="btn secondary" title="Analyze posture/gestures vs transcript">Analyze Posture & Gestures</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="videoPosture" class="small" style="margin-top:10px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -2301,6 +2303,355 @@ const VideoCoach=(function(){
     tUpd(); crit('opening');
     setStatus('Tip: some browsers block camera in embedded previews. Use Mic Only or Upload Video if needed.');
   }
+
+/* ========= Transcript-Aware Posture & Gesture Coach (Full-Length) ========= */
+
+// Lazy-load MediaPipe Pose once
+async function loadPoseLibs(){
+  if (window.Pose && window.drawConnectors) return;
+  await new Promise((res, rej)=>{
+    const s1=document.createElement('script');
+    s1.src='https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.min.js';
+    s1.onload=res; s1.onerror=()=>rej(new Error('Failed to load Pose'));
+    document.head.appendChild(s1);
+  });
+  await new Promise((res, rej)=>{
+    const s2=document.createElement('script');
+    s2.src='https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js';
+    s2.onload=res; s2.onerror=()=>rej(new Error('Failed to load drawing_utils'));
+    document.head.appendChild(s2);
+  });
+}
+
+let mpPoseInstance=null;
+function initPose(){
+  return new Promise((resolve, reject)=>{
+    try{
+      const p = new Pose.Pose({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+      });
+      p.setOptions({
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.5
+      });
+      mpPoseInstance = p;
+      resolve();
+    }catch(e){ reject(e); }
+  });
+}
+
+// ---------- math helpers ----------
+function v2(x,y){ return {x,y}; }
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+function pad2(n){ return String(Math.floor(n)).padStart(2,'0'); }
+function sToClock(s){ const m=Math.floor(s/60), sec=Math.round(s%60); return `${pad2(m)}:${pad2(sec)}`; }
+function median(arr){ if(!arr.length) return 0; const a=[...arr].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; }
+
+// ---------- transcript cueing ----------
+function tokenizeWords(txt){
+  const words = (txt||'').trim().split(/\s+/).filter(Boolean);
+  return { words, count: words.length };
+}
+
+function estimateWPM(txt, durationSec){
+  const wc = (txt||'').trim().split(/\s+/).filter(Boolean).length;
+  const minutes = Math.max(0.25, (durationSec||0)/60);
+  return Math.min(210, Math.max(90, Math.round(wc/minutes || 150)));
+}
+
+// Map word index -> approximate seconds using wpm
+function wordIndexToTime(wordIndex, wpm){
+  const secPerWord = 60/(wpm||150);
+  return Math.max(0, wordIndex * secPerWord);
+}
+
+// Build timed cues from transcript content & type
+function buildTranscriptCues(transcript, type, durationSec){
+  const lower = (transcript||'').toLowerCase();
+  const { words, count } = tokenizeWords(lower);
+  const wpm = estimateWPM(lower, durationSec);
+  const cues = [];
+
+  function addCue(wordIndex, label, action, hands, feet){
+    const ts = Math.min(durationSec||0, wordIndexToTime(wordIndex, wpm));
+    cues.push({ ts, label, action, hands, feet, wordIndex });
+  }
+
+  const roadmapMarkers = ['first','second','third','fourth','finally'];
+
+  if(type==='opening'){
+    const themeIdx = Math.max(0, Math.floor(count*0.03));
+    addCue(themeIdx, 'Theme', 'Plant center, project', 'Open palms shoulder-width', 'Stillness 2–3s');
+
+    // “the evidence will show / you will hear/see”
+    for(let i=0;i<words.length;i++){
+      const seg = words.slice(Math.max(0,i-3), i+6).join(' ');
+      if(/evidence will show|you will (hear|see)/.test(seg)){
+        addCue(i, 'Preview evidence', 'Slight lean-in on clause', 'Palm-up reveal', 'Stay anchored');
+      }
+    }
+    // roadmap markers
+    for(let i=0;i<words.length;i++){
+      const w = words[i].replace(/[^\w]/g,'');
+      if(roadmapMarkers.includes(w)){
+        addCue(i, 'Roadmap pivot', 'Mark transition', 'Open palm, single gesture', 'One small step then anchor');
+      }
+    }
+    // ask for verdict
+    const askText = lower;
+    const askIdx = askText.search(/(ask you to return|the only fair verdict|we ask you)/);
+    if(askIdx>=0){
+      const wi = Math.max(0, askText.slice(0,askIdx).split(/\s+/).length-1);
+      addCue(wi, 'Final ask', 'Lower volume, slow pace', 'Hands home base, single emphasis', 'Return to center & stillness');
+    }
+  } else if(type==='closing'){
+    const elemIdx = lower.search(/(element|apply the law|jury (instructions|instruction))/);
+    if(elemIdx>=0){ addCue(Math.max(0, lower.slice(0,elemIdx).split(/\s+/).length-1), 'Elements', 'Walk elements cleanly', 'Tight gestures per element', 'Micro-step only at pivots'); }
+
+    for(let i=0;i<words.length-1;i++){
+      if((/they|defense|prosecution/.test(words[i])) && words[i+1]==='said'){
+        addCue(i, 'Refutation', 'Contrast calmly', 'Palm-edge contrast', 'Half step then re-anchor');
+      }
+    }
+    const conclIdx = lower.search(/(therefore|in conclusion|the only fair verdict|we ask)/);
+    if(conclIdx>=0){
+      const wi = Math.max(0, lower.slice(0,conclIdx).split(/\s+/).length-1);
+      addCue(wi, 'Conclusion', 'Slow + stillness', 'Minimal gesture', 'Center & still');
+    }
+  } else if(type==='direct'){
+    const introIdx = lower.search(/(please introduce yourself|state your name)/);
+    if(introIdx>=0){ addCue(Math.max(0, lower.slice(0,introIdx).split(/\s+/).length-1), 'Intro witness', 'Open stance to witness', 'Small open hand to witness', 'Anchor'); }
+
+    for(let i=0;i<words.length;i++){
+      if(/recognize|identify|fair|accurate|admit|publish/.test(words[i]||'')){
+        addCue(i, 'Exhibit move', 'Point then pause', 'Palm to exhibit', 'Single step to easel/screen then back');
+      }
+    }
+    for(let i=0;i<words.length-1;i++){
+      const seg = words.slice(i,i+3).join(' ');
+      if(/what happened next|after that|then what/.test(seg)){
+        addCue(i, 'Chapter transition', 'Reset voice & pace', 'Small cueing hand', 'Micro-step only');
+      }
+    }
+  } else { // cross
+    for(let i=0;i<words.length;i++){
+      if(/^(correct\?|right\?|yes|no)$/.test(words[i]||'')){
+        addCue(i, 'Admission cadence', 'Pin the yes', 'No gesture after “yes”', 'Stillness after admission');
+      }
+    }
+    for(let i=0;i<words.length;i++){
+      if(/page|line|statement|deposition/.test(words[i]||'')){
+        addCue(i, 'Impeachment anchor', 'Cite + lock in', 'Small pinch/point', 'Anchor then pivot');
+      }
+    }
+  }
+
+  cues.sort((a,b)=>a.ts-b.ts);
+  const merged=[];
+  for(const c of cues){
+    if(!merged.length || Math.abs(c.ts - merged[merged.length-1].ts) > 1.0) merged.push(c);
+  }
+  return { cues: merged, wpm };
+}
+
+// ---------- main analysis (full duration, 2 FPS) ----------
+async function analyzePostureAndGesturesTranscriptAware(){
+  const out = $('videoPosture'); out.innerHTML='';
+  const video = $('videoPreview');
+  const transcript = $('videoTranscript').value||'';
+  const type = $('videoType').value || 'opening';
+
+  if(!video || (!video.srcObject && !video.src)){ setStatus('Load or record a video first.', true); return; }
+  if(!(transcript||'').trim()){ setStatus('No transcript found. Add/paste a transcript to align gestures to content.', true); return; }
+
+  setStatus('Loading posture model…');
+  try{ await loadPoseLibs(); await initPose(); }catch(e){ setStatus('Could not load posture model: '+e.message, true); return; }
+
+  const sampleHz = 2; // safe on-device speed
+  const landmarksLog=[], tsLog=[], centerLog=[], handLog=[];
+  const useVFC = !!video.requestVideoFrameCallback;
+
+  // Collect landmarks
+  mpPoseInstance.onResults(res=>{
+    const lm=res.poseLandmarks;
+    if(!lm || lm.length<25) return;
+    const LSH=lm[11], RSH=lm[12], LHP=lm[23], RHP=lm[24], LE=lm[7], RE=lm[8];
+    const LEL=lm[13], REL=lm[14], LWR=lm[15], RWR=lm[16];
+
+    const midShoulder=v2((LSH.x+RSH.x)/2, (LSH.y+RSH.y)/2);
+    const midHip=v2((LHP.x+RHP.x)/2, (LHP.y+RHP.y)/2);
+    const torso=v2(midShoulder.x-midHip.x, midShoulder.y-midHip.y);
+    const earLine=v2(RE.x-LE.x, RE.y-LE.y);
+    const earAngle=Math.abs(Math.atan2(earLine.y, earLine.x))*180/Math.PI;
+
+    landmarksLog.push({
+      torso,
+      headTilt: earAngle,
+      leftHandHigh: (LWR.y < LEL.y),
+      rightHandHigh: (RWR.y < REL.y),
+      midHip,
+      wrists: {LWR:RWR?LWR:{x:0,y:0}, RWR: RWR||{x:0,y:0}}
+    });
+    tsLog.push(video.currentTime||0);
+    centerLog.push(midHip);
+    handLog.push({LWR, RWR});
+  });
+
+  // Sampling loop: full video, no time cap
+  setStatus('Analyzing full video posture/gestures…');
+  try{ await video.play(); }catch(_){ }
+  const durationSec = Math.max(video.duration||0, 1);
+
+  let lastSampleT = -1;
+  const minDelta = 1/sampleHz - 0.001;
+  let analysisDone = false;
+
+  async function sampleOnce(){ await mpPoseInstance.send({image: video}); }
+  function finish(){ if(!analysisDone){ analysisDone=true; computeAndRender(); } }
+
+  if(useVFC){
+    const onFrame = async ()=>{
+      const t=video.currentTime||0;
+      if(t - lastSampleT >= minDelta){ await sampleOnce(); lastSampleT=t; }
+      if(!video.ended && !video.paused){ video.requestVideoFrameCallback(onFrame); }
+      else { finish(); }
+    };
+    video.requestVideoFrameCallback(onFrame);
+  }else{
+    const id=setInterval(async ()=>{
+      if(video.ended || video.paused){ clearInterval(id); finish(); return; }
+      const t=video.currentTime||0;
+      if(t - lastSampleT >= minDelta){ await sampleOnce(); lastSampleT=t; }
+    }, 1000/sampleHz);
+  }
+
+  function computeAndRender(){
+    if(!landmarksLog.length){ setStatus('No body detected long enough to assess. Ensure upper body is visible.', true); return; }
+
+    const angleDeg = v => Math.abs(Math.atan2(v.x, -v.y))*180/Math.PI;
+    const leanAngles = landmarksLog.map(s=> angleDeg(s.torso));
+    const leanMed = median(leanAngles);
+    const leanBadFrac = leanAngles.filter(a=>a>12).length / leanAngles.length;
+
+    const headTilts = landmarksLog.map(s=> s.headTilt);
+    const headMed = median(headTilts);
+
+    function velSeries(points){
+      const vels=[];
+      for(let i=1;i<points.length;i++){
+        const dt=Math.max(0.001, tsLog[i]-tsLog[i-1]);
+        vels.push( dist(points[i], points[i-1]) / dt );
+      }
+      return vels;
+    }
+    const leftVel = velSeries(handLog.map(h=>h.LWR));
+    const rightVel= velSeries(handLog.map(h=>h.RWR));
+    const speed = leftVel.map((v,i)=> (v + (rightVel[i]||0))/2);
+
+    // gesture bursts
+    const burstTimes=[]; const thresh=0.8;
+    for(let i=1;i<speed.length-1;i++){
+      if(speed[i]>thresh && speed[i]>speed[i-1] && speed[i]>speed[i+1]){
+        burstTimes.push(tsLog[i]);
+      }
+    }
+    const durSec = (tsLog[tsLog.length-1]-tsLog[0]) || durationSec;
+    const gesturesPerMin = burstTimes.length * (60/(durSec||1));
+
+    const highFrac = landmarksLog.filter(s=> s.leftHandHigh || s.rightHandHigh).length / landmarksLog.length;
+
+    // steps via lateral crossings
+    const xs=centerLog.map(c=>c.x);
+    const leftBand=0.33, rightBand=0.66;
+    let steps=0; const stepTimes=[];
+    for(let i=1;i<xs.length;i++){
+      const a=xs[i-1], b=xs[i];
+      if((a<leftBand && b>leftBand) || (a>leftBand && b<leftBand) ||
+         (a<rightBand && b>rightBand) || (a>rightBand && b<rightBand)){
+        steps++; stepTimes.push(tsLog[i]);
+      }
+    }
+    const stepsPerMin = steps * (60/(durSec||1));
+
+    // Scores
+    const type = $('videoType').value || 'opening';
+    const postureScore   = Math.max(1, Math.round(10 - Math.min(10, (leanMed/2) + (leanBadFrac*6))));
+    const headScore      = Math.max(1, Math.round(10 - Math.min(10, headMed/3)));
+    const movementIdeal  = (type==='direct') ? 0.5 : (type==='cross'? 2.0 : 1.2);
+    const movementScore  = Math.max(1, Math.round(10 - Math.min(9, Math.abs(stepsPerMin - movementIdeal)*3)));
+    const gestureIdealLo = (type==='direct') ? 4 : (type==='cross'? 6 : 6);
+    const gestureIdealHi = (type==='direct') ? 10: (type==='cross'? 14: 12);
+    const gestureScore   = Math.max(1, Math.round(10 - Math.abs(((gesturesPerMin - (gestureIdealLo+gestureIdealHi)/2)/((gestureIdealHi-gestureIdealLo)/2))*4)));
+    const handsHighScore = Math.max(1, Math.round(10 - Math.min(9, highFrac*12)));
+
+    // Transcript cues (timed)
+    const { cues, wpm } = buildTranscriptCues(transcript, type, durationSec);
+
+    // Align observed vs recommended (±1.5s window)
+    const windowS = 1.5;
+    const rows = cues.map(c=>{
+      const hasGesture = burstTimes.some(t => Math.abs(t - c.ts) <= windowS);
+      const hasStep    = stepTimes.some(t => Math.abs(t - c.ts) <= windowS);
+      const obs = [
+        hasGesture ? '✓ gesture' : '—',
+        hasStep ? '✓ step' : '—'
+      ].join(' ');
+      const rec = `${c.action} • Hands: ${c.hands} • Feet: ${c.feet}`;
+      return `<tr><td>${sToClock(c.ts)}</td><td>${escHTML(c.label)}</td><td>${escHTML(rec)}</td><td>${obs}</td></tr>`;
+    }).join('');
+
+    // Recommendations (high-level)
+    const recs=[];
+    if(leanMed>10 || leanBadFrac>0.2) recs.push('Square hips/shoulders, “string through crown,” unlock knees.');
+    if(headMed>8) recs.push('Keep ear-to-ear level; nod briefly then return to level.');
+    if(gesturesPerMin<gestureIdealLo) recs.push('Add emphasis gestures at cue times; park hands at home base between points.');
+    if(gesturesPerMin>gestureIdealHi) recs.push('Trim to one gesture per big point; stillness between cues.');
+    if(highFrac>0.35) recs.push('Keep most gestures between navel and sternum; avoid shoulder-height windmilling.');
+    if(type==='direct' && stepsPerMin>1) recs.push('Anchor directs; micro-steps only for exhibits.');
+    if(type==='cross' && stepsPerMin<1) recs.push('Add micro-step at each chapter pivot to signal control.');
+
+    // Render
+    const outTable = `
+      <div><strong>Posture & Gesture Coach (Transcript-Aware)</strong></div>
+      <table class="table" style="margin-top:6px">
+        <thead><tr><th>Category</th><th>Score</th><th>Key Data</th></tr></thead>
+        <tbody>
+          <tr><td>Upright Posture</td><td>${postureScore}/10</td><td>median lean ${leanMed.toFixed(1)}°, >12° ${Math.round(leanBadFrac*100)}%</td></tr>
+          <tr><td>Head Level</td><td>${headScore}/10</td><td>median tilt ${headMed.toFixed(1)}°</td></tr>
+          <tr><td>Gesture Pacing</td><td>${gestureScore}/10</td><td>${gesturesPerMin.toFixed(1)} gestures/min (ideal ${gestureIdealLo}–${gestureIdealHi})</td></tr>
+          <tr><td>Purposeful Movement</td><td>${movementScore}/10</td><td>${stepsPerMin.toFixed(1)} steps/min (target ~${movementIdeal})</td></tr>
+          <tr><td>Gesture Height</td><td>${handsHighScore}/10</td><td>${Math.round(highFrac*100)}% ≥ elbow height</td></tr>
+          <tr><td>Estimated WPM</td><td colspan="2">${wpm} wpm (for cue timing)</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px"><strong>Transcript-Timed Movement & Gesture Plan</strong></div>
+      <table class="table">
+        <thead><tr><th>Time</th><th>Cue</th><th>Recommendation</th><th>Observed (±1.5s)</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4">No cues detected—plan based on generic chapter transitions.</td></tr>'}</tbody>
+      </table>
+      ${recs.length? `<div style="margin-top:6px"><strong>Global Tips</strong><ul>${recs.map(r=>`<li>${escHTML(r)}</li>`).join('')}</ul></div>`:''}
+      <div class="small" style="margin-top:6px;color:#94a3b8">Tip: open palms on emphasis, hands “home base” between points, one purposeful step per transition.</div>
+    `;
+    $('videoPosture').innerHTML = outTable;
+    setStatus('Transcript-aware posture/gesture analysis complete.');
+  }
+}
+
+// Wire the Analyze button (no change to your existing wire)
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = $('btnAnalyzePosture');
+  if(btn){
+    btn.addEventListener('click', ()=>{
+      analyzePostureAndGesturesTranscriptAware().catch(e=>{
+        setStatus('Posture analysis error: '+e.message, true);
+      });
+    });
+  }
+});
+/* ======== End Transcript-Aware Posture & Gesture Coach ======== */
 
   return{wire}
 })();
