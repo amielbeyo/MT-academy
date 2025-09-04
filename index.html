@@ -2306,29 +2306,52 @@ const VideoCoach=(function(){
 
 /* ========= Transcript-Aware Posture & Gesture Coach (Full-Length) ========= */
 
-// Lazy-load MediaPipe Pose once
+/* ===== PATCH: Robust MediaPipe Pose loader & constructor detection ===== */
+
+// Detect whichever global the CDN exposes (Pose.Pose vs Pose vs pose)
+function resolvePoseClass(){
+  const ns = window.Pose || window.pose || window.POSE || window['@mediapipe/pose'];
+  if (!ns) return null;
+  // If the namespace has a Pose class on it, use that; otherwise use the namespace itself
+  return ns.Pose ? ns.Pose : ns;
+}
+
+// Load libraries only if we don't already have a working constructor
 async function loadPoseLibs(){
-  if (window.Pose && window.drawConnectors) return;
+  if (resolvePoseClass()) return; // already loaded
+
+  // Load the Pose bundle
   await new Promise((res, rej)=>{
-    const s1=document.createElement('script');
-    s1.src='https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.min.js';
-    s1.onload=res; s1.onerror=()=>rej(new Error('Failed to load Pose'));
-    document.head.appendChild(s1);
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.min.js';
+    s.onload=res; s.onerror=()=>rej(new Error('Failed to load @mediapipe/pose'));
+    document.head.appendChild(s);
   });
-  await new Promise((res, rej)=>{
-    const s2=document.createElement('script');
-    s2.src='https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js';
-    s2.onload=res; s2.onerror=()=>rej(new Error('Failed to load drawing_utils'));
-    document.head.appendChild(s2);
-  });
+
+  // drawing_utils is optional (we don't strictly need it for analysis),
+  // but try to load it; ignore failure to keep things resilient.
+  try{
+    await new Promise((res, rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js';
+      s.onload=res; s.onerror=()=>rej(new Error('Failed to load drawing_utils'));
+      document.head.appendChild(s);
+    });
+  }catch(_){ }
 }
 
 let mpPoseInstance=null;
+// Create the Pose instance using the detected constructor
 function initPose(){
   return new Promise((resolve, reject)=>{
     try{
-      const p = new Pose.Pose({
-        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+      const PoseClass = resolvePoseClass();
+      if(!PoseClass){
+        reject(new Error('MediaPipe Pose constructor not found after load. Check CSP/Network.'));
+        return;
+      }
+      const p = new PoseClass({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
       });
       p.setOptions({
         modelComplexity: 1,
@@ -2338,9 +2361,12 @@ function initPose(){
       });
       mpPoseInstance = p;
       resolve();
-    }catch(e){ reject(e); }
+    }catch(e){
+      reject(e);
+    }
   });
 }
+/* ===== END PATCH ===== */
 
 // ---------- math helpers ----------
 function v2(x,y){ return {x,y}; }
