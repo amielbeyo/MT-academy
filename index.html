@@ -2341,18 +2341,18 @@ async function loadPoseLibs(){
 }
 
 let mpPoseInstance=null;
-/* ===== FAST ANALYSIS CONSTANTS ===== */
+/* ===== FAST ANALYSIS CONSTANTS (ultra-lean) ===== */
 const FAST_ANALYSIS = {
-  targetLongSide: 256,      // downscale long side to this before Pose
-  maxPlaybackRate: 3.0,     // speed up video while analyzing
-  minFps: 0.8,              // adaptive sampling: lower bound
-  maxFps: 2.0,              // adaptive sampling: upper bound
-  diffStride: 12,           // sample every Nth pixel when diffing frames
-  diffSkipThresh: 10.0,     // if avg abs-diff < thresh, skip inference
-  forceEvery: 1.8,          // always run at least once every X seconds
-  warmupRuns: 3,            // run a few times before enabling diff-skip
-  slowMs: 120,              // if inference > slowMs -> reduce fps
-  fastMs: 60                // if inference < fastMs -> increase fps
+  targetLongSide: 192,      // smaller input into Pose
+  maxPlaybackRate: 4.0,     // speed up analysis playback more
+  minFps: 0.3,              // allow very low adaptive FPS
+  maxFps: 1.1,              // cap FPS to minimize work
+  diffStride: 24,           // sample fewer pixels for frame-diff
+  diffSkipThresh: 14.0,     // skip if tiny change
+  forceEvery: 4.5,          // guarantee a read every N seconds
+  warmupRuns: 2,            // fewer warmups
+  slowMs: 90,               // tighten adaptivity thresholds
+  fastMs: 45
 };
 // Create the Pose instance using the detected constructor (LITE + smooth)
 function initPose(){
@@ -2491,7 +2491,42 @@ function buildTranscriptCues(transcript, type, durationSec){
   return { cues: merged, wpm };
 }
 
-// ---------- main analysis (full duration, FAST, transcript-aware) ----------
+// --- Build minimal "interesting" windows from cues + sparse heartbeats ---
+function buildCueWindows(cues, durationSec){
+  const win = [];
+
+  // 2.2s window around each cue (more on the tail so you can finish the gesture)
+  for(const c of cues){
+    const s = Math.max(0,  c.ts - 1.2);
+    const e = Math.min(durationSec, c.ts + 2.2);
+    win.push([s,e]);
+  }
+
+  // Add sparse "heartbeat" windows every ~20s so we still get global posture/movement
+  for(let t=8; t<durationSec; t+=20){
+    win.push([Math.max(0,t-0.6), Math.min(durationSec, t+0.6)]);
+  }
+
+  // Merge overlaps
+  win.sort((a,b)=>a[0]-b[0]);
+  const merged=[];
+  for(const w of win){
+    if(!merged.length || w[0] > merged[merged.length-1][1]+0.15){
+      merged.push([...w]);
+    }else{
+      merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], w[1]);
+    }
+  }
+  return merged;
+}
+
+function isInAnyWindow(t, windows){
+  // binary search could be used, but linear is fine (few windows)
+  for(const [s,e] of windows){ if(t>=s && t<=e) return true; }
+  return false;
+}
+
+// ---------- main analysis (cue-driven, minimal FPS) ----------
 async function analyzePostureAndGesturesTranscriptAware(){
   const out = $('videoPosture'); out.innerHTML='';
   const video = $('videoPreview');
@@ -2509,31 +2544,38 @@ async function analyzePostureAndGesturesTranscriptAware(){
   const ctx = off.getContext('2d', { willReadFrequently: true });
   function syncOffSize(){
     const vw = video.videoWidth || 640, vh = video.videoHeight || 360;
-    if(vw >= vh){
-      off.width  = FAST_ANALYSIS.targetLongSide;
-      off.height = Math.round(vh * (off.width / vw));
-    }else{
-      off.height = FAST_ANALYSIS.targetLongSide;
-      off.width  = Math.round(vw * (off.height / vh));
-    }
+    if(vw >= vh){ off.width = FAST_ANALYSIS.targetLongSide; off.height = Math.round(vh * (off.width / vw)); }
+    else         { off.height= FAST_ANALYSIS.targetLongSide; off.width  = Math.round(vw * (off.height / vh)); }
   }
   syncOffSize();
 
-  // Playback speed-up (restore at end)
+  // Faster playback during analysis
   const originalRate = video.playbackRate || 1;
   try { video.playbackRate = Math.min(FAST_ANALYSIS.maxPlaybackRate, Math.max(1, originalRate)); } catch(_){ }
 
+  // Precompute transcript cues + "interesting" windows
+  const durationSec = Math.max(video.duration||0, 1);
+  const { cues, wpm } = buildTranscriptCues(transcript, type, durationSec);
+  const windows = buildCueWindows(cues, durationSec);
+
+  // Hard sample budget = small multiple of windows, with sane caps
+  const SAMPLE_BUDGET = Math.max(50, Math.min(200, Math.round(windows.length * 3.2)));
+
+  // Adaptive sampling state
   const sampleHzBounds = { min: FAST_ANALYSIS.minFps, max: FAST_ANALYSIS.maxFps };
-  let sampleHz = 1.2;                         // start
+  let sampleHz = 0.8;
   let lastProcessTs = -1;
   let lastForcedTs  = -1;
   let inflight = false;
   let prevImgData = null;
   let runs = 0;
+  let samples = 0;
+  let done = false;
 
+  // Logs
   const landmarksLog=[], tsLog=[], centerLog=[], handLog=[];
 
-  // Pose callback — collect just what we need
+  // Pose callback — collect minimal fields
   mpPoseInstance.onResults(res=>{
     const lm = res.poseLandmarks;
     const t  = video.currentTime||0;
@@ -2560,7 +2602,7 @@ async function analyzePostureAndGesturesTranscriptAware(){
     handLog.push({LWR,RWR});
   });
 
-  // Frame-diff gate: skip inference if almost no motion
+  // Frame-diff gate: aggressively skip frames with little change
   function shouldSkipFrame(){
     try{
       const w=off.width, h=off.height;
@@ -2574,85 +2616,87 @@ async function analyzePostureAndGesturesTranscriptAware(){
         count++;
       }
       prevImgData.set(img);
-      const avg = diffSum / (count*3); // 0..255
+      const avg = diffSum / (count*3);
       return (avg < FAST_ANALYSIS.diffSkipThresh) && (runs >= FAST_ANALYSIS.warmupRuns);
-    }catch(_){
-      // If getImageData is not available (tainted canvas), don't skip
-      return false;
-    }
+    }catch(_){ return false; }
   }
 
-  // One inference step (downscale + optional skip)
-  async function step(){
-    if(inflight) return;
-    const nowT = video.currentTime||0;
-    const dt   = nowT - lastProcessTs;
-    const needDt = 1/(sampleHz||1);
-    const force = (nowT - lastForcedTs) >= FAST_ANALYSIS.forceEvery;
+  function finish(){
+    if(done) return;
+    done = true;
+    try{ video.playbackRate = originalRate; }catch(_){}
+    computeAndRender();
+  }
 
-    if(dt < needDt && !force) return;
+  // One inference step (cue-window + motion gate + sample budget)
+  async function step(){
+    if(inflight || done) return;
+
+    const nowT   = video.currentTime||0;
+    const dt     = nowT - lastProcessTs;
+    const needDt = 1/(sampleHz||1);
+    const force  = (nowT - lastForcedTs) >= FAST_ANALYSIS.forceEvery;
+    const inWin  = isInAnyWindow(nowT, windows);
+
+    // Respect the cue windows: outside them, only take sparse "force" samples
+    if(dt < needDt) return;
+    if(!inWin && !force) return;
 
     // Draw downscaled frame
     ctx.drawImage(video, 0, 0, off.width, off.height);
 
     // Motion gate
-    if(!force && shouldSkipFrame()){ return; }
+    if(!force && shouldSkipFrame()) return;
 
     inflight = true;
     const t0 = performance.now();
     try{
       await mpPoseInstance.send({ image: off });
-      runs++;
+      runs++; samples++;
+
+      // End early when we met the budget AND already passed the last window end
+      const lastWinEnd = windows.length ? windows[windows.length-1][1] : (durationSec*0.75);
+      if(samples >= SAMPLE_BUDGET && nowT >= lastWinEnd){
+        try{ video.pause(); }catch(_){}
+        finish();
+        return;
+      }
+
     }finally{
       const t1 = performance.now();
       const ms = t1 - t0;
-      // Adaptive FPS
       if(ms > FAST_ANALYSIS.slowMs)      sampleHz = Math.max(sampleHzBounds.min, sampleHz*0.85);
-      else if(ms < FAST_ANALYSIS.fastMs) sampleHz = Math.min(sampleHzBounds.max, sampleHz*1.10);
+      else if(ms < FAST_ANALYSIS.fastMs) sampleHz = Math.min(sampleHzBounds.max, sampleHz*1.12);
       inflight = false;
       lastProcessTs = nowT;
       if(force) lastForcedTs = nowT;
     }
   }
 
-  // Transcript cues (precompute)
-  const durationSec = Math.max(video.duration||0, 1);
-  const { cues, wpm } = buildTranscriptCues(transcript, type, durationSec);
-
-  // Sampling loop — use requestVideoFrameCallback if available
-  let done = false;
-  function finish(){ if(done) return; done = true; try{ video.playbackRate = originalRate; }catch(_){ } computeAndRender(); }
-
-  try{ await video.play(); }catch(_){ }
-
+  // Sampling loop — prefer rVFC, fallback to setInterval
+  try{ await video.play(); }catch(_){}
   if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
     const onFrame = async ()=>{
-      if(video.ended || video.paused){ finish(); return; }
-      try{
-        // Keep canvas in sync if metadata changes (rare)
-        if(off.width===0 || off.height===0) syncOffSize();
-        await step();
-      }catch(_){ }
+      if(done || video.ended || video.paused){ finish(); return; }
+      try{ if(off.width===0 || off.height===0) syncOffSize(); await step(); }catch(_){}
       video.requestVideoFrameCallback(onFrame);
     };
     video.requestVideoFrameCallback(onFrame);
   }else{
     const id = setInterval(async ()=>{
-      if(video.ended || video.paused){ clearInterval(id); finish(); return; }
-      try{ if(off.width===0 || off.height===0) syncOffSize(); await step(); }catch(_){ }
+      if(done || video.ended || video.paused){ clearInterval(id); finish(); return; }
+      try{ if(off.width===0 || off.height===0) syncOffSize(); await step(); }catch(_){}
     }, 1000/Math.max(FAST_ANALYSIS.minFps, 1));
   }
 
-  // ---------- reduce & render ----------
+  // ------------ reduce & render (unchanged logic) ------------
+  function sToClock(s){ const m=Math.floor(s/60),sec=Math.round(s%60); return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+  const angleDeg = v => Math.abs(Math.atan2(v.x, -v.y))*180/Math.PI;
+  function median(a){ if(!a.length) return 0; const b=[...a].sort((x,y)=>x-y); return b[Math.floor(b.length/2)]; }
+
   function computeAndRender(){
-    const angleDeg = v => Math.abs(Math.atan2(v.x, -v.y))*180/Math.PI;
+    if(!landmarksLog.length){ setStatus('No body detected long enough to assess. Ensure upper body is visible.', true); return; }
 
-    if(!landmarksLog.length){
-      setStatus('No body detected long enough to assess. Ensure upper body is visible & lighting is good.', true);
-      return;
-    }
-
-    // Posture metrics
     const leanAngles = landmarksLog.map(s=> angleDeg(s.torso));
     const leanMed    = median(leanAngles);
     const leanBadFrac= leanAngles.filter(a=>a>12).length / leanAngles.length;
@@ -2660,11 +2704,10 @@ async function analyzePostureAndGesturesTranscriptAware(){
     const headTilts  = landmarksLog.map(s=> s.headTilt);
     const headMed    = median(headTilts);
 
-    // Gesture bursts from wrist velocities
     function velSeries(points){
-      const ts=tsLog; const vels=[];
+      const vels=[];
       for(let i=1;i<points.length;i++){
-        const dt=Math.max(0.001, ts[i]-ts[i-1]);
+        const dt=Math.max(0.001, (tsLog[i]-tsLog[i-1]));
         const a=points[i-1], b=points[i];
         const v = Math.hypot((b.LWR?.x-a.LWR?.x)||0, (b.LWR?.y-a.LWR?.y)||0)/dt
                 + Math.hypot((b.RWR?.x-a.RWR?.x)||0, (b.RWR?.y-a.RWR?.y)||0)/dt;
@@ -2682,7 +2725,6 @@ async function analyzePostureAndGesturesTranscriptAware(){
 
     const highFrac = landmarksLog.filter(s=> s.leftHandHigh || s.rightHandHigh).length / landmarksLog.length;
 
-    // Steps via lateral crossings
     const xs=centerLog.map(c=>c.x);
     const leftBand=0.33, rightBand=0.66;
     let steps=0; const stepTimes=[];
@@ -2695,7 +2737,6 @@ async function analyzePostureAndGesturesTranscriptAware(){
     }
     const stepsPerMin = steps * (60/(durSec||1));
 
-    // Scores
     const postureScore   = Math.max(1, Math.round(10 - Math.min(10, (leanMed/2) + (leanBadFrac*6))));
     const headScore      = Math.max(1, Math.round(10 - Math.min(10, headMed/3)));
     const movementIdeal  = (type==='direct') ? 0.5 : (type==='cross'? 2.0 : 1.2);
@@ -2705,7 +2746,6 @@ async function analyzePostureAndGesturesTranscriptAware(){
     const gestureScore   = Math.max(1, Math.round(10 - Math.abs(((gesturesPerMin - (gestureIdealLo+gestureIdealHi)/2)/((gestureIdealHi-gestureIdealLo)/2))*4)));
     const handsHighScore = Math.max(1, Math.round(10 - Math.min(9, highFrac*12)));
 
-    // Align observed vs transcript cues
     const windowS = 1.5;
     const rows = cues.map(c=>{
       const hasGesture = burstTimes.some(t => Math.abs(t - c.ts) <= windowS);
@@ -2715,7 +2755,6 @@ async function analyzePostureAndGesturesTranscriptAware(){
       return `<tr><td>${sToClock(c.ts)}</td><td>${escHTML(c.label)}</td><td>${escHTML(rec)}</td><td>${obs}</td></tr>`;
     }).join('');
 
-    // High-level tips
     const recs=[];
     if(leanMed>10 || leanBadFrac>0.2) recs.push('Square hips/shoulders, “string through crown,” unlock knees.');
     if(headMed>8) recs.push('Keep ear-to-ear level; nod briefly then return to level.');
@@ -2725,9 +2764,8 @@ async function analyzePostureAndGesturesTranscriptAware(){
     if(type==='direct' && stepsPerMin>1) recs.push('Anchor directs; micro-steps only for exhibits.');
     if(type==='cross' && stepsPerMin<1) recs.push('Add micro-step at each chapter pivot to signal control.');
 
-    // Render
     const outTable = `
-      <div><strong>Posture & Gesture Coach (FAST, Transcript-Aware)</strong></div>
+      <div><strong>Posture & Gesture Coach (CUE-DRIVEN, Minimal FPS)</strong></div>
       <table class="table" style="margin-top:6px">
         <thead><tr><th>Category</th><th>Score</th><th>Key Data</th></tr></thead>
         <tbody>
@@ -2745,10 +2783,9 @@ async function analyzePostureAndGesturesTranscriptAware(){
         <tbody>${rows || '<tr><td colspan="4">No cues detected—plan based on generic chapter transitions.</td></tr>'}</tbody>
       </table>
       ${recs.length? `<div style="margin-top:6px"><strong>Global Tips</strong><ul>${recs.map(r=>`<li>${escHTML(r)}</li>`).join('')}</ul></div>`:''}
-      <div class="small" style="margin-top:6px;color:#94a3b8">Tip: open palms on emphasis, hands “home base” between points, one purposeful step per transition.</div>
     `;
     $('videoPosture').innerHTML = outTable;
-    setStatus('FAST posture/gesture analysis complete.');
+    setStatus('Minimal-FPS posture/gesture analysis complete.');
   }
 }
 
