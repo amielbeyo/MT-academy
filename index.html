@@ -1914,28 +1914,32 @@ const VideoCoach=(function(){
     }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
   }
 
-  async function transcribeBlob(blob, filename){
+  // ---- Drop-in: direct transcription of uploaded file (with fallback) ----
+  async function transcribeFile(file, filenameHint){
     if(!EngineState.openaiKey){
-      setStatus('Upload ready. Add transcript or API key to auto-transcribe.', true);
+      setStatus('Upload ready. Add API key to auto-transcribe.', true);
       return '';
     }
     try{
-      const form=new FormData();
-      form.append('model','gpt-4o-mini-transcribe');
-      form.append('file', blob, filename||'audio.mp4');
-      const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+      const form = new FormData();
+      form.append('model','gpt-4o-mini-transcribe'); // or 'whisper-1' if you prefer
+      form.append('file', file, filenameHint || (file.name || 'audio.mp4'));
+      const resp = await fetch('https://api.openai.com/v1/audio/transcriptions',{
         method:'POST',
-        headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:form
+        headers:{ 'Authorization':`Bearer ${EngineState.openaiKey}` },
+        body: form
       });
-      const data=await resp.json();
-      return data?.text?.trim()||'';
+      const data = await resp.json();
+      if (data?.text) return data.text.trim();
+      if (data?.error?.message) throw new Error(data.error.message);
+      return '';
     }catch(err){
-      setStatus('Transcription error: '+err.message, true);
+      setStatus('Transcription error (direct): '+err.message, true);
       return '';
     }
   }
 
+  // Keep as fallback if direct upload ever fails
   async function videoToAudioBlob(file){
     const arrayBuffer = await file.arrayBuffer();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1949,21 +1953,11 @@ const VideoCoach=(function(){
     function writeString(str){ for(let i=0;i<str.length;i++){ view.setUint8(offset++, str.charCodeAt(i)); } }
     function writeUint16(data){ view.setUint16(offset, data, true); offset += 2; }
     function writeUint32(data){ view.setUint32(offset, data, true); offset += 4; }
-    writeString('RIFF');
-    writeUint32(length - 8);
-    writeString('WAVE');
-    writeString('fmt ');
-    writeUint32(16);
-    writeUint16(1);
-    writeUint16(numChannels);
-    writeUint32(sampleRate);
-    writeUint32(sampleRate * numChannels * 2);
-    writeUint16(numChannels * 2);
-    writeUint16(16);
-    writeString('data');
-    writeUint32(length - 44);
-    const channels=[];
-    for(let c=0;c<numChannels;c++){ channels.push(audioBuffer.getChannelData(c)); }
+    writeString('RIFF'); writeUint32(length - 8); writeString('WAVE'); writeString('fmt ');
+    writeUint32(16); writeUint16(1); writeUint16(numChannels);
+    writeUint32(sampleRate); writeUint32(sampleRate * numChannels * 2);
+    writeUint16(numChannels * 2); writeUint16(16); writeString('data'); writeUint32(length - 44);
+    const channels=[]; for(let c=0;c<numChannels;c++) channels.push(audioBuffer.getChannelData(c));
     for(let i=0;i<audioBuffer.length;i++){
       for(let c=0;c<numChannels;c++){
         const sample = Math.max(-1, Math.min(1, channels[c][i]));
@@ -1974,40 +1968,52 @@ const VideoCoach=(function(){
     return new Blob([buffer], {type:'audio/wav'});
   }
 
+  // ---- Replace your current handleUpload with this version ----
   async function handleUpload(file){
-    if(!file) return; uploaded=true; micOnly=false;
-    lastVideoBlob=file;
-    if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
-    uploadedURL=URL.createObjectURL(file);
-    const v=$('videoPreview');
-    v.onloadedmetadata=()=>{ sec=Math.round(v.duration||0); tUpd(); };
-    v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play().catch(()=>{});
-    $('btnDownloadRecording').href=uploadedURL;
-    const ext=file.name.split('.').pop()||'video';
-    $('btnDownloadRecording').download='speech.'+ext;
-    $('btnPlayRecording').onclick=()=>{ const pv=$('videoPreview'); pv.srcObject=null; pv.src=uploadedURL; pv.controls=true; pv.play().catch(()=>{}); };
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=true;
-    if(timer){ clearInterval(timer); timer=null; }
-    setStatus('Transcribing uploaded video\u2026');
-    let blob=file;
-    let outExt=ext;
-    if(file.type && file.type.startsWith('video/')){
+    if(!file) return;
+    uploaded = true; micOnly = false; lastVideoBlob = file;
+
+    if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL = null; }
+    uploadedURL = URL.createObjectURL(file);
+
+    const v = $('videoPreview');
+    v.srcObject = null; v.src = uploadedURL; v.controls = true;
+    v.onloadedmetadata = () => { sec = Math.round(v.duration || 0); tUpd(); };
+    v.play().catch(()=>{});
+
+    $('btnDownloadRecording').href = uploadedURL;
+    $('btnDownloadRecording').download = file.name || 'speech.webm';
+    $('btnPlayRecording').onclick = ()=>{ const pv=$('videoPreview'); pv.srcObject=null; pv.src=uploadedURL; pv.controls=true; pv.play().catch(()=>{}); };
+
+    $('btnVideoStart').disabled = true;
+    $('btnStopRecording').disabled = true;
+    if(timer){ clearInterval(timer); timer = null; }
+
+    setStatus('Transcribing uploaded video…');
+
+    // 1) Directly send the video file (OpenAI accepts common containers)
+    let text = await transcribeFile(file, file.name);
+
+    // 2) Fallback: extract WAV, then transcribe
+    if(!text){
       try{
-        blob=await videoToAudioBlob(file);
-        outExt='wav';
+        const wav = await videoToAudioBlob(file);
+        text = await transcribeFile(wav, (file.name || 'audio')+'.wav');
       }catch(e){
-        setStatus('Audio extraction error: '+e.message, true);
+        setStatus('Audio extraction error: ' + e.message, true);
       }
     }
-    const text=await transcribeBlob(blob, `audio.${outExt}`);
-    $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
+
     if(text){
-      $('videoTranscript').value=text;
-      setStatus('Transcribed uploaded video. Scoring\u2026');
-      setTimeout(scoreNow,250);
+      $('videoTranscript').value = text;
+      setStatus('Transcribed uploaded video. Scoring…');
+      setTimeout(scoreNow, 200);
     }else{
-      setStatus('Uploaded video ready. Paste transcript to score.', true);
+      setStatus('Uploaded video ready. Add API key or paste your own transcript to score.', true);
     }
+
+    $('btnVideoStart').disabled = false;
+    $('btnStopRecording').disabled = true;
   }
 
   function stop(){
@@ -2146,39 +2152,44 @@ const VideoCoach=(function(){
   if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
         scoreViaChatGPT(type, transcript).then(parsed=>{
-          const det=detectObjections(type,transcript);
-          const m = baseMetrics(transcript);
-          const result = {
-            cats: parsed.categories || {},
-            comments: parsed.comments || {},
-            total: Math.max(0, Math.min(100, parseInt(parsed.total||0,10))),
-            explanation: parsed.explanation || '',
-            notes: parsed.notes || '',
-            qa: parsed.qa || [],
-            metrics: m,
-          compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
-          qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
-          effWords: transcript.trim().split(/\s+/).length
-        };
-        const conf = RUBRICS[type];
-        conf.cats.forEach(c=>{ if(typeof result.cats[c.key] !== 'number'){ result.cats[c.key] = 6; } });
-        if ((type==='opening'||type==='closing') && result.effWords<200) {
-          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]-1,1,10); });
-        } else if (type==='opening' && result.effWords>=300 && result.effWords<=600) {
-          conf.cats.forEach(c=>{ result.cats[c.key] = clamp(result.cats[c.key]+1,1,10); });
-        }
-        result.total = Math.round(conf.cats.reduce((sum,c)=>sum + clamp(result.cats[c.key],1,10)*(c.w*10),0));
-        const wpm=m.wpm||0;
-        if(wpm<95||wpm>125){
-          result.total=Math.max(0,result.total-10);
-        }else if(wpm>=100&&wpm<=115){
-          result.total=Math.min(100,result.total+7);
-        }
-        renderReport(type, result, det);
-        highlightTranscriptArea(type, det);
-        $('videoStatus').textContent = 'Scored with ChatGPT.';
-        showProvenance('Scored by ChatGPT (OpenAI API).');
-      }).catch(err=>{
+  // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
+  const conf = RUBRICS[type];
+
+  // Categories from the model; default to 6 only if missing
+  const cats = {};
+  conf.cats.forEach(c=>{
+    const v = Number(parsed.categories?.[c.key]);
+    cats[c.key] = (isFinite(v) ? clamp(v,1,10) : 6);
+  });
+
+  // Display-only metrics/highlights (do not affect scoring)
+  const m = baseMetrics(transcript);
+  const det = detectObjections(type, transcript);
+
+  const result = {
+    cats,
+    comments: parsed.comments || {},
+    explanation: parsed.explanation || '',
+    notes: parsed.notes || '',
+    qa: parsed.qa || [],
+    metrics: m,
+    compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
+    qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
+    effWords: (transcript.trim().match(/\S+/g)||[]).length
+  };
+
+  // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
+  let totalFromLLM = Number(parsed.total);
+  if(!isFinite(totalFromLLM)){
+    totalFromLLM = conf.cats.reduce((sum,c)=> sum + clamp(result.cats[c.key],1,10)*(c.w*10), 0);
+  }
+  result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
+
+  renderReport(type, result, det);
+  highlightTranscriptArea(type, det);
+  $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
+  showProvenance('LLM-only rubric scoring (no local blend).');
+}).catch(err=>{
         let msg='ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
         if(err?.code===429){ msg='Rate limit on your ChatGPT account \u2014 used built-in for this run. Try again shortly.'; }
         else if(err?.message==='unauthorized' || err?.code===401){ msg='Your OpenAI API key is invalid/expired. Update it in \u201cChange Scoring Engine\u201d. Used built-in for this run.'; }
