@@ -739,8 +739,8 @@ Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutra
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`6. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`6. Provide a brief explanation for why you chose that score, grounding all feedback strictly in the transcript.\n`+
+`   Note exactly how the participant could improve by quoting or paraphrasing specific lines or phrases and describing how to revise them. Avoid generic advice.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10>\n`+
@@ -761,8 +761,8 @@ const PROMPT_TEMPLATE_RULING =
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
 `6. Decide whether the objection should be sustained or overruled.\n`+
-`7. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
+`7. Provide a brief explanation for why you chose that score, grounding all feedback strictly in the transcript.\n`+
+`   Note exactly how the participant could improve by quoting or paraphrasing specific lines or phrases and describing how to revise them. Avoid generic advice.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
@@ -886,7 +886,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Presentation was non-argumentative; did not include improper statements or assume facts not in evidence
   \u25a1 Professional and composed
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses, citing specific parts of the transcript","notes":"at least two actionable tips referencing specific lines or sections of the transcript, each explaining how to improve them, separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
   - Content & Law Application (30)
   - Structure & Element Walk-through (20)
@@ -908,7 +908,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Professional and composed
   \u25a1 Spoke naturally and clearly
-  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses, citing specific parts of the transcript","notes":"at least two actionable tips referencing specific lines or sections of the transcript, each explaining how to improve them, separated by \n"}. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
   - Chapters & Story Build (25)
   - Open-Ended Technique (20)
@@ -928,7 +928,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Professional and composed
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses, citing specific parts of the transcript","notes":"at least two actionable tips referencing specific lines or sections of the transcript, each explaining how to improve them, separated by \n"}. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
   - Chapters & Damage Theory (25)
   - Leading & Control (25)
@@ -950,7 +950,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Professional and composed
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses, citing specific parts of the transcript","notes":"at least two actionable tips referencing specific lines or sections of the transcript, each explaining how to improve them, separated by \n"}. Total must equal weighted sum (rounded).`
   };
 }
 
