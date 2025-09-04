@@ -1936,6 +1936,44 @@ const VideoCoach=(function(){
     }
   }
 
+  async function videoToAudioBlob(file){
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length * numChannels * 2 + 44;
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
+    let offset = 0;
+    function writeString(str){ for(let i=0;i<str.length;i++){ view.setUint8(offset++, str.charCodeAt(i)); } }
+    function writeUint16(data){ view.setUint16(offset, data, true); offset += 2; }
+    function writeUint32(data){ view.setUint32(offset, data, true); offset += 4; }
+    writeString('RIFF');
+    writeUint32(length - 8);
+    writeString('WAVE');
+    writeString('fmt ');
+    writeUint32(16);
+    writeUint16(1);
+    writeUint16(numChannels);
+    writeUint32(sampleRate);
+    writeUint32(sampleRate * numChannels * 2);
+    writeUint16(numChannels * 2);
+    writeUint16(16);
+    writeString('data');
+    writeUint32(length - 44);
+    const channels=[];
+    for(let c=0;c<numChannels;c++){ channels.push(audioBuffer.getChannelData(c)); }
+    for(let i=0;i<audioBuffer.length;i++){
+      for(let c=0;c<numChannels;c++){
+        const sample = Math.max(-1, Math.min(1, channels[c][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([buffer], {type:'audio/wav'});
+  }
+
   async function handleUpload(file){
     if(!file) return; uploaded=true; micOnly=false;
     lastVideoBlob=file;
@@ -1951,7 +1989,17 @@ const VideoCoach=(function(){
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=true;
     if(timer){ clearInterval(timer); timer=null; }
     setStatus('Transcribing uploaded video\u2026');
-    const text=await transcribeBlob(file, `audio.${ext}`);
+    let blob=file;
+    let outExt=ext;
+    if(file.type && file.type.startsWith('video/')){
+      try{
+        blob=await videoToAudioBlob(file);
+        outExt='wav';
+      }catch(e){
+        setStatus('Audio extraction error: '+e.message, true);
+      }
+    }
+    const text=await transcribeBlob(blob, `audio.${outExt}`);
     $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
     if(text){
       $('videoTranscript').value=text;
