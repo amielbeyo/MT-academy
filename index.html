@@ -554,7 +554,6 @@ const MT_SCORING = (() => {
     "Stated the relief or verdict requested",
     "Discussed the burden of proof",
     "Presentation was non-argumentative; did not include improper statements or assume facts not in evidence",
-    "Professional and composed",
     "Spoke naturally and clearly",
   ];
 
@@ -567,7 +566,6 @@ const MT_SCORING = (() => {
     "Did not ask questions that called for an unfair extrapolation from the witness",
     "Demonstrated an understanding of the Modified Federal Rules of Evidence",
     "Handled physical evidence appropriately and effectively",
-    "Professional and composed",
     "Spoke confidently and clearly",
   ];
 
@@ -582,7 +580,6 @@ const MT_SCORING = (() => {
     "Properly impeached witnesses",
     "Demonstrated an understanding of the Modified Federal Rules of Evidence",
     "Handled physical evidence appropriately and effectively",
-    "Professional and composed",
     "Spoke confidently and clearly",
   ];
 
@@ -597,7 +594,6 @@ const MT_SCORING = (() => {
     "Overall, the closing statement was persuasive",
     "Use of notes was minimal, effective, and purposeful",
     "Contained spontaneous elements that reflect unanticipated outcomes of this specific trial",
-    "Professional and composed",
     "Spoke naturally and clearly",
   ];
 
@@ -826,12 +822,10 @@ const CURRENT_STATE = 'AZ';
 function makeRubricMap(stateName, abbr){
   return {
     opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
-  - Content & Case Theory (30)
-  - Organization & Roadmap (20)
-  - Knowledge of Law/Facts (15)
-  - Persuasiveness (15)
+  - Content & Law/Facts (40)
+  - Organization & Roadmap (25)
+  - Persuasiveness (20)
   - Delivery (15)
-  - Professionalism/Decorum (5)
   Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask.
   Evaluate using this checklist:
   \u25a1 Provided a case overview and story
@@ -841,16 +835,14 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Stated the relief or verdict requested
   \u25a1 Discussed the burden of proof
   \u25a1 Presentation was non-argumentative; did not include improper statements or assume facts not in evidence
-  \u25a1 Professional and composed
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
-  - Content & Law Application (30)
+  - Content & Law Application (35)
   - Structure & Element Walk-through (20)
   - Refutation & Rebuttal (15)
   - Persuasiveness (15)
   - Delivery (15)
-  - Professionalism (5)
   Consider instructions, burden, element-by-element, addressing opponent ("they said...").
   Evaluate using this checklist:
   \u25a1 Theme/theory reiterated in closing argument
@@ -863,16 +855,14 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Overall, the closing statement was persuasive
   \u25a1 Use of notes was minimal, effective, and purposeful
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
-  \u25a1 Professional and composed
   \u25a1 Spoke naturally and clearly
-  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":"","decorum":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
-  - Chapters & Story Build (25)
+  - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
   - Listening & Follow-ups (15)
   - Delivery/Presence (15)
-  - Professionalism (5)
   Penalize leading/compound. Credit foundation/authentication/follow-ups.
   Evaluate using this checklist:
   \u25a1 Properly phrased and effective questions
@@ -883,16 +873,14 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Did not ask questions that called for an unfair extrapolation from the witness
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
-  \u25a1 Professional and composed
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Categories/weights:
-  - Chapters & Damage Theory (25)
+  - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
   - Brevity & Question Craft (15)
   - Delivery/Presence (10)
-  - Professionalism (5)
   Credit short leading Qs; anchors (page/line); admissions. Penalize compound/argumentative.
   Evaluate using this checklist:
   \u25a1 Properly phrased and effective questions
@@ -905,9 +893,8 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Properly impeached witnesses
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
-  \u25a1 Professional and composed
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10,"decorum":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":"","decorum":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -1557,10 +1544,10 @@ const VideoCoach=(function(){
   }
 
   const RUBRICS={
-    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.35},{key:'organization',n:'Organization & Roadmap',w:0.25},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15},{key:'decorum',n:'Professionalism/Decorum',w:0.05}]},
-    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.30},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
-    direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.25},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15},{key:'decorum',n:'Professionalism',w:0.05}]},
-    cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.25},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10},{key:'decorum',n:'Professionalism',w:0.05}]}
+    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.40},{key:'organization',n:'Organization & Roadmap',w:0.25},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
+    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.35},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15}]},
+    direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.30},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15}]},
+    cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
   };
 
   function baseMetrics(text){
@@ -1658,10 +1645,10 @@ const VideoCoach=(function(){
     const noSpeech=isEffectivelyEmpty(text)||(effWords<3&&qM.qCount===0);
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
-      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
-      else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;pack.decorum=1;}
-      else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;pack.decorum=1;}
-      else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;pack.decorum=1;}
+      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;}
+      else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;}
+      else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;}
+      else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;}
       let total=0; conf.cats.forEach(c=>{ total+=1*(c.w*10) }); total=Math.round(total);
       return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
@@ -1677,7 +1664,7 @@ const VideoCoach=(function(){
 
     let contentCore=clamp(3+Math.round(5*cmp.score)+Math.round(bm.vocabRich/4),1,10);
     let persuasion=clamp(3+Math.round(4*cmp.lexCos)+(/[!.]/.test(text)?2:0)+Math.round(bm.vocabRich/5),1,10);
-    let refutation=0, openq=0, foundation=0, listening=0, leading=0, impeach=0, brevity=0, decorum=clamp(8-(/\b(you\u2019re\s+lying|ridiculous|absurd|this\s+is\s+stupid)\b/i.test(text)?3:0),1,10);
+    let refutation=0, openq=0, foundation=0, listening=0, leading=0, impeach=0, brevity=0;
 
     if(isOpen){
       const lower=text.toLowerCase();
@@ -1743,10 +1730,10 @@ const VideoCoach=(function(){
     persuasion=clamp(persuasion-Math.min(2,Math.floor(totalObj/6)),1,10);
 
     const conf=RUBRICS[type]; const pack={};
-    if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
-    else if(isClose){pack.content=contentCore;pack.organization=organization;pack.refutation=refutation;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
-    else if(isDir){pack.content=contentCore;pack.openq=openq;pack.foundation=foundation;pack.listening=listening;pack.delivery=delivery;pack.decorum=decorum;}
-    else {pack.content=contentCore;pack.leading=leading;pack.impeach=impeach;pack.brevity=brevity;pack.delivery=delivery;pack.decorum=decorum;}
+    if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;}
+    else if(isClose){pack.content=contentCore;pack.organization=organization;pack.refutation=refutation;pack.persuasion=persuasion;pack.delivery=delivery;}
+    else if(isDir){pack.content=contentCore;pack.openq=openq;pack.foundation=foundation;pack.listening=listening;pack.delivery=delivery;}
+    else {pack.content=contentCore;pack.leading=leading;pack.impeach=impeach;pack.brevity=brevity;pack.delivery=delivery;}
     if((isOpen||isClose) && effWords<200){
       Object.keys(pack).forEach(k=>{pack[k]=clamp(pack[k]-1,1,10);});
     } else if(isOpen && effWords>=300 && effWords<=600){
