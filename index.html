@@ -659,30 +659,31 @@ const ChatGPTScoring = (() => {
     + `9 — Excellent, highly informative with minor nitpicks.\n`
     + `10 — Exceptional, fully accurate, comprehensive, and highly helpful.`;
 
-  const ARGUMENT_RUBRIC = `Mock Trial Argument & Objection Rubric (1–10)\n\n`
-    + `Checklist Categories (score each, then sum and scale to 10):\n\n`
-    + `Objection Grounds (0–3 points)\n\n`
-    + `0 = Wrong / vague grounds.\n`
-    + `1–2 = Some correct grounds, missing specificity.\n`
-    + `3 = Clearly correct rule + properly stated.\n`
-    + `[Cite rules when possible, e.g., FRE 403, 611(c), 801(d)(2)(A). Missing rule citations only warrant a minor (0.5 point) deduction.]\n\n`
-    + `Rule Application (0–2 points)\n\n`
-    + `0 = No link to facts.\n`
-    + `1 = Weak or partial link.\n`
-    + `2 = Strong, specific application of rule to facts.\n\n`
-    + `Rebuttal & Response (0–2 points)\n\n`
-    + `0 = No real response.\n`
-    + `1 = Partial / generic.\n`
-    + `2 = Direct, persuasive, on-point rebuttal.\n\n`
-    + `Argument Quality (0–3 points)\n\n`
-    + `0 = Disorganized, inaccurate, off-record.\n`
-    + `1–2 = Basic structure, some use of facts/law.\n`
-    + `3 = Clear, persuasive, well-structured, accurate use of record.\n\n`
-    + `Scoring Instructions (for ChatGPT):\n\n`
-    + `Add up the category scores (max = 10).\n`
-    + `Report a total 1–10 score.\n`
-    + `Give 2–3 sentences of feedback: (a) what worked, (b) what to fix.\n`
-    + `Always name any evidence rules cited (FRE or jurisdiction given).`;
+  const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric (10 points total)\n\n`
+    + `Evaluate the response in four areas. Assign raw points in each category and sum for a 0-10 total.\n\n`
+    + `Objection Grounds (0-4 points)\n`
+    + `0 = Incorrect or irrelevant rule.\n`
+    + `1 = Identifies general area but states wrong or incomplete ground.\n`
+    + `2 = Correct rule category but lacks clarity or rule number.\n`
+    + `3 = Correct rule stated clearly; cites rule number or standard.\n`
+    + `4 = Precise rule ground with number and concise explanation.\n\n`
+    + `Rule Application (0-3 points)\n`
+    + `0 = No connection to case facts.\n`
+    + `1 = Recites rule without tying to specific facts.\n`
+    + `2 = Links rule to facts but with minor gaps or generalities.\n`
+    + `3 = Precise, fact-based application showing how rule fits.\n\n`
+    + `Rebuttal & Response (0-2 points)\n`
+    + `0 = Ignores opposing argument or ruling.\n`
+    + `1 = Addresses opponent but generic or incomplete.\n`
+    + `2 = Direct, persuasive refutation using record references.\n\n`
+    + `Presentation & Organization (0-1 point)\n`
+    + `0 = Disorganized, rambling, or improper tone.\n`
+    + `1 = Clear, concise, professional delivery.\n\n`
+    + `Scoring Instructions (for ChatGPT):\n`
+    + `* Add category points (0-10) and report the same number on the 1-10 scale.\n`
+    + `* Provide 2-3 sentence feedback citing specific transcript lines.\n`
+    + `* If no rule number is cited, note it and deduct no more than 0.25 points.\n`
+    + `* Do not default to a midpoint; base the score strictly on this rubric.`;
 
   const PROMPT_TEMPLATE =
 `You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
@@ -697,7 +698,7 @@ const ChatGPTScoring = (() => {
 `3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`5. If no rule of evidence is cited, mention it in the explanation and deduct no more than 0.25 points.\n`+
 `6. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
 `Format your response as:\n`+
@@ -718,7 +719,7 @@ const ChatGPTScoring = (() => {
 `3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`5. If no rule of evidence is cited, mention it in the explanation and deduct no more than 0.25 points.\n`+
 `6. Decide whether the objection should be sustained or overruled.\n`+
 `7. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n\n`+
@@ -1730,17 +1731,17 @@ const VideoCoach=(function(){
     const adj={leading:det.counts?.Leading||0,hearsay:det.counts?.Hearsay||0,spec:det.counts?.Speculation||0,narrative:det.counts?.Narrative||0,argumentative:det.counts?.Argumentative||0,compound:det.counts?.Compound||0,asked:det.counts?.["Asked & Answered"]||0};
 
     if(isDir){
-      openq=clamp(openq-Math.min(3,Math.floor(adj.leading/2)),1,10);
-      foundation=clamp((foundation||6)-Math.min(2,Math.floor((adj.hearsay+adj.spec)/3)),1,10);
-      listening=clamp((listening||6)-Math.min(2,Math.floor(adj.narrative/2)),1,10);
+      openq=clamp(openq-Math.min(2,Math.floor(adj.leading/3)),1,10);
+      foundation=clamp((foundation||6)-Math.min(1,Math.floor((adj.hearsay+adj.spec)/4)),1,10);
+      listening=clamp((listening||6)-Math.min(1,Math.floor(adj.narrative/3)),1,10);
     }
     if(isCross){
-      leading=clamp((leading||6)-(Math.min(2,Math.floor(adj.compound/2))+Math.min(2,Math.floor(adj.asked/3))),1,10);
-      brevity=clamp((brevity||6)-Math.min(3,Math.floor((adj.compound+adj.argumentative)/2)),1,10);
+      leading=clamp((leading||6)-(Math.min(1,Math.floor(adj.compound/3))+Math.min(1,Math.floor(adj.asked/4))),1,10);
+      brevity=clamp((brevity||6)-Math.min(2,Math.floor((adj.compound+adj.argumentative)/3)),1,10);
     }
 
     const totalObj=(adj.leading||0)+(adj.hearsay||0)+(adj.spec||0)+(adj.narrative||0)+(adj.argumentative||0)+(adj.compound||0)+(adj.asked||0);
-    persuasion=clamp(persuasion-Math.min(2,Math.floor(totalObj/6)),1,10);
+    persuasion=clamp(persuasion-Math.min(1,Math.floor(totalObj/8)),1,10);
 
     const conf=RUBRICS[type]; const pack={};
     if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;pack.decorum=decorum;}
