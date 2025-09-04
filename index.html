@@ -207,7 +207,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <select id="objSelect" aria-label="Choose objection"></select>
       <button id="btnNewObj" class="btn primary">New Drill</button>
       <button id="btnCheckObj" class="btn secondary">Check</button>
-      <button id="btnShowModel" class="btn secondary">Show Model</button>
     </div>
     <div class="controls" style="margin-top:8px">
       <label>GPT Difficulty:
@@ -251,8 +250,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
       <button id="btnVideoStart" class="btn primary">Start Recording</button>
       <button id="btnStopRecording" class="btn secondary">Stop</button>
-      <button id="btnMicOnly" class="btn secondary">Mic Only</button>
-      <button id="btnUploadVideo" class="btn secondary">Upload Video</button>
       <input id="videoFile" type="file" accept="video/*" style="display:none">
       <button id="btnPlayRecording" class="btn secondary">Play</button>
       <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
@@ -264,7 +261,6 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="controls">
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
-      <button id="btnShowCriteria" class="btn secondary">Show Criteria</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
@@ -328,8 +324,8 @@ a.inline{color:var(--accent);text-decoration:underline}
     <h2>How to Use</h2>
     <p class="small">Use the tabs above to explore the different practice tools.</p>
     <ul class="small">
-      <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em> or <em>Show Model</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
-      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> choose the speech type, record or <em>Upload Video</em>, then view <em>Metrics</em>, <em>Criteria</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing.</li>
+      <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
+      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> choose the speech type, record, then view <em>Metrics</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing.</li>
       <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> choose a type, add your notes and goals, then click <em>Ask ChatGPT to Draft</em> to get help writing new material; use <em>API Key / Engine</em> to pick the model.</li>
       <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> search by number or topic, then tap a rule to see the text and a plain-language <em>What it means</em> explanation.</li>
       <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> choose mode, rule set, question count and difficulty, then hit <em>Start Quiz</em>. Use <em>Next</em> to advance; the top shows your score and best.</li>
@@ -1015,7 +1011,7 @@ function envWarn(){
   const msgs=[];
   if(!window.isSecureContext && location.hostname!=='localhost') msgs.push('Use HTTPS or localhost for camera/mic.');
   try{ if(window.top!==window.self) msgs.push('If embedded: add allow="camera; microphone" on iframe.'); }catch(e){}
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) msgs.push('Camera API not available. Use Mic Only or Upload Video.');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) msgs.push('Camera API not available.');
   if(msgs.length) el.textContent = msgs.join(' ');
 }
 window.addEventListener('error', e=>{
@@ -1521,14 +1517,14 @@ Scoring rule:
       appendChat('chatgpt','ChatGPT error.');
     }
   }
-function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('btnShowModel').addEventListener('click',model);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
+function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
  return{wire}
 })();
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
-      micOnly=false, uploaded=false, uploadedURL=null, lastVideoBlob=null;
+      uploaded=false, uploadedURL=null, lastVideoBlob=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -1882,13 +1878,13 @@ const VideoCoach=(function(){
   function tUpd(){ $('videoTimer').textContent=new Date(sec*1000).toISOString().substr(14,5)}
 
   async function startCamera(){
-    micOnly=false; uploaded=false; setStatus('Requesting camera/mic\u2026');
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment. Use Mic Only or Upload Video.',true); return; }
+    uploaded=false; setStatus('Requesting camera/mic\u2026');
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
-    catch(e){ setStatus('Camera/mic error: '+e.message+'. Try Mic Only or Upload Video.', true); return; }
+    catch(e){ setStatus('Camera/mic error: '+e.message, true); return; }
     const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4'];
     const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
-    chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message+'. You can still use Mic Only.', true); rec=null; }
+    chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message, true); rec=null; }
     if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||'video/webm'; const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download='speech.'+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
@@ -1898,19 +1894,6 @@ const VideoCoach=(function(){
         recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
         recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
       } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
-    }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
-  }
-
-  async function startMicOnly(){
-    micOnly=true; uploaded=false; setStatus('Mic-only transcription\u2026');
-    sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
-    try{
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
-        recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
-        recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
-      } else { setStatus('Speech recognition not supported. Paste your transcript.',true); }
     }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
   }
 
@@ -1971,7 +1954,7 @@ const VideoCoach=(function(){
   // ---- Replace your current handleUpload with this version ----
   async function handleUpload(file){
     if(!file) return;
-    uploaded = true; micOnly = false; lastVideoBlob = file;
+    uploaded = true; lastVideoBlob = file;
 
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL = null; }
     uploadedURL = URL.createObjectURL(file);
@@ -2287,10 +2270,12 @@ const VideoCoach=(function(){
     $('btnVideoStart').addEventListener('click',startCamera);
     $('btnStopRecording').addEventListener('click',stop);
     $('btnScoreVideo').addEventListener('click',scoreNow);
-    $('btnShowRubric')?.addEventListener('click',()=>{ const el=$('videoRubricDetails'); el.style.display=el.style.display==='none'?'block':'none'; });
-    $('btnShowCriteria').addEventListener('click',()=>{ crit($('videoType').value); const el=$('videoCriteria'); el.style.display=el.style.display==='none'?'block':'none'; });
-    $('btnMicOnly').addEventListener('click',startMicOnly);
-    $('btnUploadVideo').addEventListener('click',()=> $('videoFile').click());
+    $('btnShowRubric')?.addEventListener('click',()=>{
+      crit($('videoType').value);
+      const r=$('videoRubricDetails'),c=$('videoCriteria');
+      const show=r.style.display==='none'&&c.style.display==='none';
+      r.style.display=c.style.display=show?'block':'none';
+    });
     $('videoFile').addEventListener('change',e=> handleUpload(e.target.files&&e.target.files[0]));
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
@@ -2299,7 +2284,7 @@ const VideoCoach=(function(){
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     renderModeBadge();
     tUpd(); crit('opening');
-    setStatus('Tip: some browsers block camera in embedded previews. Use Mic Only or Upload Video if needed.');
+    setStatus('Tip: some browsers block camera in embedded previews.');
   }
 
   return{wire}
