@@ -1222,6 +1222,9 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
   }
   const diff=$('objGPTDiff').value||'easy';
   $('objGPTChat').hidden=true;
+  $('btnGPTRule').disabled=false;
+  gptSendLocked=false;
+  updateGPTSend();
   let userPrompt=`Generate a ${diff} difficulty objection drill.`;
   if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
   try{
@@ -1314,6 +1317,7 @@ Task:
   out.innerHTML='';
   $('objGPTControls').hidden=false;
   $('btnGPTRule').hidden=false;
+  $('btnGPTRule').disabled=false;
   $('objGPTInput').value='';
   gptSendLocked=false;
   updateGPTSend();
