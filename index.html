@@ -1914,19 +1914,56 @@ const VideoCoach=(function(){
     }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
   }
 
-  function handleUpload(file){
+  async function transcribeBlob(blob, filename){
+    if(!EngineState.openaiKey){
+      setStatus('Upload ready. Add transcript or API key to auto-transcribe.', true);
+      return '';
+    }
+    const models=['gpt-4o-mini-transcribe','whisper-1'];
+    let lastErr='';
+    for(const m of models){
+      try{
+        const form=new FormData();
+        form.append('model', m);
+        form.append('file', blob, filename||'audio.mp4');
+        const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+          method:'POST',
+          headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},
+          body:form
+        });
+        const data=await resp.json();
+        if(data?.text){ return data.text.trim(); }
+        lastErr=data?.error?.message||'unknown response';
+      }catch(err){ lastErr=err.message; }
+    }
+    setStatus('Transcription error: '+lastErr, true);
+    return '';
+  }
+
+  async function handleUpload(file){
     if(!file) return; uploaded=true; micOnly=false;
     lastVideoBlob=file;
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL=null; }
     uploadedURL=URL.createObjectURL(file);
-    const v=$('videoPreview'); v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play().catch(()=>{});
+    const v=$('videoPreview');
+    v.onloadedmetadata=()=>{ sec=Math.round(v.duration||0); tUpd(); };
+    v.srcObject=null; v.src=uploadedURL; v.controls=true; v.play().catch(()=>{});
     $('btnDownloadRecording').href=uploadedURL;
-    const ext=file.name.split('.').pop()||'video';
+    const ext=(file.name.split('.').pop()||'video').toLowerCase();
     $('btnDownloadRecording').download='speech.'+ext;
     $('btnPlayRecording').onclick=()=>{ const pv=$('videoPreview'); pv.srcObject=null; pv.src=uploadedURL; pv.controls=true; pv.play().catch(()=>{}); };
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false;
-    setStatus('Playing uploaded video. Recording controls disabled; use transcript box for scoring.');
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=true;
     if(timer){ clearInterval(timer); timer=null; }
+    setStatus('Transcribing uploaded video\u2026');
+    const text=await transcribeBlob(file, `audio.${ext}`);
+    $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
+    if(text){
+      $('videoTranscript').value=text;
+      setStatus('Transcribed uploaded video. Scoring\u2026');
+      setTimeout(scoreNow,250);
+    }else{
+      setStatus('Uploaded video ready. Paste transcript to score.', true);
+    }
   }
 
   function stop(){
