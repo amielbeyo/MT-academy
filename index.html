@@ -2341,18 +2341,27 @@ async function loadPoseLibs(){
 }
 
 let mpPoseInstance=null;
-/* ===== FAST ANALYSIS CONSTANTS (ultra-lean) ===== */
+/* ===== FAST ANALYSIS CONSTANTS (more aggressive) ===== */
 const FAST_ANALYSIS = {
-  targetLongSide: 192,      // smaller input into Pose
-  maxPlaybackRate: 4.0,     // speed up analysis playback more
-  minFps: 0.3,              // allow very low adaptive FPS
-  maxFps: 1.1,              // cap FPS to minimize work
-  diffStride: 24,           // sample fewer pixels for frame-diff
-  diffSkipThresh: 14.0,     // skip if tiny change
-  forceEvery: 4.5,          // guarantee a read every N seconds
-  warmupRuns: 2,            // fewer warmups
-  slowMs: 90,               // tighten adaptivity thresholds
-  fastMs: 45
+  targetLongSide: 224,      // 256 → 224 (smaller tensor, faster)
+  maxPlaybackRate: 3.5,     // up to 3.5× if your browser allows (keeps audio muted)
+  // adaptive sampling “rails” (global)
+  minFps: 0.6,              // lower bound when device is slow
+  maxFps: 1.6,              // upper bound even in busy segments
+  // motion gate (skip inferences when almost nothing changes)
+  diffStride: 16,           // sample fewer pixels for cheap diff
+  diffSkipThresh: 12.0,     // skip more frames if diff is tiny
+  forceEvery: 2.2,          // always run at least once every 2.2s
+  warmupRuns: 2,            // fewer warmups before enabling the skip gate
+  slowMs: 120,              // if inference > slowMs → nudge FPS down
+  fastMs: 55,               // if inference < fastMs → nudge FPS up
+
+  /* NEW: cue-driven sampling */
+  inWindowFps: 1.6,         // FPS inside transcript cue windows
+  offWindowFps: 0.6,        // FPS outside cue windows (cheap heartbeat)
+  cueWindowBefore: 1.2,     // analyze ± these seconds around each cue
+  cueWindowAfter:  1.2,
+  heartbeatEvery: 7.0       // outside windows, force a check this often
 };
 // Create the Pose instance using the detected constructor (LITE + smooth)
 function initPose(){
@@ -2491,38 +2500,27 @@ function buildTranscriptCues(transcript, type, durationSec){
   return { cues: merged, wpm };
 }
 
-// --- Build minimal "interesting" windows from cues + sparse heartbeats ---
-function buildCueWindows(cues, durationSec){
-  const win = [];
-
-  // 2.2s window around each cue (more on the tail so you can finish the gesture)
-  for(const c of cues){
-    const s = Math.max(0,  c.ts - 1.2);
-    const e = Math.min(durationSec, c.ts + 2.2);
-    win.push([s,e]);
-  }
-
-  // Add sparse "heartbeat" windows every ~20s so we still get global posture/movement
-  for(let t=8; t<durationSec; t+=20){
-    win.push([Math.max(0,t-0.6), Math.min(durationSec, t+0.6)]);
-  }
-
-  // Merge overlaps
-  win.sort((a,b)=>a[0]-b[0]);
-  const merged=[];
-  for(const w of win){
-    if(!merged.length || w[0] > merged[merged.length-1][1]+0.15){
+// Build and merge time windows around transcript cues
+function buildCueWindows(cues, cfg){
+  const raw = cues.map(c => [Math.max(0, c.ts - cfg.cueWindowBefore),
+                             c.ts + cfg.cueWindowAfter]);
+  raw.sort((a,b)=>a[0]-b[0]);
+  // merge overlaps
+  const merged = [];
+  for(const w of raw){
+    if(!merged.length || w[0] > merged[merged.length-1][1]){
       merged.push([...w]);
-    }else{
+    } else {
       merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], w[1]);
     }
   }
   return merged;
 }
-
-function isInAnyWindow(t, windows){
-  // binary search could be used, but linear is fine (few windows)
-  for(const [s,e] of windows){ if(t>=s && t<=e) return true; }
+function tsInAnyWindow(ts, windows){
+  for(let i=0;i<windows.length;i++){
+    if(ts >= windows[i][0] && ts <= windows[i][1]) return true;
+    if(ts < windows[i][0]) break; // windows are sorted
+  }
   return false;
 }
 
@@ -2553,23 +2551,21 @@ async function analyzePostureAndGesturesTranscriptAware(){
   const originalRate = video.playbackRate || 1;
   try { video.playbackRate = Math.min(FAST_ANALYSIS.maxPlaybackRate, Math.max(1, originalRate)); } catch(_){ }
 
-  // Precompute transcript cues + "interesting" windows
+  // Transcript cues (precompute)
   const durationSec = Math.max(video.duration||0, 1);
   const { cues, wpm } = buildTranscriptCues(transcript, type, durationSec);
-  const windows = buildCueWindows(cues, durationSec);
 
-  // Hard sample budget = small multiple of windows, with sane caps
-  const SAMPLE_BUDGET = Math.max(50, Math.min(200, Math.round(windows.length * 3.2)));
+  // NEW: precompute merged windows around cues
+  const cueWindows = buildCueWindows(cues, FAST_ANALYSIS);
+  let lastHeartbeat = -999; // force an occasional off-window check
 
   // Adaptive sampling state
-  const sampleHzBounds = { min: FAST_ANALYSIS.minFps, max: FAST_ANALYSIS.maxFps };
-  let sampleHz = 0.8;
+  let sampleHz = FAST_ANALYSIS.maxFps;
   let lastProcessTs = -1;
   let lastForcedTs  = -1;
   let inflight = false;
   let prevImgData = null;
   let runs = 0;
-  let samples = 0;
   let done = false;
 
   // Logs
@@ -2630,46 +2626,48 @@ async function analyzePostureAndGesturesTranscriptAware(){
 
   // One inference step (cue-window + motion gate + sample budget)
   async function step(){
-    if(inflight || done) return;
+    if(inflight) return;
+    const nowT = video.currentTime||0;
+    const inWin = tsInAnyWindow(nowT, cueWindows);
+    // Choose a tighter FPS when we're near a transcript moment that matters
+    const targetHz = inWin ? FAST_ANALYSIS.inWindowFps : FAST_ANALYSIS.offWindowFps;
 
-    const nowT   = video.currentTime||0;
-    const dt     = nowT - lastProcessTs;
-    const needDt = 1/(sampleHz||1);
-    const force  = (nowT - lastForcedTs) >= FAST_ANALYSIS.forceEvery;
-    const inWin  = isInAnyWindow(nowT, windows);
+    const dt   = nowT - lastProcessTs;
+    const needDt = 1/(targetHz||1);
+    const forceHeartbeat = (!inWin) && ((nowT - lastHeartbeat) >= FAST_ANALYSIS.heartbeatEvery);
+    const forceDue = (nowT - lastForcedTs) >= FAST_ANALYSIS.forceEvery;
 
-    // Respect the cue windows: outside them, only take sparse "force" samples
-    if(dt < needDt) return;
-    if(!inWin && !force) return;
+    if(dt < needDt && !forceHeartbeat && !forceDue) return;
 
-    // Draw downscaled frame
+    // Draw downscaled frame for motion gate + inference
     ctx.drawImage(video, 0, 0, off.width, off.height);
 
-    // Motion gate
-    if(!force && shouldSkipFrame()) return;
+    // Motion gate (skip if the frame barely changed)
+    if(!forceHeartbeat && !forceDue && shouldSkipFrame()){ return; }
 
     inflight = true;
     const t0 = performance.now();
     try{
       await mpPoseInstance.send({ image: off });
-      runs++; samples++;
-
-      // End early when we met the budget AND already passed the last window end
-      const lastWinEnd = windows.length ? windows[windows.length-1][1] : (durationSec*0.75);
-      if(samples >= SAMPLE_BUDGET && nowT >= lastWinEnd){
-        try{ video.pause(); }catch(_){}
-        finish();
-        return;
-      }
-
+      runs++;
     }finally{
       const t1 = performance.now();
       const ms = t1 - t0;
-      if(ms > FAST_ANALYSIS.slowMs)      sampleHz = Math.max(sampleHzBounds.min, sampleHz*0.85);
-      else if(ms < FAST_ANALYSIS.fastMs) sampleHz = Math.min(sampleHzBounds.max, sampleHz*1.12);
+
+      // Adaptive FPS rails (global)
+      if(ms > FAST_ANALYSIS.slowMs)      sampleHz = Math.max(FAST_ANALYSIS.minFps, sampleHz*0.85);
+      else if(ms < FAST_ANALYSIS.fastMs) sampleHz = Math.min(FAST_ANALYSIS.maxFps, sampleHz*1.10);
+
+      // **NEW**: if the device is really struggling, shrink the tensor further on the fly
+      if(ms > FAST_ANALYSIS.slowMs*2 && Math.max(off.width, off.height) > 176){
+        FAST_ANALYSIS.targetLongSide = Math.max(176, Math.round(FAST_ANALYSIS.targetLongSide*0.9));
+        syncOffSize(); // re-fit the offscreen canvas to the new target
+      }
+
       inflight = false;
       lastProcessTs = nowT;
-      if(force) lastForcedTs = nowT;
+      if(forceDue)       lastForcedTs = nowT;
+      if(forceHeartbeat) lastHeartbeat = nowT;
     }
   }
 
