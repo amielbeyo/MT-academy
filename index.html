@@ -659,30 +659,71 @@ const ChatGPTScoring = (() => {
     + `9 — Excellent, highly informative with minor nitpicks.\n`
     + `10 — Exceptional, fully accurate, comprehensive, and highly helpful.`;
 
-  const ARGUMENT_RUBRIC = `Mock Trial Argument & Objection Rubric (1–10)\n\n`
-    + `Checklist Categories (score each, then sum and scale to 10):\n\n`
-    + `Objection Grounds (0–3 points)\n\n`
-    + `0 = Wrong / vague grounds.\n`
-    + `1–2 = Some correct grounds, missing specificity.\n`
-    + `3 = Clearly correct rule + properly stated.\n`
-    + `[Cite rules when possible, e.g., FRE 403, 611(c), 801(d)(2)(A). Missing rule citations only warrant a minor (0.5 point) deduction.]\n\n`
-    + `Rule Application (0–2 points)\n\n`
-    + `0 = No link to facts.\n`
-    + `1 = Weak or partial link.\n`
-    + `2 = Strong, specific application of rule to facts.\n\n`
-    + `Rebuttal & Response (0–2 points)\n\n`
-    + `0 = No real response.\n`
-    + `1 = Partial / generic.\n`
-    + `2 = Direct, persuasive, on-point rebuttal.\n\n`
-    + `Argument Quality (0–3 points)\n\n`
-    + `0 = Disorganized, inaccurate, off-record.\n`
-    + `1–2 = Basic structure, some use of facts/law.\n`
-    + `3 = Clear, persuasive, well-structured, accurate use of record.\n\n`
-    + `Scoring Instructions (for ChatGPT):\n\n`
-    + `Add up the category scores (max = 10).\n`
-    + `Report a total 1–10 score.\n`
-    + `Give 2–3 sentences of feedback: (a) what worked, (b) what to fix.\n`
-    + `Always name any evidence rules cited (FRE or jurisdiction given).`;
+  const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
+
+Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
+
+CATEGORIES (sum to 10)
+1) Legal Ground Identified (0–3)
+   0 – Wrong/irrelevant rule.
+   1 – Vague area only (e.g., “objection, hearsay-ish”).
+   2 – Correct category but incomplete (no standard or mislabels subsection).
+   3 – Correct, precise ground; cites rule number (e.g., 611(c), 602, 801/802) or a clearly equivalent standard.
+
+2) Rule Application to Record Facts (0–4)
+   0 – No tie to facts.
+   1 – Generic tie (“this is hearsay”) without pointing to the record.
+   2 – Ties the rule to at least one concrete fact but misses a key element/condition.
+   3 – Clear, specific tie: quotes/paraphrases the actual line(s) and walks the rule element(s).
+   4 – Surgical fit: pinpoints exact language (“the declarant is not testifying,” “offered for truth”), shows each element satisfied, and anticipates the best counter (e.g., not offered for effect on listener).
+
+3) Exceptions / Standards / 403 Framing (0–1.5)
+   0 – Omits governing standards/exceptions.
+   0.5 – Mentions the right standard (e.g., “offered for truth,” “personal knowledge,” “leading on direct”) or a likely exception/limiting instruction.
+   1.0 – Correctly disposes of the opponent’s strongest pivot (e.g., non-hearsay purpose, 801(d)(2), 803(2), habit vs. character).
+   1.5 – As above + offers the right remedy (limit/sustain/strike/curative limiting instruction) succinctly.
+
+4) Rebuttal / Turn (0–1.5)
+   0 – Ignores the opponent.
+   0.5 – Addresses opponent but generic.
+   1.0 – Direct refutation using the record (“Counsel claims present-sense impression, but no contemporaneity is shown.”).
+   1.5 – Turns their argument to your advantage (e.g., even if admissible for non-truth, request limiting instruction; otherwise it confuses under 403).
+
+5) Structure & Professionalism (0–0.5)
+   0 – Rambling/disorganized or improper tone.
+   0.5 – Tight 1–3 sentence structure, plain English, professional.
+
+SCORING FLOORS (apply BEFORE any small deductions)
+• If the advocate: (i) states the correct ground, (ii) cites a rule number, and (iii) ties it to at least ONE specific record fact → FLOOR = 8.0
+• If they ALSO (iv) address a likely exception/counter or (v) request the correct remedy/limiting instruction → FLOOR = 9.0
+• Missing the rule number may cap the floor at 8.75 (deduct ≤0.25 only).
+
+PENALTIES / GUARDRAILS
+• NO midpoint default. Do NOT pick “5” or “7” absent analysis.
+• Brevity is NOT a penalty. Concise, surgical arguments can be 9–10 if the elements above are met.
+• New facts or hypotheticals not in the transcript: −1.0 to −2.0 (and ignore them when scoring).
+• If the transcript is extremely short (<15 words) or an “I don’t know”: score = 1.
+
+FORMAT TO RETURN
+Provide:
+Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
+Score: single number 1–10 (respect the floors above).
+Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
+
+CHECKLIST THE JUDGE MUST APPLY (internally)
+□ Correct ground named? □ Rule number/standard cited? □ Exact record line(s) referenced?
+□ Exception/alternative purpose considered? □ Remedy requested (sustain/overrule/limit/strike)?
+□ Concise and professional?
+
+Why this fixes the “5 for a 10” problem
+
+Hard floors (8.0 / 9.0) prevent safe mid-range scores when the core elements are nailed.
+
+Heavier weight on application (4 pts) mirrors how real judges reward fact-tight arguments.
+
+Explicit allowance for brevity stops the model from downgrading concise, correct takes.
+
+Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
   const PROMPT_TEMPLATE =
 `You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
@@ -705,7 +746,7 @@ const ChatGPTScoring = (() => {
 `Score: <number from 1 to 10>\n`+
 `Explanation: <short paragraph including specific, actionable suggestions>`;
 
-  const PROMPT_TEMPLATE_RULING =
+const PROMPT_TEMPLATE_RULING =
 `You are a neutral evaluator acting as a mock trial high school judge.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
@@ -728,6 +769,8 @@ const ChatGPTScoring = (() => {
 `Score: <number from 1 to 10>\n`+
 `Explanation: <short paragraph including specific, actionable suggestions>`;
 
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s).";
+
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
     const lowered = cleaned.toLowerCase();
@@ -739,7 +782,7 @@ const ChatGPTScoring = (() => {
       cleaned += '\n\n[Note: The response is very brief and may lack substantive reasoning; according to the rubric this should likely receive a low score.]';
     }
     const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
-    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', rubric);
+    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
   }
 
   function parseScoreResponse(text){
