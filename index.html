@@ -628,8 +628,8 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
-  return { [key]: maxTokens };
+  // chat.completions expects `max_tokens` for all models (4o, 4o-mini, etc.)
+  return { max_tokens: Math.max(1, Number(maxTokens) || 500) };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -2439,9 +2439,9 @@ async function analyzePostureLLM(){
   // fps policy: ~2.8 fps inside windows, ~0.8 fps outside (fast + detailed where it matters)
   const FPS_IN  = 2.8;
   const FPS_OUT = 0.8;
-  const MAX_FRAMES = 160;           // hard cap to keep the OpenAI call snappy/cost-effective
-  const TARGET_W = 320;             // compress frames
-  const JPEG_Q   = 0.55;
+  const MAX_FRAMES = 120;           // hard cap to keep the OpenAI call snappy/cost-effective
+  const TARGET_W = 288;             // compress frames
+  const JPEG_Q   = 0.5;
 
   // Build the times we *intend* to capture
   const times = [];
@@ -2503,82 +2503,95 @@ async function analyzePostureLLM(){
 
   // ---------- 3) Extract audio → waveform heatmap image + metrics ----------
   async function fetchVideoBlob(el){
+    // Prefer the original blob you already captured
+    if (typeof lastVideoBlob !== 'undefined' && lastVideoBlob) return lastVideoBlob;
+
+    // Otherwise try fetching the video's currentSrc/src
     const src = el.currentSrc || el.src;
-    if(!src) return null;
-    try{ const r = await fetch(src); return await r.blob(); }catch(_){ return null; }
+    if (!src) return null;
+    try {
+      // Works for blob: and data: in most modern browsers
+      const r = await fetch(src);
+      return await r.blob();
+    } catch (_) {
+      return null;
+    }
   }
 
   async function buildWaveformImage(blob){
     try{
       const buf = await blob.arrayBuffer();
-      const ac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100*2, 44100);
-      const audioBuffer = await ac.decodeAudioData(buf.slice(0)); // copy
 
-      // 100 ms analysis windows
+      // Prefer regular AudioContext for decode compatibility
+      const AC = window.AudioContext || window.webkitAudioContext;
+      let audioBuffer = null;
+      if (AC) {
+        const ac = new AC();
+        audioBuffer = await ac.decodeAudioData(buf.slice(0));
+        try { ac.close(); } catch(_){}
+      } else {
+        const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!OAC) return null;
+        const oac = new OAC(1, 44100 * 2, 44100);
+        audioBuffer = await oac.decodeAudioData(buf.slice(0));
+      }
+
+      // --- keep the rest of your RMS/ZCR + heatmap code the same ---
       const ch = audioBuffer.getChannelData(0);
       const sr = audioBuffer.sampleRate;
-      const hop = Math.max(1, Math.round(0.1 * sr)); // 100ms
-      const rms = [];
-      const zcr = [];
-      for(let i=0;i<ch.length;i+=hop){
+      const hop = Math.max(1, Math.round(0.1 * sr)); // 100 ms windows
+      const rms = [], zcr = [];
+      for (let i=0; i<ch.length; i+=hop){
         const end = Math.min(ch.length, i+hop);
         let sum=0, crossings=0;
-        for(let j=i;j<end;j++){
-          const v=ch[j];
-          sum += v*v;
+        for(let j=i; j<end; j++){
+          const v=ch[j]; sum += v*v;
           if(j>i){
-            if((ch[j-1] >= 0 && v < 0) || (ch[j-1] < 0 && v >= 0)) crossings++;
+            const p=ch[j-1];
+            if((p>=0 && v<0) || (p<0 && v>=0)) crossings++;
           }
         }
         const n = Math.max(1, end-i);
         rms.push(Math.sqrt(sum/n));
-        zcr.push(crossings / (n));
+        zcr.push(crossings / n);
       }
-      const speakRatio = (rms.filter(v=>v>0.02).length / rms.length) || 0; // crude VAD
+      const speakRatio = (rms.filter(v=>v>0.02).length / Math.max(1, rms.length));
 
-      // Draw compact heatmap: x=time, y=two rows (RMS & ZCR)
+      // draw compact heatmap (unchanged from your version) …
       const W = Math.min(720, Math.max(240, rms.length));
       const H = 80;
       const c = document.createElement('canvas');
       const cx = c.getContext('2d', { willReadFrequently: true });
       c.width = W; c.height = H;
-
-      // normalize
-      const rMax = Math.max(1e-6, rms.reduce((a,b)=>Math.max(a,b),0));
-      const zMax = Math.max(1e-6, zcr.reduce((a,b)=>Math.max(a,b),0));
-
-      // background
       cx.fillStyle = '#0b1324'; cx.fillRect(0,0,W,H);
 
+      const rMax = Math.max(1e-6, rms.reduce((a,b)=>Math.max(a,b),0));
+      const zMax = Math.max(1e-6, zcr.reduce((a,b)=>Math.max(a,b),0));
       for(let x=0;x<W;x++){
         const idx = Math.floor((x/W)*rms.length);
         const r = Math.min(1, rms[idx]/rMax);
         const z = Math.min(1, zcr[idx]/zMax);
-
-        // top half: RMS bars
         const h1 = Math.floor((H/2-4) * r);
         cx.fillStyle = `rgba(66,153,225,${0.25+0.75*r})`;
         cx.fillRect(x, (H/2-4) - h1, 1, h1);
-
-        // bottom half: ZCR bars
         const h2 = Math.floor((H/2-4) * z);
         cx.fillStyle = `rgba(234,179,8,${0.20+0.80*z})`;
         cx.fillRect(x, H - 2 - h2, 1, h2);
       }
-      // labels
       cx.fillStyle = '#9aa4b2';
       cx.font = '10px system-ui, sans-serif';
       cx.fillText('RMS', 4, 10);
       cx.fillText('ZCR', 4, H-6);
 
-      const dataUrl = c.toDataURL('image/png');
-      const metrics = {
-        sample_rate: sr,
-        windows: rms.length,
-        speaking_ratio: +speakRatio.toFixed(2),
-        mean_rms: +(rms.reduce((a,b)=>a+b,0)/Math.max(1,rms.length)).toFixed(3)
+      return {
+        dataUrl: c.toDataURL('image/png'),
+        metrics: {
+          sample_rate: sr,
+          windows: rms.length,
+          speaking_ratio: +speakRatio.toFixed(2),
+          mean_rms: +(rms.reduce((a,b)=>a+b,0)/Math.max(1,rms.length)).toFixed(3)
+        }
       };
-      return { dataUrl, metrics };
     }catch(_){
       return null;
     }
