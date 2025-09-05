@@ -268,8 +268,10 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
+      <button id="btnAnalyzePosture" class="btn secondary" title="Analyze posture/gestures vs transcript">Analyze Posture & Gestures</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="videoPosture" class="small" style="margin-top:10px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -2333,6 +2335,502 @@ const VideoCoach=(function(){
     setStatus('Tip: some browsers block camera in embedded previews.');
   }
 
+/* ========= Transcript-Aware Posture & Gesture Coach (Full-Length) ========= */
+
+/* ===== PATCH: Robust MediaPipe Pose loader & constructor detection ===== */
+
+// Detect whichever global the CDN exposes (Pose.Pose vs Pose vs pose)
+function resolvePoseClass(){
+  const ns = window.Pose || window.pose || window.POSE || window['@mediapipe/pose'];
+  if (!ns) return null;
+  // If the namespace has a Pose class on it, use that; otherwise use the namespace itself
+  return ns.Pose ? ns.Pose : ns;
+}
+
+// Load libraries only if we don't already have a working constructor
+async function loadPoseLibs(){
+  if (resolvePoseClass()) return; // already loaded
+
+  // Load the Pose bundle
+  await new Promise((res, rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.min.js';
+    s.onload=res; s.onerror=()=>rej(new Error('Failed to load @mediapipe/pose'));
+    document.head.appendChild(s);
+  });
+
+  // drawing_utils is optional (we don't strictly need it for analysis),
+  // but try to load it; ignore failure to keep things resilient.
+  try{
+    await new Promise((res, rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js';
+      s.onload=res; s.onerror=()=>rej(new Error('Failed to load drawing_utils'));
+      document.head.appendChild(s);
+    });
+  }catch(_){ }
+}
+
+let mpPoseInstance=null;
+/* ===== FAST ANALYSIS CONSTANTS (more aggressive) ===== */
+const FAST_ANALYSIS = {
+  targetLongSide: 224,      // 256 → 224 (smaller tensor, faster)
+  maxPlaybackRate: 3.5,     // up to 3.5× if your browser allows (keeps audio muted)
+  // adaptive sampling “rails” (global)
+  minFps: 0.6,              // lower bound when device is slow
+  maxFps: 1.6,              // upper bound even in busy segments
+  // motion gate (skip inferences when almost nothing changes)
+  diffStride: 16,           // sample fewer pixels for cheap diff
+  diffSkipThresh: 12.0,     // skip more frames if diff is tiny
+  forceEvery: 2.2,          // always run at least once every 2.2s
+  warmupRuns: 2,            // fewer warmups before enabling the skip gate
+  slowMs: 120,              // if inference > slowMs → nudge FPS down
+  fastMs: 55,               // if inference < fastMs → nudge FPS up
+
+  /* NEW: cue-driven sampling */
+  inWindowFps: 1.6,         // FPS inside transcript cue windows
+  offWindowFps: 0.6,        // FPS outside cue windows (cheap heartbeat)
+  cueWindowBefore: 1.2,     // analyze ± these seconds around each cue
+  cueWindowAfter:  1.2,
+  heartbeatEvery: 7.0       // outside windows, force a check this often
+};
+// Create the Pose instance using the detected constructor (LITE + smooth)
+function initPose(){
+  return new Promise((resolve, reject)=>{
+    try{
+      const PoseClass = resolvePoseClass();
+      if(!PoseClass){ reject(new Error('MediaPipe Pose constructor not found.')); return; }
+      const p = new PoseClass({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+      });
+      p.setOptions({
+        modelComplexity: 0,        // << FAST: lite model
+        smoothLandmarks: true,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      mpPoseInstance = p;
+      resolve();
+    }catch(e){ reject(e); }
+  });
+}
+/* ===== END PATCH ===== */
+
+// ---------- math helpers ----------
+function v2(x,y){ return {x,y}; }
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function clamp01(x){ return Math.max(0, Math.min(1, x)); }
+function pad2(n){ return String(Math.floor(n)).padStart(2,'0'); }
+function sToClock(s){ const m=Math.floor(s/60), sec=Math.round(s%60); return `${pad2(m)}:${pad2(sec)}`; }
+function median(arr){ if(!arr.length) return 0; const a=[...arr].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; }
+
+// ---------- transcript cueing ----------
+function tokenizeWords(txt){
+  const words = (txt||'').trim().split(/\s+/).filter(Boolean);
+  return { words, count: words.length };
+}
+
+function estimateWPM(txt, durationSec){
+  const wc = (txt||'').trim().split(/\s+/).filter(Boolean).length;
+  const minutes = Math.max(0.25, (durationSec||0)/60);
+  return Math.min(210, Math.max(90, Math.round(wc/minutes || 150)));
+}
+
+// Map word index -> approximate seconds using wpm
+function wordIndexToTime(wordIndex, wpm){
+  const secPerWord = 60/(wpm||150);
+  return Math.max(0, wordIndex * secPerWord);
+}
+
+// Build timed cues from transcript content & type
+function buildTranscriptCues(transcript, type, durationSec){
+  const lower = (transcript||'').toLowerCase();
+  const { words, count } = tokenizeWords(lower);
+  const wpm = estimateWPM(lower, durationSec);
+  const cues = [];
+
+  function addCue(wordIndex, label, action, hands, feet){
+    const ts = Math.min(durationSec||0, wordIndexToTime(wordIndex, wpm));
+    cues.push({ ts, label, action, hands, feet, wordIndex });
+  }
+
+  const roadmapMarkers = ['first','second','third','fourth','finally'];
+
+  if(type==='opening'){
+    const themeIdx = Math.max(0, Math.floor(count*0.03));
+    addCue(themeIdx, 'Theme', 'Plant center, project', 'Open palms shoulder-width', 'Stillness 2–3s');
+
+    // “the evidence will show / you will hear/see”
+    for(let i=0;i<words.length;i++){
+      const seg = words.slice(Math.max(0,i-3), i+6).join(' ');
+      if(/evidence will show|you will (hear|see)/.test(seg)){
+        addCue(i, 'Preview evidence', 'Slight lean-in on clause', 'Palm-up reveal', 'Stay anchored');
+      }
+    }
+    // roadmap markers
+    for(let i=0;i<words.length;i++){
+      const w = words[i].replace(/[^\w]/g,'');
+      if(roadmapMarkers.includes(w)){
+        addCue(i, 'Roadmap pivot', 'Mark transition', 'Open palm, single gesture', 'One small step then anchor');
+      }
+    }
+    // ask for verdict
+    const askText = lower;
+    const askIdx = askText.search(/(ask you to return|the only fair verdict|we ask you)/);
+    if(askIdx>=0){
+      const wi = Math.max(0, askText.slice(0,askIdx).split(/\s+/).length-1);
+      addCue(wi, 'Final ask', 'Lower volume, slow pace', 'Hands home base, single emphasis', 'Return to center & stillness');
+    }
+  } else if(type==='closing'){
+    const elemIdx = lower.search(/(element|apply the law|jury (instructions|instruction))/);
+    if(elemIdx>=0){ addCue(Math.max(0, lower.slice(0,elemIdx).split(/\s+/).length-1), 'Elements', 'Walk elements cleanly', 'Tight gestures per element', 'Micro-step only at pivots'); }
+
+    for(let i=0;i<words.length-1;i++){
+      if((/they|defense|prosecution/.test(words[i])) && words[i+1]==='said'){
+        addCue(i, 'Refutation', 'Contrast calmly', 'Palm-edge contrast', 'Half step then re-anchor');
+      }
+    }
+    const conclIdx = lower.search(/(therefore|in conclusion|the only fair verdict|we ask)/);
+    if(conclIdx>=0){
+      const wi = Math.max(0, lower.slice(0,conclIdx).split(/\s+/).length-1);
+      addCue(wi, 'Conclusion', 'Slow + stillness', 'Minimal gesture', 'Center & still');
+    }
+  } else if(type==='direct'){
+    const introIdx = lower.search(/(please introduce yourself|state your name)/);
+    if(introIdx>=0){ addCue(Math.max(0, lower.slice(0,introIdx).split(/\s+/).length-1), 'Intro witness', 'Open stance to witness', 'Small open hand to witness', 'Anchor'); }
+
+    for(let i=0;i<words.length;i++){
+      if(/recognize|identify|fair|accurate|admit|publish/.test(words[i]||'')){
+        addCue(i, 'Exhibit move', 'Point then pause', 'Palm to exhibit', 'Single step to easel/screen then back');
+      }
+    }
+    for(let i=0;i<words.length-1;i++){
+      const seg = words.slice(i,i+3).join(' ');
+      if(/what happened next|after that|then what/.test(seg)){
+        addCue(i, 'Chapter transition', 'Reset voice & pace', 'Small cueing hand', 'Micro-step only');
+      }
+    }
+  } else { // cross
+    for(let i=0;i<words.length;i++){
+      if(/^(correct\?|right\?|yes|no)$/.test(words[i]||'')){
+        addCue(i, 'Admission cadence', 'Pin the yes', 'No gesture after “yes”', 'Stillness after admission');
+      }
+    }
+    for(let i=0;i<words.length;i++){
+      if(/page|line|statement|deposition/.test(words[i]||'')){
+        addCue(i, 'Impeachment anchor', 'Cite + lock in', 'Small pinch/point', 'Anchor then pivot');
+      }
+    }
+  }
+
+  cues.sort((a,b)=>a.ts-b.ts);
+  const merged=[];
+  for(const c of cues){
+    if(!merged.length || Math.abs(c.ts - merged[merged.length-1].ts) > 1.0) merged.push(c);
+  }
+  return { cues: merged, wpm };
+}
+
+// Build and merge time windows around transcript cues
+function buildCueWindows(cues, cfg){
+  const raw = cues.map(c => [Math.max(0, c.ts - cfg.cueWindowBefore),
+                             c.ts + cfg.cueWindowAfter]);
+  raw.sort((a,b)=>a[0]-b[0]);
+  // merge overlaps
+  const merged = [];
+  for(const w of raw){
+    if(!merged.length || w[0] > merged[merged.length-1][1]){
+      merged.push([...w]);
+    } else {
+      merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], w[1]);
+    }
+  }
+  return merged;
+}
+function tsInAnyWindow(ts, windows){
+  for(let i=0;i<windows.length;i++){
+    if(ts >= windows[i][0] && ts <= windows[i][1]) return true;
+    if(ts < windows[i][0]) break; // windows are sorted
+  }
+  return false;
+}
+
+// ---------- main analysis (cue-driven, minimal FPS) ----------
+async function analyzePostureAndGesturesTranscriptAware(){
+  const out = $('videoPosture'); out.innerHTML='';
+  const video = $('videoPreview');
+  const transcript = $('videoTranscript').value||'';
+  const type = $('videoType').value || 'opening';
+
+  if(!video || (!video.srcObject && !video.src)){ setStatus('Load or record a video first.', true); return; }
+  if(!(transcript||'').trim()){ setStatus('No transcript found. Add/paste a transcript to align gestures to content.', true); return; }
+
+  setStatus('Loading posture model…');
+  try{ await loadPoseLibs(); await initPose(); }catch(e){ setStatus('Could not load posture model: '+e.message, true); return; }
+
+  // Offscreen downscale canvas
+  const off = document.createElement('canvas');
+  const ctx = off.getContext('2d', { willReadFrequently: true });
+  function syncOffSize(){
+    const vw = video.videoWidth || 640, vh = video.videoHeight || 360;
+    if(vw >= vh){ off.width = FAST_ANALYSIS.targetLongSide; off.height = Math.round(vh * (off.width / vw)); }
+    else         { off.height= FAST_ANALYSIS.targetLongSide; off.width  = Math.round(vw * (off.height / vh)); }
+  }
+  syncOffSize();
+
+  // Faster playback during analysis
+  const originalRate = video.playbackRate || 1;
+  try { video.playbackRate = Math.min(FAST_ANALYSIS.maxPlaybackRate, Math.max(1, originalRate)); } catch(_){ }
+
+  // Transcript cues (precompute)
+  const durationSec = Math.max(video.duration||0, 1);
+  const { cues, wpm } = buildTranscriptCues(transcript, type, durationSec);
+
+  // NEW: precompute merged windows around cues
+  const cueWindows = buildCueWindows(cues, FAST_ANALYSIS);
+  let lastHeartbeat = -999; // force an occasional off-window check
+
+  // Adaptive sampling state
+  let sampleHz = FAST_ANALYSIS.maxFps;
+  let lastProcessTs = -1;
+  let lastForcedTs  = -1;
+  let inflight = false;
+  let prevImgData = null;
+  let runs = 0;
+  let done = false;
+
+  // Logs
+  const landmarksLog=[], tsLog=[], centerLog=[], handLog=[];
+
+  // Pose callback — collect minimal fields
+  mpPoseInstance.onResults(res=>{
+    const lm = res.poseLandmarks;
+    const t  = video.currentTime||0;
+    if(!lm || lm.length<25) return;
+
+    const LSH=lm[11], RSH=lm[12], LHP=lm[23], RHP=lm[24], LE=lm[7], RE=lm[8];
+    const LEL=lm[13], REL=lm[14], LWR=lm[15], RWR=lm[16];
+
+    const midShoulder = {x:(LSH.x+RSH.x)/2, y:(LSH.y+RSH.y)/2};
+    const midHip      = {x:(LHP.x+RHP.x)/2, y:(LHP.y+RHP.y)/2};
+    const torso       = {x: midShoulder.x-midHip.x, y: midShoulder.y-midHip.y};
+    const earLine     = {x: RE.x-LE.x, y: RE.y-LE.y};
+    const earAngle    = Math.abs(Math.atan2(earLine.y, earLine.x))*180/Math.PI;
+
+    landmarksLog.push({
+      torso,
+      headTilt: earAngle,
+      leftHandHigh: (LWR.y < LEL.y),
+      rightHandHigh:(RWR.y < REL.y),
+      midHip
+    });
+    tsLog.push(t);
+    centerLog.push(midHip);
+    handLog.push({LWR,RWR});
+  });
+
+  // Frame-diff gate: aggressively skip frames with little change
+  function shouldSkipFrame(){
+    try{
+      const w=off.width, h=off.height;
+      const img = ctx.getImageData(0,0,w,h).data;
+      if(!prevImgData){ prevImgData = new Uint8ClampedArray(img); return false; }
+      let diffSum=0, count=0;
+      for(let i=0; i<img.length; i+=4*FAST_ANALYSIS.diffStride){
+        diffSum += Math.abs(img[i]-prevImgData[i]);
+        diffSum += Math.abs(img[i+1]-prevImgData[i+1]);
+        diffSum += Math.abs(img[i+2]-prevImgData[i+2]);
+        count++;
+      }
+      prevImgData.set(img);
+      const avg = diffSum / (count*3);
+      return (avg < FAST_ANALYSIS.diffSkipThresh) && (runs >= FAST_ANALYSIS.warmupRuns);
+    }catch(_){ return false; }
+  }
+
+  function finish(){
+    if(done) return;
+    done = true;
+    try{ video.playbackRate = originalRate; }catch(_){}
+    computeAndRender();
+  }
+
+  // One inference step (cue-window + motion gate + sample budget)
+  async function step(){
+    if(inflight) return;
+    const nowT = video.currentTime||0;
+    const inWin = tsInAnyWindow(nowT, cueWindows);
+    // Choose a tighter FPS when we're near a transcript moment that matters
+    const targetHz = inWin ? FAST_ANALYSIS.inWindowFps : FAST_ANALYSIS.offWindowFps;
+
+    const dt   = nowT - lastProcessTs;
+    const needDt = 1/(targetHz||1);
+    const forceHeartbeat = (!inWin) && ((nowT - lastHeartbeat) >= FAST_ANALYSIS.heartbeatEvery);
+    const forceDue = (nowT - lastForcedTs) >= FAST_ANALYSIS.forceEvery;
+
+    if(dt < needDt && !forceHeartbeat && !forceDue) return;
+
+    // Draw downscaled frame for motion gate + inference
+    ctx.drawImage(video, 0, 0, off.width, off.height);
+
+    // Motion gate (skip if the frame barely changed)
+    if(!forceHeartbeat && !forceDue && shouldSkipFrame()){ return; }
+
+    inflight = true;
+    const t0 = performance.now();
+    try{
+      await mpPoseInstance.send({ image: off });
+      runs++;
+    }finally{
+      const t1 = performance.now();
+      const ms = t1 - t0;
+
+      // Adaptive FPS rails (global)
+      if(ms > FAST_ANALYSIS.slowMs)      sampleHz = Math.max(FAST_ANALYSIS.minFps, sampleHz*0.85);
+      else if(ms < FAST_ANALYSIS.fastMs) sampleHz = Math.min(FAST_ANALYSIS.maxFps, sampleHz*1.10);
+
+      // **NEW**: if the device is really struggling, shrink the tensor further on the fly
+      if(ms > FAST_ANALYSIS.slowMs*2 && Math.max(off.width, off.height) > 176){
+        FAST_ANALYSIS.targetLongSide = Math.max(176, Math.round(FAST_ANALYSIS.targetLongSide*0.9));
+        syncOffSize(); // re-fit the offscreen canvas to the new target
+      }
+
+      inflight = false;
+      lastProcessTs = nowT;
+      if(forceDue)       lastForcedTs = nowT;
+      if(forceHeartbeat) lastHeartbeat = nowT;
+    }
+  }
+
+  // Sampling loop — prefer rVFC, fallback to setInterval
+  try{ await video.play(); }catch(_){}
+  if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+    const onFrame = async ()=>{
+      if(done || video.ended || video.paused){ finish(); return; }
+      try{ if(off.width===0 || off.height===0) syncOffSize(); await step(); }catch(_){}
+      video.requestVideoFrameCallback(onFrame);
+    };
+    video.requestVideoFrameCallback(onFrame);
+  }else{
+    const id = setInterval(async ()=>{
+      if(done || video.ended || video.paused){ clearInterval(id); finish(); return; }
+      try{ if(off.width===0 || off.height===0) syncOffSize(); await step(); }catch(_){}
+    }, 1000/Math.max(FAST_ANALYSIS.minFps, 1));
+  }
+
+  // ------------ reduce & render (unchanged logic) ------------
+  function sToClock(s){ const m=Math.floor(s/60),sec=Math.round(s%60); return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+  const angleDeg = v => Math.abs(Math.atan2(v.x, -v.y))*180/Math.PI;
+  function median(a){ if(!a.length) return 0; const b=[...a].sort((x,y)=>x-y); return b[Math.floor(b.length/2)]; }
+
+  function computeAndRender(){
+    if(!landmarksLog.length){ setStatus('No body detected long enough to assess. Ensure upper body is visible.', true); return; }
+
+    const leanAngles = landmarksLog.map(s=> angleDeg(s.torso));
+    const leanMed    = median(leanAngles);
+    const leanBadFrac= leanAngles.filter(a=>a>12).length / leanAngles.length;
+
+    const headTilts  = landmarksLog.map(s=> s.headTilt);
+    const headMed    = median(headTilts);
+
+    function velSeries(points){
+      const vels=[];
+      for(let i=1;i<points.length;i++){
+        const dt=Math.max(0.001, (tsLog[i]-tsLog[i-1]));
+        const a=points[i-1], b=points[i];
+        const v = Math.hypot((b.LWR?.x-a.LWR?.x)||0, (b.LWR?.y-a.LWR?.y)||0)/dt
+                + Math.hypot((b.RWR?.x-a.RWR?.x)||0, (b.RWR?.y-a.RWR?.y)||0)/dt;
+        vels.push(v*0.5);
+      }
+      return vels;
+    }
+    const speed = velSeries(handLog.map(h=>({LWR:h.LWR,RWR:h.RWR})));
+    const burstTimes=[]; const thresh=0.8;
+    for(let i=1;i<speed.length-1;i++){
+      if(speed[i]>thresh && speed[i]>speed[i-1] && speed[i]>speed[i+1]) burstTimes.push(tsLog[i]);
+    }
+    const durSec = (tsLog[tsLog.length-1]-tsLog[0]) || durationSec;
+    const gesturesPerMin = burstTimes.length * (60/(durSec||1));
+
+    const highFrac = landmarksLog.filter(s=> s.leftHandHigh || s.rightHandHigh).length / landmarksLog.length;
+
+    const xs=centerLog.map(c=>c.x);
+    const leftBand=0.33, rightBand=0.66;
+    let steps=0; const stepTimes=[];
+    for(let i=1;i<xs.length;i++){
+      const a=xs[i-1], b=xs[i];
+      if((a<leftBand && b>leftBand) || (a>leftBand && b<leftBand) ||
+         (a<rightBand && b>rightBand) || (a>rightBand && b<rightBand)){
+        steps++; stepTimes.push(tsLog[i]);
+      }
+    }
+    const stepsPerMin = steps * (60/(durSec||1));
+
+    const postureScore   = Math.max(1, Math.round(10 - Math.min(10, (leanMed/2) + (leanBadFrac*6))));
+    const headScore      = Math.max(1, Math.round(10 - Math.min(10, headMed/3)));
+    const movementIdeal  = (type==='direct') ? 0.5 : (type==='cross'? 2.0 : 1.2);
+    const movementScore  = Math.max(1, Math.round(10 - Math.min(9, Math.abs(stepsPerMin - movementIdeal)*3)));
+    const gestureIdealLo = (type==='direct') ? 4 : (type==='cross'? 6 : 6);
+    const gestureIdealHi = (type==='direct') ? 10: (type==='cross'? 14: 12);
+    const gestureScore   = Math.max(1, Math.round(10 - Math.abs(((gesturesPerMin - (gestureIdealLo+gestureIdealHi)/2)/((gestureIdealHi-gestureIdealLo)/2))*4)));
+    const handsHighScore = Math.max(1, Math.round(10 - Math.min(9, highFrac*12)));
+
+    const windowS = 1.5;
+    const rows = cues.map(c=>{
+      const hasGesture = burstTimes.some(t => Math.abs(t - c.ts) <= windowS);
+      const hasStep    = stepTimes.some(t => Math.abs(t - c.ts) <= windowS);
+      const obs = [ hasGesture?'✓ gesture':'—', hasStep?'✓ step':'—' ].join(' ');
+      const rec = `${c.action} • Hands: ${c.hands} • Feet: ${c.feet}`;
+      return `<tr><td>${sToClock(c.ts)}</td><td>${escHTML(c.label)}</td><td>${escHTML(rec)}</td><td>${obs}</td></tr>`;
+    }).join('');
+
+    const recs=[];
+    if(leanMed>10 || leanBadFrac>0.2) recs.push('Square hips/shoulders, “string through crown,” unlock knees.');
+    if(headMed>8) recs.push('Keep ear-to-ear level; nod briefly then return to level.');
+    if(gesturesPerMin<gestureIdealLo) recs.push('Add emphasis gestures at cue times; park hands at home base between points.');
+    if(gesturesPerMin>gestureIdealHi) recs.push('Trim to one gesture per big point; stillness between cues.');
+    if(highFrac>0.35) recs.push('Keep most gestures between navel and sternum; avoid shoulder-height windmilling.');
+    if(type==='direct' && stepsPerMin>1) recs.push('Anchor directs; micro-steps only for exhibits.');
+    if(type==='cross' && stepsPerMin<1) recs.push('Add micro-step at each chapter pivot to signal control.');
+
+    const outTable = `
+      <div><strong>Posture & Gesture Coach (CUE-DRIVEN, Minimal FPS)</strong></div>
+      <table class="table" style="margin-top:6px">
+        <thead><tr><th>Category</th><th>Score</th><th>Key Data</th></tr></thead>
+        <tbody>
+          <tr><td>Upright Posture</td><td>${postureScore}/10</td><td>median lean ${leanMed.toFixed(1)}°, >12° ${Math.round(leanBadFrac*100)}%</td></tr>
+          <tr><td>Head Level</td><td>${headScore}/10</td><td>median tilt ${headMed.toFixed(1)}°</td></tr>
+          <tr><td>Gesture Pacing</td><td>${gestureScore}/10</td><td>${gesturesPerMin.toFixed(1)} gestures/min (ideal ${gestureIdealLo}–${gestureIdealHi})</td></tr>
+          <tr><td>Purposeful Movement</td><td>${movementScore}/10</td><td>${stepsPerMin.toFixed(1)} steps/min (target ~${movementIdeal})</td></tr>
+          <tr><td>Gesture Height</td><td>${handsHighScore}/10</td><td>${Math.round(highFrac*100)}% ≥ elbow height</td></tr>
+          <tr><td>Estimated WPM</td><td colspan="2">${wpm} wpm (for cue timing)</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px"><strong>Transcript-Timed Movement & Gesture Plan</strong></div>
+      <table class="table">
+        <thead><tr><th>Time</th><th>Cue</th><th>Recommendation</th><th>Observed (±1.5s)</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4">No cues detected—plan based on generic chapter transitions.</td></tr>'}</tbody>
+      </table>
+      ${recs.length? `<div style="margin-top:6px"><strong>Global Tips</strong><ul>${recs.map(r=>`<li>${escHTML(r)}</li>`).join('')}</ul></div>`:''}
+    `;
+    $('videoPosture').innerHTML = outTable;
+    setStatus('Minimal-FPS posture/gesture analysis complete.');
+  }
+}
+
+// Wire the Analyze button (no change to your existing wire)
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = $('btnAnalyzePosture');
+  if(btn){
+    btn.addEventListener('click', ()=>{
+      analyzePostureAndGesturesTranscriptAware().catch(e=>{
+        setStatus('Posture analysis error: '+e.message, true);
+      });
+    });
+  }
+});
+/* ======== End Transcript-Aware Posture & Gesture Coach ======== */
+
   return{wire}
 })();
 
@@ -2680,6 +3178,343 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 });
 } // end browser check
+</script>
+<!-- TensorFlow.js + backends + Pose Detection (MoveNet) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.16.0/dist/tf-backend-webgl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.16.0/dist/tf-backend-wasm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@3.4.0/dist/pose-detection.min.js"></script>
+
+<script>
+/* ========= Ultra-fast Posture & Gesture (MoveNet) – Drop-in ========= */
+(() => {
+  // ----- tiny helpers (safe fallbacks if your app doesn't already define them) -----
+  const $ = (id) => document.getElementById(id);
+  const escHTML = (s) => (s || '').toString()
+    .replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+  const pad2 = (n) => String(Math.floor(n)).padStart(2,'0');
+  const sToClock = (s) => `${pad2(Math.floor(s/60))}:${pad2(Math.round(s%60))}`;
+  const median = (arr) => (arr && arr.length) ? [...arr].sort((a,b)=>a-b)[Math.floor(arr.length/2)] : 0;
+  const setStatus = (msg, isErr=false) => { const s=$('videoStatus'); if(!s) return; s.textContent = msg||''; s.style.color = isErr?'#ef9a9a':'#9aa4b2'; };
+
+  // ----- transcript cueing (use your existing builder if present; else fallback) -----
+  function fallbackBuildTranscriptCues(transcript, type, durationSec){
+    const lower = (transcript||'').toLowerCase();
+    const words = lower.trim().split(/\s+/).filter(Boolean);
+    const wc = words.length;
+    const minutes = Math.max(0.25,(durationSec||0)/60);
+    const wpm = Math.min(210, Math.max(90, Math.round((wc||150)/minutes)));
+    const secPerWord = 60/(wpm||150);
+    const cues = [];
+    const addCue = (wordIdx, label, action, hands, feet) => {
+      const ts = Math.min(durationSec||0, Math.max(0, wordIdx*secPerWord));
+      cues.push({ ts, label, action, hands, feet, wordIndex: wordIdx });
+    };
+
+    const roadmapMarkers = ['first','second','third','fourth','finally'];
+    if (type==='opening'){
+      addCue(Math.floor(wc*0.03),'Theme','Plant center, project',
+             'Open palms shoulder-width','Stillness 2–3s');
+      words.forEach((_,i) => {
+        const seg = words.slice(Math.max(0,i-3), i+6).join(' ');
+        if (/evidence will show|you will (hear|see)/.test(seg))
+          addCue(i,'Preview evidence','Slight lean-in','Palm-up reveal','Stay anchored');
+      });
+      words.forEach((w,i)=>{ if(roadmapMarkers.includes(w.replace(/[^\w]/g,''))){
+        addCue(i,'Roadmap pivot','Mark transition','Open palm, single gesture','One small step then anchor');
+      }});
+      const askIdx = lower.search(/(ask you to return|the only fair verdict|we ask)/);
+      if(askIdx>=0){
+        const wi = Math.max(0, lower.slice(0,askIdx).split(/\s+/).length-1);
+        addCue(wi,'Final ask','Lower volume, slow pace','Hands home base, single emphasis','Center & still');
+      }
+    } else if (type==='closing'){
+      const elemIdx = lower.search(/(element|apply the law|jury (instructions|instruction))/);
+      if(elemIdx>=0){
+        const wi = Math.max(0, lower.slice(0,elemIdx).split(/\s+/).length-1);
+        addCue(wi,'Elements','Walk cleanly','Tight gestures per element','Micro-step at pivots');
+      }
+      for(let i=0;i<words.length-1;i++){
+        if((/they|defense|prosecution/.test(words[i])) && words[i+1]==='said'){
+          addCue(i,'Refutation','Contrast calmly','Palm-edge contrast','Half step then re-anchor');
+        }
+      }
+      const conclIdx = lower.search(/(therefore|in conclusion|the only fair verdict|we ask)/);
+      if(conclIdx>=0){
+        const wi = Math.max(0, lower.slice(0,conclIdx).split(/\s+/).length-1);
+        addCue(wi,'Conclusion','Slow + stillness','Minimal gesture','Center & still');
+      }
+    } else if (type==='direct'){
+      const introIdx = lower.search(/(please introduce yourself|state your name)/);
+      if(introIdx>=0){
+        const wi = Math.max(0, lower.slice(0,introIdx).split(/\s+/).length-1);
+        addCue(wi,'Intro witness','Open stance to witness','Small open hand to witness','Anchor');
+      }
+      words.forEach((w,i) => {
+        if(/recognize|identify|fair|accurate|admit|publish/.test(w||'')){
+          addCue(i,'Exhibit move','Point then pause','Palm to exhibit','Step to easel/screen then back');
+        }
+      });
+      for(let i=0;i<words.length-1;i++){
+        const seg = words.slice(i,i+3).join(' ');
+        if(/what happened next|after that|then what/.test(seg))
+          addCue(i,'Chapter transition','Reset voice/pace','Small cueing hand','Micro-step only');
+      }
+    } else { // cross
+      words.forEach((w,i)=>{ if(/^(correct\?|right\?|yes|no)$/.test(w||'')){
+        addCue(i,'Admission cadence','Pin the yes','No gesture after “yes”','Stillness after admission');
+      }});
+      words.forEach((w,i)=>{ if(/page|line|statement|deposition/.test(w||'')){
+        addCue(i,'Impeachment anchor','Cite + lock in','Small pinch/point','Anchor then pivot');
+      }});
+    }
+
+    cues.sort((a,b)=>a.ts-b.ts);
+    const merged=[]; for(const c of cues){
+      if(!merged.length || Math.abs(c.ts - merged[merged.length-1].ts) > 1.0) merged.push(c);
+    }
+    return { cues: merged, wpm };
+  }
+
+  function buildCueWindows(cues, cfg){
+    const raw = cues.map(c => [Math.max(0, c.ts - cfg.cueWindowBefore), c.ts + cfg.cueWindowAfter])
+                    .sort((a,b)=>a[0]-b[0]);
+    const merged = [];
+    for(const w of raw){
+      if(!merged.length || w[0] > merged[merged.length-1][1]) merged.push([...w]);
+      else merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], w[1]);
+    }
+    return merged;
+  }
+  const tsInAnyWindow = (ts, windows) => windows.some(w => ts>=w[0] && ts<=w[1]);
+
+  // ====== FAST CONFIG ======
+  const FAST = {
+    targetLongSide: 224,     // downscale for speed
+    playRate: 3.0,           // speed-up during analysis
+    inWinHz: 1.5,            // fps near transcript cues
+    offWinHz: 0.5,           // fps outside cues
+    cueBefore: 1.2,          // seconds before cue
+    cueAfter: 1.2,           // seconds after cue
+    heartbeatEvery: 8.0      // force check off-window
+  };
+
+  // ------------- MAIN FUNCTION (overrides any old posture analyzer) -------------
+  async function analyzePostureAndGesturesTranscriptAware(){
+    const video = $('videoPreview');
+    const transcript = $('videoTranscript')?.value || '';
+    const type = $('videoType')?.value || 'opening';
+    const out = $('videoPosture');
+
+    if(!video || (!video.srcObject && !video.src)){ setStatus('Load or record a video first.', true); return; }
+    if(!transcript.trim()){ setStatus('No transcript found. Paste/add a transcript first.', true); return; }
+    if(out) out.innerHTML='';
+
+    try { video.crossOrigin = 'anonymous'; } catch(_) {}
+
+    setStatus('Loading MoveNet (TFJS)…');
+
+    // pick backend
+    try{
+      if (tf.engine().registryFactory && tf.engine().registryFactory['webgl']) {
+        await tf.setBackend('webgl');
+      } else {
+        tf.wasm.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.16.0/dist/');
+        await tf.setBackend('wasm');
+      }
+    }catch(_){
+      tf.wasm.setWasmPaths('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm@4.16.0/dist/');
+      await tf.setBackend('wasm');
+    }
+    await tf.ready();
+
+    // model
+    const detector = await poseDetection.createDetector(
+      poseDetection.SupportedModels.MoveNet,
+      { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING, enableSmoothing: true }
+    );
+
+    // playback speed-up (restore later)
+    const originalRate = video.playbackRate || 1;
+    try { video.playbackRate = Math.min(FAST.playRate, Math.max(1, originalRate)); } catch(_) {}
+
+    // transcript cues -> windows
+    const durationSec = Math.max(video.duration||0, 1);
+    const builder = (window.buildTranscriptCues || fallbackBuildTranscriptCues);
+    const { cues, wpm } = builder(transcript, type, durationSec);
+    const cueWindows = buildCueWindows(cues, { cueWindowBefore: FAST.cueBefore, cueWindowAfter: FAST.cueAfter });
+
+    // logs for metrics
+    const tsLog=[], centerLog=[], handLog=[], postLog=[];
+    const angleDeg = (v) => Math.abs(Math.atan2(v.x, -v.y))*180/Math.PI;
+
+    function takeSample(kps, t){
+      const byName = Object.create(null);
+      for(const kp of kps){ if(kp?.name) byName[kp.name]=kp; }
+      const g = (n)=> byName[n] || {};
+      const LSH=g('left_shoulder'), RSH=g('right_shoulder');
+      const LHP=g('left_hip'),      RHP=g('right_hip');
+      const LEL=g('left_elbow'),    REL=g('right_elbow');
+      const LWR=g('left_wrist'),    RWR=g('right_wrist');
+      const LE =g('left_ear'),      RE =g('right_ear');
+
+      const midShoulder = {x:(LSH.x+RSH.x)/2, y:(LSH.y+RSH.y)/2};
+      const midHip      = {x:(LHP.x+RHP.x)/2, y:(LHP.y+RHP.y)/2};
+      const torso       = {x: midShoulder.x-midHip.x, y: midShoulder.y-midHip.y};
+      const headVec     = (LE.x!=null && RE.x!=null) ? {x:RE.x-LE.x, y:RE.y-LE.y}
+                                                     : {x:RSH.x-LSH.x,y:RSH.y-LSH.y};
+      const headTiltDeg = Math.abs(Math.atan2(headVec.y, headVec.x))*180/Math.PI;
+
+      tsLog.push(t);
+      centerLog.push(midHip);
+      handLog.push({LWR,RWR});
+      postLog.push({
+        torso,
+        headTilt: headTiltDeg,
+        leftHandHigh:  (LWR?.y ?? 1) < (LEL?.y ?? 0),
+        rightHandHigh: (RWR?.y ?? 1) < (REL?.y ?? 0)
+      });
+    }
+
+    // ensure frames flow
+    if (video.readyState < 2) { try{ await video.play(); }catch(_){} }
+
+    // sampling loop (cue-driven, minimal fps)
+    let lastT = -999, lastHeartbeat = -999, stop=false;
+    async function loop(){
+      if(stop || video.ended || video.paused){ return finish(); }
+      const t = video.currentTime || 0;
+      const inWin = tsInAnyWindow(t, cueWindows);
+      const needDt = 1/(inWin ? FAST.inWinHz : FAST.offWinHz);
+      const dueHeartbeat = (!inWin) && (t - lastHeartbeat >= FAST.heartbeatEvery);
+
+      if ((t - lastT) >= needDt || dueHeartbeat){
+        try{
+          const poses = await detector.estimatePoses(video, {flipHorizontal:false});
+          if(poses && poses[0]?.keypoints?.length){ takeSample(poses[0].keypoints, t); }
+          lastT = t;
+          if(dueHeartbeat) lastHeartbeat = t;
+        }catch(e){ setStatus('Pose error: '+e.message, true); }
+      }
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    function finish(){
+      if(stop) return;
+      stop = true;
+      try{ video.playbackRate = originalRate; }catch(_){ }
+      computeAndRender();
+    }
+
+    function computeAndRender(){
+      if(!postLog.length){ setStatus('No body detected long enough to assess.', true); return; }
+
+      const leanAngles = postLog.map(s=> angleDeg(s.torso));
+      const leanMed = median(leanAngles);
+      const leanBadFrac = leanAngles.filter(a=>a>12).length / leanAngles.length;
+
+      const headTilts = postLog.map(s=> s.headTilt);
+      const headMed = median(headTilts);
+
+      // velocities -> gesture bursts
+      function velSeries(points){
+        const vels=[];
+        for(let i=1;i<points.length;i++){
+          const dt=Math.max(0.001, tsLog[i]-tsLog[i-1]);
+          const a=points[i-1], b=points[i];
+          const v = Math.hypot((b.LWR?.x-a.LWR?.x)||0, (b.LWR?.y-a.LWR?.y)||0)/dt
+                  + Math.hypot((b.RWR?.x-a.RWR?.x)||0, (b.RWR?.y-a.RWR?.y)||0)/dt;
+          vels.push(v*0.5);
+        }
+        return vels;
+      }
+      const speed = velSeries(handLog);
+      const burstTimes=[]; const thresh=0.8;
+      for(let i=1;i<speed.length-1;i++){
+        if(speed[i]>thresh && speed[i]>speed[i-1] && speed[i]>speed[i+1]) burstTimes.push(tsLog[i]);
+      }
+      const durSec = (tsLog[tsLog.length-1]-tsLog[0]) || (video.duration||1);
+      const gesturesPerMin = burstTimes.length * (60/(durSec||1));
+
+      const highFrac = postLog.filter(s=> s.leftHandHigh || s.rightHandHigh).length / postLog.length;
+
+      // steps via lateral crossings
+      const xs=centerLog.map(c=>c.x);
+      const leftBand=0.33, rightBand=0.66;
+      let steps=0; const stepTimes=[];
+      for(let i=1;i<xs.length;i++){
+        const a=xs[i-1], b=xs[i];
+        if((a<leftBand && b>leftBand)||(a>leftBand && b<leftBand)||(a<rightBand && b>rightBand)||(a>rightBand && b<rightBand)){
+          steps++; stepTimes.push(tsLog[i]);
+        }
+      }
+      const stepsPerMin = steps * (60/(durSec||1));
+
+      // scoring (same ranges as earlier)
+      const movementIdeal  = (type==='direct') ? 0.5 : (type==='cross'? 2.0 : 1.2);
+      const gestureIdealLo = (type==='direct') ? 4 : (type==='cross'? 6 : 6);
+      const gestureIdealHi = (type==='direct') ? 10: (type==='cross'? 14: 12);
+
+      const postureScore   = Math.max(1, Math.round(10 - Math.min(10, (leanMed/2) + (leanBadFrac*6))));
+      const headScore      = Math.max(1, Math.round(10 - Math.min(10, headMed/3)));
+      const movementScore  = Math.max(1, Math.round(10 - Math.min(9, Math.abs(stepsPerMin - movementIdeal)*3)));
+      const gestureScore   = Math.max(1, Math.round(10 - Math.abs(((gesturesPerMin - (gestureIdealLo+gestureIdealHi)/2)/((gestureIdealHi-gestureIdealLo)/2))*4)));
+      const handsHighScore = Math.max(1, Math.round(10 - Math.min(9, highFrac*12)));
+
+      // align observed vs transcript cues
+      const windowS = 1.5;
+      const rows = cues.map(c=>{
+        const hasGesture = burstTimes.some(t => Math.abs(t - c.ts) <= windowS);
+        const hasStep    = stepTimes.some(t => Math.abs(t - c.ts) <= windowS);
+        const rec = `${c.action} • Hands: ${c.hands} • Feet: ${c.feet}`;
+        const obs = [ hasGesture?'✓ gesture':'—', hasStep?'✓ step':'—' ].join(' ');
+        return `<tr><td>${sToClock(c.ts)}</td><td>${escHTML(c.label)}</td><td>${escHTML(rec)}</td><td>${obs}</td></tr>`;
+      }).join('');
+
+      const tips=[];
+      if(leanMed>10 || leanBadFrac>0.2) tips.push('Square hips/shoulders, “string through crown,” unlock knees.');
+      if(headMed>8) tips.push('Keep ear-to-ear level; nod briefly then return to level.');
+      if(gesturesPerMin<gestureIdealLo) tips.push('Add emphasis gestures at cue times; park hands at home base between points.');
+      if(gesturesPerMin>gestureIdealHi) tips.push('Trim to one gesture per big point; stillness between cues.');
+      if(highFrac>0.35) tips.push('Keep most gestures between navel and sternum; avoid shoulder-height windmilling.');
+      if(type==='direct' && stepsPerMin>1) tips.push('Anchor directs; micro-steps only for exhibits.');
+      if(type==='cross'  && stepsPerMin<1) tips.push('Add micro-step at each chapter pivot to signal control.');
+
+      const html = `
+        <div><strong>Posture & Gesture Coach (MoveNet Lightning – FAST)</strong></div>
+        <table class="table" style="margin-top:6px">
+          <thead><tr><th>Category</th><th>Score</th><th>Key Data</th></tr></thead>
+          <tbody>
+            <tr><td>Upright Posture</td><td>${postureScore}/10</td><td>median lean ${leanMed.toFixed(1)}°, >12° ${Math.round(leanBadFrac*100)}%</td></tr>
+            <tr><td>Head Level</td><td>${headScore}/10</td><td>median tilt ${headMed.toFixed(1)}°</td></tr>
+            <tr><td>Gesture Pacing</td><td>${gestureScore}/10</td><td>${gesturesPerMin.toFixed(1)} gestures/min (ideal ${gestureIdealLo}–${gestureIdealHi})</td></tr>
+            <tr><td>Purposeful Movement</td><td>${movementScore}/10</td><td>${stepsPerMin.toFixed(1)} steps/min (target ~${movementIdeal})</td></tr>
+            <tr><td>Gesture Height</td><td>${handsHighScore}/10</td><td>${Math.round(highFrac*100)}% ≥ elbow height</td></tr>
+            <tr><td>Estimated WPM</td><td colspan="2">${wpm} wpm (for cue timing)</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:8px"><strong>Transcript-Timed Movement & Gesture Plan</strong></div>
+        <table class="table">
+          <thead><tr><th>Time</th><th>Cue</th><th>Recommendation</th><th>Observed (±1.5s)</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4">No cues detected—using generic transitions.</td></tr>'}</tbody>
+        </table>
+        ${tips.length? `<div style="margin-top:6px"><strong>Global Tips</strong><ul>${tips.map(t=>`<li>${escHTML(t)}</li>`).join('')}</ul></div>`:''}
+      `;
+      if($('videoPosture')) $('videoPosture').innerHTML = html;
+      setStatus('MoveNet analysis complete.');
+    }
+  }
+
+  // expose & wire
+  window.analyzePostureAndGesturesTranscriptAware = analyzePostureAndGesturesTranscriptAware;
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = $('btnAnalyzePosture');
+    if(btn){
+      btn.onclick = () => analyzePostureAndGesturesTranscriptAware().catch(e=>setStatus('Posture analysis error: '+e.message, true));
+    }
+  });
+})();
 </script>
 
 </body>
