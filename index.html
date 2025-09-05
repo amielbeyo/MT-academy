@@ -898,9 +898,9 @@ async function callOpenAIChat({ messages, model, maxTokens, json=false }) {
       : (Array.isArray(content) ? content.map(p => p?.text || "").join("") : String(content || ""));
   }
   try {
-    return await attempt(json);
+    return await attempt(json);            // try JSON mode first
   } catch (e) {
-    // If JSON mode fails (400/unsupported), retry without JSON mode
+    // if JSON mode isn't supported/returns 400, retry without JSON mode
     if (json && (e.status === 400 || /response_format|json/i.test(e.message))) {
       return await attempt(false);
     }
@@ -2238,7 +2238,7 @@ const VideoCoach=(function(){
         else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
         else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
         else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
-        $('videoStatus').textContent = msg;
+        $('videoStatus').textContent = msg + (err?.message ? ` — ${err.message}` : '');
 
         // IMPORTANT: Do NOT flip EngineState.mode
         scoreWithBuiltin(type, raw);
