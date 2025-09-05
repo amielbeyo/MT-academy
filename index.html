@@ -872,7 +872,7 @@ function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
 // Robust OpenAI caller with automatic JSON-mode fallback
-async function callOpenAIChat({ messages, model, maxTokens, json=false }) {
+async function callOpenAIChat({ messages, model, maxTokens, json=false, signal }) {
   const base = { model, messages, temperature: 0, max_tokens: maxTokens };
   async function attempt(useJson) {
     const body = useJson ? { ...base, response_format: { type: "json_object" } } : base;
@@ -884,7 +884,8 @@ async function callOpenAIChat({ messages, model, maxTokens, json=false }) {
         "Accept": "application/json",
         "Authorization": `Bearer ${EngineState.openaiKey}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     });
     const rawText = await resp.text();
     let data = null; try { data = JSON.parse(rawText); } catch {}
@@ -2130,7 +2131,8 @@ const VideoCoach=(function(){
         messages,
         model,
         maxTokens,
-        json: true
+        json: false,
+        signal
       });
       const parsed = parseChatGPTScoreResponse(raw);
       const conf = RUBRICS[type] || {cats:[]};
