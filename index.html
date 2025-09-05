@@ -1,20 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>
-/* Bootstrap a global EngineState so any script can safely read it */
-(function () {
-  var g = (typeof globalThis !== 'undefined') ? globalThis : window;
-  if (!g.EngineState) {
-    g.EngineState = {
-      mode: 'builtin',
-      openaiKey: '',
-      openaiModel: 'gpt-4o-mini',
-      openaiMaxTokens: 600
-    };
-  }
-})();
-</script>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3QMGWMD9KZ"></script>
 <script>
@@ -852,6 +838,8 @@ var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation
 var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
+// Predeclare EngineState to avoid reference errors in non-browser environments.
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600 };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -964,20 +952,17 @@ function makeRubricMap(stateName, abbr){
   };
 }
 
-  /* Global engine state (reads/writes localStorage in browsers) */
-(function () {
-  var g = (typeof globalThis !== 'undefined') ? globalThis : window;
-  g.EngineState = {
-    get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
-    set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
-    get openaiKey(){ return load('mtpl.openaiKey','') },
-    set openaiKey(v){ save('mtpl.openaiKey', v || '') },
-    get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-    set openaiModel(v){ save('mtpl.openaiModel', v || 'gpt-4o-mini') },
-    get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
-    set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v) || 600) }
-  };
-})();
+/* Global engine state */
+EngineState = {
+  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
+  set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
+  get openaiKey(){ return load('mtpl.openaiKey','') },
+  set openaiKey(v){ save('mtpl.openaiKey', v||'') },
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+};
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
@@ -1093,7 +1078,7 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
   // Transcribe with OpenAI (requires EngineState.openaiKey)
   root.transcribeFile = async function transcribeFile(file, filenameHint){
     try{
-      const key = (root.EngineState && root.EngineState.openaiKey) ? root.EngineState.openaiKey : "";
+      const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
       if(!key) throw new Error("Missing OpenAI API key");
       const form = new FormData();
       form.append('model','gpt-4o-mini-transcribe'); // or 'whisper-1'
