@@ -654,6 +654,7 @@ const ChatGPTScoring = (() => {
   const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
+Scores should mirror real tournament averages: most objection arguments land between 7 and 10 points (70–100/100), with an average around 7. Reserve sub-7 scores for arguments that are exceptionally brief or poor.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -767,7 +768,7 @@ const PROMPT_TEMPLATE_RULING =
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result.";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for extremely brief or egregiously poor performances (e.g., one or two sentences).";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
