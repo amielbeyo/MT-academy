@@ -834,6 +834,10 @@ function formatTranscripts(pairs){
 }
 </script>
 <script>
+var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
+var CURRENT_STATE='AZ';
+function $(id){return document.getElementById(id);}
+function Q(s){return Array.from(document.querySelectorAll(s));}
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -847,7 +851,6 @@ function showProvenance(msg, isErr=false){
 }
 
 /* Utilities */
-const $=id=>document.getElementById(id);const Q=s=>Array.from(document.querySelectorAll(s));
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
@@ -868,7 +871,6 @@ function extractFirstJson(str){
 }
 
 /* State data */
-const CURRENT_STATE = 'AZ';
 function makeRubricMap(stateName, abbr){
   return {
     opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
@@ -1099,7 +1101,6 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 <script>
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Objections module (full) */
-const OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
 
 const Objections=(function(){
  const DB=[
