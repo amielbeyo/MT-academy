@@ -871,6 +871,44 @@ function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
+// Robust OpenAI caller with automatic JSON-mode fallback
+async function callOpenAIChat({ messages, model, maxTokens, json=false, signal }) {
+  const base = { model, messages, temperature: 0, max_tokens: maxTokens };
+  async function attempt(useJson) {
+    const body = useJson ? { ...base, response_format: { type: "json_object" } } : base;
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": `Bearer ${EngineState.openaiKey}`
+      },
+      body: JSON.stringify(body),
+      signal
+    });
+    const rawText = await resp.text();
+    let data = null; try { data = JSON.parse(rawText); } catch {}
+    if (!resp.ok) {
+      const msg = data?.error?.message || rawText || `OpenAI HTTP ${resp.status}`;
+      const err = new Error(msg); err.status = resp.status; err.raw = data || rawText; throw err;
+    }
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    return (typeof content === "string")
+      ? content
+      : (Array.isArray(content) ? content.map(p => p?.text || "").join("") : String(content || ""));
+  }
+  try {
+    return await attempt(json);            // try JSON mode first
+  } catch (e) {
+    // if JSON mode isn't supported/returns 400, retry without JSON mode
+    if (json && (e.status === 400 || /response_format|json/i.test(e.message))) {
+      return await attempt(false);
+    }
+    throw e;
+  }
+}
+
 /* Robust JSON extraction (handles ```json fences) */
 function extractFirstJson(str){
   if(!str) return null;
@@ -1318,14 +1356,12 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
    const model=EngineState.openaiModel||'gpt-4o-mini';
-   const tokenParam=chatTokenParam(model,250);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify({model,messages,response_format:{type:'json_object'},...tokenParam})
+   const raw = await callOpenAIChat({
+    messages,
+    model,
+    maxTokens: 250,
+    json: true
    });
-   const data=await resp.json();
-   const raw=data?.choices?.[0]?.message?.content||'';
    const obj=extractFirstJson(raw);
    if(obj&&obj.fact&&obj.q&&obj.ans){
     cur=obj;
@@ -1339,9 +1375,9 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
    }
   }catch(e){
    console.error('[GPT Prompt]',e);
-   alert('ChatGPT error');
+   alert('ChatGPT error: '+(e?.message||'Unknown'));
   }
- }
+}
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
@@ -2091,35 +2127,13 @@ const VideoCoach=(function(){
         const preview = (prompt || '').slice(0, 400);
         console.info('[ChatGPT] outbound preview:', preview);
       }
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Authorization':`Bearer ${key}`
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0,
-          ...tokenParam,
-          response_format: { type: 'json_object' }
-        }),
+      const raw = await callOpenAIChat({
+        messages,
+        model,
+        maxTokens,
+        json: true,
         signal
       });
-      if(resp.status===401){ const e=new Error('unauthorized'); e.code=401; throw e; }
-      if(resp.status===429){ const e=new Error('rate_limited'); e.code=429; throw e; }
-      if(!resp.ok){
-        const t=await resp.text().catch(()=> '');
-        const e=new Error('chatgpt_error'); e.detail=t;
-        if(/insufficient_quota|exceeded.*quota/i.test(t)) e.code='insufficient_quota';
-        throw e;
-      }
-      const data = await resp.json();
-      const content = data?.choices?.[0]?.message?.content;
-      const raw = Array.isArray(content) ? content.map(p=>p.text||'').join('') : (content || '');
-      if(DEBUG_CHATGPT){
-        console.info('[ChatGPT] HTTP', resp.status, 'usage=', data?.usage, 'raw msg len=', raw.length);
-      }
       const parsed = parseChatGPTScoreResponse(raw);
       const conf = RUBRICS[type] || {cats:[]};
       const cats = {}, comments = {};
@@ -2226,7 +2240,7 @@ const VideoCoach=(function(){
         else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
         else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
         else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
-        $('videoStatus').textContent = msg;
+        $('videoStatus').textContent = msg + (err?.message ? ` — ${err.message}` : '');
 
         // IMPORTANT: Do NOT flip EngineState.mode
         scoreWithBuiltin(type, raw);
@@ -2258,26 +2272,24 @@ const VideoCoach=(function(){
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
-    const testMsg = [
-      {role:'system', content:'Return only JSON: {"ok":true}.'},
-      {role:'user', content:'Say {"ok":true} exactly as JSON.'}
-    ];
     showProvenance('Testing ChatGPT\u2026');
+    const model = EngineState.openaiModel || 'gpt-4o-mini';
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
-      const tokenParam = chatTokenParam(model,30);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}` },
-        body: JSON.stringify({ model, messages: testMsg, response_format:{type:'json_object'}, ...tokenParam })
+      const content = await callOpenAIChat({
+        messages: [
+          { role: 'system', content: 'Reply exactly with {"ok":true}' },
+          { role: 'user', content: 'Return only {"ok":true}' }
+        ],
+        model,
+        maxTokens: 30,
+        json: false
       });
-      const data = await resp.json();
-      console.info('[ChatGPT][TEST] HTTP', resp.status, 'data=', data);
-      if(resp.ok){ showProvenance('ChatGPT reachable \u2705'); }
-      else{ showProvenance('ChatGPT test failed (see console).', true); }
+      let ok = false;
+      try { ok = JSON.parse(content)?.ok === true; } catch {}
+      showProvenance(ok ? 'ChatGPT reachable \u2705' : 'ChatGPT responded, but not JSON. Try again.', !ok);
     }catch(e){
-      console.error('[ChatGPT][TEST] error', e);
-      showProvenance('ChatGPT test error (see console).', true);
+      console.error('[ChatGPT][TEST]', e);
+      showProvenance('ChatGPT test failed: ' + (e?.message || 'error'), true);
     }
   }
 
