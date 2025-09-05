@@ -874,8 +874,8 @@ const EngineState = {
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
 
-  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o') },
 
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
@@ -884,7 +884,7 @@ const EngineState = {
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
   if(!b) return;
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+  if ((EngineState.openaiKey && String(EngineState.openaiKey).trim()) || EngineState.mode==='chatgpt') {
     b.textContent='Mode: ChatGPT (OpenAI API)';
     if(banner) banner.innerHTML='Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
   }else{
@@ -897,7 +897,7 @@ function openVideoGate(){
   const m=$('videoGate'); if(!m) return;
   m.style.display='flex';
   $('openaiKey').value = EngineState.openaiKey||'';
-  $('openaiModel').value = EngineState.openaiModel||'gpt-4o-mini';
+  $('openaiModel').value = EngineState.openaiModel||'gpt-4o';
   $('openaiMaxTokens').value = EngineState.openaiMaxTokens||600;
 }
 function closeVideoGate(){ const m=$('videoGate'); if(m) m.style.display='none'; }
@@ -1158,7 +1158,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,250);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
@@ -1248,7 +1248,7 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
+    const model=EngineState.openaiModel||'gpt-4o';
     const tokenParam=chatTokenParam(model,150);
     const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1271,7 +1271,7 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,150);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1418,7 +1418,7 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel || 'gpt-4o';
       const tokenParam = chatTokenParam(model,400);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
@@ -2082,7 +2082,7 @@ const VideoCoach=(function(){
   async function scoreViaChatGPT(type, transcript){
     const key = EngineState.openaiKey;
     if(!key){ throw new Error('no_key'); }
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4o';
     const maxTokens = EngineState.openaiMaxTokens || 600;
     const tokenParam = chatTokenParam(model, maxTokens);
 
@@ -2180,7 +2180,13 @@ const VideoCoach=(function(){
     const raw=$('videoTranscript').value||'';
   const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
 
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+  // accept key typed in the gateway even if the button wasn't clicked
+  const typedKey = document.getElementById('openaiKey')?.value?.trim() || '';
+  if (!EngineState.openaiKey && /^sk-/.test(typedKey)) {
+    EngineState.openaiKey = typedKey;
+    renderModeBadge();
+  }
+  if (EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
         scoreViaChatGPT(type, transcript).then(parsed=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
@@ -2245,7 +2251,7 @@ const VideoCoach=(function(){
       return;
     }
     scoreWithBuiltin(type, raw);
-    showProvenance('Built-in score used (ChatGPT mode not active).', true);
+    showProvenance('Built-in score used (no API key).', true);
   }
 
   function crit(type){
@@ -2265,7 +2271,7 @@ const VideoCoach=(function(){
     ];
     showProvenance('Testing ChatGPT\u2026');
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel || 'gpt-4o';
       const tokenParam = chatTokenParam(model,30);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
@@ -2298,7 +2304,7 @@ const VideoCoach=(function(){
     ];
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
+      const model=EngineState.openaiModel||'gpt-4o';
       const tokenParam=chatTokenParam(model,maxTokens);
       const resp=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
@@ -2887,7 +2893,12 @@ function wire(){
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     const postureBtn = $('btnAnalyzePosture');
     if (postureBtn) postureBtn.addEventListener('click', ()=>{
-      if (EngineState.mode==='chatgpt' && EngineState.openaiKey) {
+      const typedKey = document.getElementById('openaiKey')?.value?.trim() || '';
+      if (!EngineState.openaiKey && /^sk-/.test(typedKey)) {
+        EngineState.openaiKey = typedKey;
+        renderModeBadge();
+      }
+      if (EngineState.openaiKey) {
         analyzePostureLLM().catch(()=> analyzePostureFast());
       } else {
         analyzePostureFast();
