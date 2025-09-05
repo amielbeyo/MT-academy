@@ -2413,6 +2413,282 @@ function buildCueWindows(cues, cfg){
 }
 function tsInAnyWindow(t, windows){ for(const w of windows){ if(t>=w[0]&&t<=w[1]) return true; if(t<w[0]) break; } return false; }
 
+// ===== LLM-Vision Posture Analyzer — GPT-4o, multi-fps + audio waveform =====
+async function analyzePostureLLM(){
+  const video = $('videoPreview');
+  const transcript = ($('videoTranscript').value||'').trim();
+  const type = $('videoType').value || 'opening';
+  const out = $('videoPosture');
+
+  if(!video || (!video.src && !video.srcObject)){ setStatus('Load or record a video first.', true); return; }
+  if(!transcript){ setStatus('Paste/record a transcript to align cues.', true); return; }
+  if(!(EngineState.openaiKey)){ setStatus('Add an OpenAI API key (API Key / Engine).', true); return; }
+
+  // ---------- 1) Build adaptive timeline (more frames in cue windows) ----------
+  const durationSec = Math.max(video.duration||0, 1);
+  const {cues} = buildTranscriptCues(transcript, type, durationSec);
+  const windows = (function buildCueWindows(){
+    const before = 1.0, after = 1.0;
+    const raw = cues.map(c => [Math.max(0,c.ts-before), Math.min(durationSec, c.ts+after)]).sort((a,b)=>a[0]-b[0]);
+    const merged=[]; for(const w of raw){ if(!merged.length||w[0]>merged[merged.length-1][1]) merged.push([...w]); else merged[merged.length-1][1]=Math.max(merged[merged.length-1][1],w[1]); }
+    return merged;
+  })();
+
+  function inWin(t){ for(const w of windows){ if(t>=w[0]&&t<=w[1]) return true; if(t<w[0]) break; } return false; }
+
+  // fps policy: ~2.8 fps inside windows, ~0.8 fps outside (fast + detailed where it matters)
+  const FPS_IN  = 2.8;
+  const FPS_OUT = 0.8;
+  const MAX_FRAMES = 160;           // hard cap to keep the OpenAI call snappy/cost-effective
+  const TARGET_W = 320;             // compress frames
+  const JPEG_Q   = 0.55;
+
+  // Build the times we *intend* to capture
+  const times = [];
+  let t = 0;
+  while(t < durationSec){
+    const step = inWin(t) ? (1/FPS_IN) : (1/FPS_OUT);
+    times.push(Math.min(t, durationSec-0.01));
+    t += step;
+  }
+
+  // Soft cap: thin uniformly if too many (we still keep higher density near cues)
+  if(times.length > MAX_FRAMES){
+    const ratio = MAX_FRAMES / times.length;
+    const kept = [];
+    let acc = 0;
+    for(const x of times){ acc += ratio; if(acc >= 1){ kept.push(x); acc -= 1; } }
+    while(kept.length > MAX_FRAMES) kept.pop();
+    times.length = 0; times.push(...kept);
+  }
+
+  // ---------- 2) Capture those frames quickly ----------
+  setStatus(`Sampling ${times.length} frames (GPT-4o)…`);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  async function seekTo(sec){
+    return new Promise(res=>{
+      const onSeek = ()=>{ video.removeEventListener('seeked', onSeek); res(); };
+      video.addEventListener('seeked', onSeek);
+      try{ video.currentTime = Math.min(Math.max(0, sec), Math.max(0, durationSec-0.05)); }catch(_){ }
+    });
+  }
+
+  function drawFrame(){
+    const vw = video.videoWidth || 640, vh = video.videoHeight || 360;
+    if(vw >= vh){ canvas.width = TARGET_W; canvas.height = Math.round(vh * (TARGET_W / vw)); }
+    else        { canvas.height = TARGET_W; canvas.width  = Math.round(vw * (TARGET_W / vh)); }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', JPEG_Q);
+  }
+
+  // Pause playback while seeking to keep it deterministic
+  const wasPaused = video.paused;
+  const prevTime = video.currentTime;
+  try{ video.pause(); }catch(_){ }
+
+  const frames = [];
+  for(const sec of times){
+    // small guard so browsers don't throttle too hard
+    await seekTo(sec);
+    frames.push({ t: +video.currentTime.toFixed(2), dataUrl: drawFrame() });
+  }
+
+  // Restore playback
+  try{ video.currentTime = prevTime; }catch(_){ }
+  if(!wasPaused){ try{ await video.play(); }catch(_){ /* ignore */ } }
+
+  if(!frames.length){ setStatus('Could not capture frames; try playing the video once, then analyze.', true); return; }
+
+  // ---------- 3) Extract audio → waveform heatmap image + metrics ----------
+  async function fetchVideoBlob(el){
+    const src = el.currentSrc || el.src;
+    if(!src) return null;
+    try{ const r = await fetch(src); return await r.blob(); }catch(_){ return null; }
+  }
+
+  async function buildWaveformImage(blob){
+    try{
+      const buf = await blob.arrayBuffer();
+      const ac = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100*2, 44100);
+      const audioBuffer = await ac.decodeAudioData(buf.slice(0)); // copy
+
+      // 100 ms analysis windows
+      const ch = audioBuffer.getChannelData(0);
+      const sr = audioBuffer.sampleRate;
+      const hop = Math.max(1, Math.round(0.1 * sr)); // 100ms
+      const rms = [];
+      const zcr = [];
+      for(let i=0;i<ch.length;i+=hop){
+        const end = Math.min(ch.length, i+hop);
+        let sum=0, crossings=0;
+        for(let j=i;j<end;j++){
+          const v=ch[j];
+          sum += v*v;
+          if(j>i){
+            if((ch[j-1] >= 0 && v < 0) || (ch[j-1] < 0 && v >= 0)) crossings++;
+          }
+        }
+        const n = Math.max(1, end-i);
+        rms.push(Math.sqrt(sum/n));
+        zcr.push(crossings / (n));
+      }
+      const speakRatio = (rms.filter(v=>v>0.02).length / rms.length) || 0; // crude VAD
+
+      // Draw compact heatmap: x=time, y=two rows (RMS & ZCR)
+      const W = Math.min(720, Math.max(240, rms.length));
+      const H = 80;
+      const c = document.createElement('canvas');
+      const cx = c.getContext('2d', { willReadFrequently: true });
+      c.width = W; c.height = H;
+
+      // normalize
+      const rMax = Math.max(1e-6, rms.reduce((a,b)=>Math.max(a,b),0));
+      const zMax = Math.max(1e-6, zcr.reduce((a,b)=>Math.max(a,b),0));
+
+      // background
+      cx.fillStyle = '#0b1324'; cx.fillRect(0,0,W,H);
+
+      for(let x=0;x<W;x++){
+        const idx = Math.floor((x/W)*rms.length);
+        const r = Math.min(1, rms[idx]/rMax);
+        const z = Math.min(1, zcr[idx]/zMax);
+
+        // top half: RMS bars
+        const h1 = Math.floor((H/2-4) * r);
+        cx.fillStyle = `rgba(66,153,225,${0.25+0.75*r})`;
+        cx.fillRect(x, (H/2-4) - h1, 1, h1);
+
+        // bottom half: ZCR bars
+        const h2 = Math.floor((H/2-4) * z);
+        cx.fillStyle = `rgba(234,179,8,${0.20+0.80*z})`;
+        cx.fillRect(x, H - 2 - h2, 1, h2);
+      }
+      // labels
+      cx.fillStyle = '#9aa4b2';
+      cx.font = '10px system-ui, sans-serif';
+      cx.fillText('RMS', 4, 10);
+      cx.fillText('ZCR', 4, H-6);
+
+      const dataUrl = c.toDataURL('image/png');
+      const metrics = {
+        sample_rate: sr,
+        windows: rms.length,
+        speaking_ratio: +speakRatio.toFixed(2),
+        mean_rms: +(rms.reduce((a,b)=>a+b,0)/Math.max(1,rms.length)).toFixed(3)
+      };
+      return { dataUrl, metrics };
+    }catch(_){
+      return null;
+    }
+  }
+
+  let audioCard = null;
+  try{
+    const blob = await fetchVideoBlob(video);
+    if(blob) audioCard = await buildWaveformImage(blob);
+  }catch(_){ /* ignore */ }
+
+  // ---------- 4) Build GPT-4o request (frames + audio heatmap + metrics) ----------
+  const model = EngineState.openaiModel || 'gpt-4o'; // GPT-4 vision/audio
+  const tokenParam = chatTokenParam(model, 500);
+
+  // Pack frames as content parts
+  const parts = [];
+  parts.push({ type: "text", text:
+`Type: ${type}
+Duration: ${durationSec.toFixed(1)}s
+Sampling: ${FPS_IN} fps in cue windows, ${FPS_OUT} fps elsewhere (total ${frames.length} frames).
+Return STRICT JSON only with:
+{"scores":{"posture":1-10,"head":1-10,"movement":1-10,"pacing":1-10,"height":1-10},"summary":"","tips":[],"issues":[],"perFrame":[{"t":0.00,"posture":"","gesture":"","head":""}...]}` });
+
+  // Attach audio heatmap & metrics (if available)
+  if(audioCard?.dataUrl){
+    parts.push({ type: "text", text: `Audio metrics: ${JSON.stringify(audioCard.metrics)}` });
+    parts.push({ type: "text", text: "Audio Waveform Heatmap (Top=RMS loudness, Bottom=ZCR):" });
+    parts.push({ type: "image_url", image_url: { url: audioCard.dataUrl, detail: "low" } });
+  } else {
+    parts.push({ type: "text", text: "(Audio not available from this source; proceed using frames + transcript.)" });
+  }
+
+  // Add the frames (batched text labels + images)
+  frames.forEach((f,i)=>{
+    parts.push({ type:"text", text:`Frame ${String(i+1).padStart(2,'0')} @ ${f.t.toFixed(2)}s` });
+    parts.push({ type:"image_url", image_url:{ url: f.dataUrl, detail:"low" }});
+  });
+
+  const systemMsg = {
+    role: "system",
+    content: [
+      { type:"text", text:
+`You are a high-school mock-trial performance coach and movement analyst.
+Score posture & gestures for courtroom norms:
+• Opening/Closing: center stance, controlled movement, consistent head level, mid-height gestures.
+• Direct: anchored (minimal wandering), open questions; stillness between points.
+• Cross: tight leading control, purposeful micro-steps; avoid wild gestures.
+Weigh (1–10): posture, head, movement, pacing (gesture density vs type), height (shoulder-high discouraged).
+Return STRICT JSON ONLY (no prose outside JSON).` }
+    ]
+  };
+
+  const userMsg = { role: "user", content: parts };
+
+  setStatus(`Sending ${frames.length} frames to ${model}…`);
+  let parsed;
+  try{
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${EngineState.openaiKey}` },
+      body: JSON.stringify({ model, messages:[systemMsg, userMsg], temperature: 0, response_format:{ type:'json_object' }, ...tokenParam })
+    });
+    if(!resp.ok){
+      const t = await resp.text().catch(()=> '');
+      throw new Error(`OpenAI error ${resp.status}: ${t}`);
+    }
+    const data = await resp.json();
+    const raw = data?.choices?.[0]?.message?.content || '';
+    parsed = extractFirstJson(raw);
+    if(!parsed || !parsed.scores) throw new Error('LLM returned malformed JSON.');
+  }catch(e){
+    console.error('[LLM posture]', e);
+    setStatus('LLM posture failed — falling back to local analyzer.', true);
+    await new Promise(r=>setTimeout(r, 200));
+    return analyzePostureFast();
+  }
+
+  // ---------- 5) Render ----------
+  const s = parsed.scores||{};
+  const tips = Array.isArray(parsed.tips)? parsed.tips : [];
+  const issues = Array.isArray(parsed.issues)? parsed.issues : [];
+  const pf = Array.isArray(parsed.perFrame)? parsed.perFrame : [];
+
+  function row(name,val,extra){ return `<tr><td>${name}</td><td>${Number(val)||'-'}/10</td><td>${extra||''}</td></tr>`; }
+
+  out.innerHTML = `
+    <div><strong>Posture & Gesture Coach (GPT-4o — ${frames.length} frames${audioCard?' + audio':''})</strong></div>
+    <table class="table" style="margin-top:6px">
+      <thead><tr><th>Category</th><th>Score</th><th>Notes</th></tr></thead>
+      <tbody>
+        ${row('Upright Posture', s.posture, 'Spine/shoulders')}
+        ${row('Head Level', s.head, 'Tilt/neutral')}
+        ${row('Purposeful Movement', s.movement, 'Stepping/anchoring')}
+        ${row('Gesture Pacing', s.pacing, 'Density vs speech type')}
+        ${row('Gesture Height', s.height, 'Prefer mid-torso')}
+      </tbody>
+    </table>
+    ${parsed.summary ? `<div class="small" style="margin-top:6px"><strong>Summary:</strong> ${escHTML(parsed.summary)}</div>` : ''}
+    ${issues.length ? `<div class="small" style="margin-top:6px"><strong>Issues:</strong> ${issues.map(escHTML).join(' · ')}</div>` : ''}
+    ${tips.length ? `<div class="small" style="margin-top:6px"><strong>Tips:</strong><ul>${tips.map(t=>`<li>${escHTML(t)}</li>`).join('')}</ul></div>` : ''}
+    ${pf.length ? `<div class="small" style="margin-top:8px"><strong>Per-Frame Notes</strong></div>
+      <table class="table"><thead><tr><th>t (s)</th><th>Posture</th><th>Gesture</th><th>Head</th></tr></thead>
+      <tbody>${pf.slice(0,40).map(f=>`<tr><td>${(f.t??'').toFixed?f.t.toFixed(2):escHTML(String(f.t||''))}</td><td>${escHTML(f.posture||'')}</td><td>${escHTML(f.gesture||'')}</td><td>${escHTML(f.head||'')}</td></tr>`).join('')}</tbody></table>`
+      : ''
+    }
+  `;
+  setStatus('LLM posture/gesture analysis complete.');
+}
+
 async function analyzePostureFast(){
   const video=$('videoPreview'); const transcript=$('videoTranscript').value||''; const type=$('videoType').value||'opening';
   const out=$('videoPosture'); out.innerHTML='';
@@ -2597,7 +2873,13 @@ function wire(){
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     const postureBtn = $('btnAnalyzePosture');
-    if (postureBtn) postureBtn.addEventListener('click', analyzePostureFast);
+    if (postureBtn) postureBtn.addEventListener('click', ()=>{
+      if (EngineState.mode==='chatgpt' && EngineState.openaiKey) {
+        analyzePostureLLM().catch(()=> analyzePostureFast());
+      } else {
+        analyzePostureFast();
+      }
+    });
     renderModeBadge();
     tUpd(); crit('opening');
     setStatus('Tip: some browsers block camera in embedded previews.');
