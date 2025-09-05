@@ -2595,70 +2595,73 @@ return{wire,refresh}
 /* Init + environment warnings */
 function envWarnInit(){envWarn();}
 
+function safe(fn){
+  try{ fn(); }
+  catch(e){ console.error(e); }
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
-  try{
-    Objections.wire();
-    VideoCoach.wire();
-    RulesExplorer.wire();
-    RulesQuiz.wire();
+  safe(()=>Objections.wire());
+  safe(()=>VideoCoach.wire());
+  safe(()=>{ RulesExplorer.wire(); RulesExplorer.render(); });
+  safe(()=>{ RulesQuiz.wire(); RulesQuiz.refresh(); });
+  safe(()=>{
     envWarnInit();
     renderModeBadge();
     $('rulesTab').textContent=`${STATES[CURRENT_STATE].abbr} Rules`;
     $('rulesHeading').textContent=`${STATES[CURRENT_STATE].abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
-    RulesExplorer.render();
-    RulesQuiz.refresh();
+  });
 
-    const sections=Array.from(document.querySelectorAll('section.card'));
-    function showSection(id){
-      sections.forEach(sec=>sec.style.display=sec.id===id?'block':'none');
-      document.querySelectorAll('#navMenu .tab').forEach(link=>{
-        if(link.getAttribute('href')===`#${id}`){link.classList.add('active');}
-        else{link.classList.remove('active');}
-      });
-      location.hash=id;
-      const usesMode = id==='objections' || id==='video' || id==='writing';
-      const badge=$('modeBadge');
-      if(badge){
-        badge.style.display = usesMode ? 'inline-block' : 'none';
-        if(usesMode) renderModeBadge();
-      }
-      if(id==='video'){ maybeShowVideoGate(); }
-    }
-
+  const sections=Array.from(document.querySelectorAll('section.card'));
+  function showSection(id){
+    sections.forEach(sec=>sec.style.display=sec.id===id?'block':'none');
     document.querySelectorAll('#navMenu .tab').forEach(link=>{
-      link.addEventListener('click',e=>{
-        e.preventDefault();
-        showSection(link.getAttribute('href').slice(1));
-        const nav=$('navMenu');
-        nav.classList.remove('open');
-        $('menuToggle').setAttribute('aria-expanded','false');
-      });
+      if(link.getAttribute('href')===`#${id}`){link.classList.add('active');}
+      else{link.classList.remove('active');}
     });
+    location.hash=id;
+    const usesMode = id==='objections' || id==='video' || id==='writing';
+    const badge=$('modeBadge');
+    if(badge){
+      badge.style.display = usesMode ? 'inline-block' : 'none';
+      if(usesMode) renderModeBadge();
+    }
+    if(id==='video'){ maybeShowVideoGate(); }
+  }
 
-    const initialHash=location.hash.slice(1) || 'howto';
-    showSection(initialHash);
-
-    document.querySelectorAll('a.hidden-link').forEach(link=>{
-      link.addEventListener('click',e=>{
-        e.preventDefault();
-        showSection(link.getAttribute('href').slice(1));
-      });
-    });
-
-    $('menuToggle').addEventListener('click',()=>{
+  document.querySelectorAll('#navMenu .tab').forEach(link=>{
+    link.addEventListener('click',e=>{
+      e.preventDefault();
+      showSection(link.getAttribute('href').slice(1));
       const nav=$('navMenu');
-      const isOpen=nav.classList.toggle('open');
-      $('menuToggle').setAttribute('aria-expanded',isOpen);
+      nav.classList.remove('open');
+      $('menuToggle').setAttribute('aria-expanded','false');
     });
-    document.addEventListener('click',e=>{
-      const nav=$('navMenu');
-      const toggle=$('menuToggle');
-      if(nav.classList.contains('open') && !nav.contains(e.target) && !toggle.contains(e.target)){
-        nav.classList.remove('open');
-        toggle.setAttribute('aria-expanded','false');
-      }
+  });
+
+  const initialHash=location.hash.slice(1) || 'howto';
+  showSection(initialHash);
+
+  document.querySelectorAll('a.hidden-link').forEach(link=>{
+    link.addEventListener('click',e=>{
+      e.preventDefault();
+      showSection(link.getAttribute('href').slice(1));
     });
-  }catch(e){ console.error(e) }
+  });
+
+  $('menuToggle').addEventListener('click',()=>{
+    const nav=$('navMenu');
+    const isOpen=nav.classList.toggle('open');
+    $('menuToggle').setAttribute('aria-expanded',isOpen);
+  });
+  document.addEventListener('click',e=>{
+    const nav=$('navMenu');
+    const toggle=$('menuToggle');
+    if(nav.classList.contains('open') && !nav.contains(e.target) && !toggle.contains(e.target)){
+      nav.classList.remove('open');
+      toggle.setAttribute('aria-expanded','false');
+    }
+  });
 });
 } // end browser check
 </script>
