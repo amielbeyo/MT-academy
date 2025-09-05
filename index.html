@@ -1033,6 +1033,8 @@ window.addEventListener('unhandledrejection', e=>{
 /* Legacy stub retained */
 function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0,wpm:0,fillers:0,legalKeywords:0,signposts:0}; }
 
+} // end browser check
+
 </script>
 <script>
 // --- Global audio helpers (used by Objections + Video Coach) ---
@@ -1095,6 +1097,7 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 })();
 </script>
 <script>
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Objections module (full) */
 const OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
 
