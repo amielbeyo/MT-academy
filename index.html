@@ -1025,6 +1025,68 @@ window.addEventListener('unhandledrejection', e=>{
 /* Legacy stub retained */
 function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0,wpm:0,fillers:0,legalKeywords:0,signposts:0}; }
 
+</script>
+<script>
+// --- Global audio helpers (used by Objections + Video Coach) ---
+(async function attachGlobalAudioHelpers(){
+  const root = (typeof globalThis!=="undefined") ? globalThis : window;
+
+  // Convert an audio/video Blob to WAV (mono/stereo preserved)
+  root.blobToWav = async function blobToWav(file){
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length * numChannels * 2 + 44;
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
+    let offset = 0;
+    function writeString(str){ for(let i=0;i<str.length;i++) view.setUint8(offset++, str.charCodeAt(i)); }
+    function writeUint16(d){ view.setUint16(offset, d, true); offset += 2; }
+    function writeUint32(d){ view.setUint32(offset, d, true); offset += 4; }
+    writeString('RIFF'); writeUint32(length - 8); writeString('WAVE'); writeString('fmt ');
+    writeUint32(16); writeUint16(1); writeUint16(numChannels);
+    writeUint32(sampleRate); writeUint32(sampleRate * numChannels * 2);
+    writeUint16(numChannels * 2); writeUint16(16); writeString('data'); writeUint32(length - 44);
+    const channels = [];
+    for (let c=0;c<numChannels;c++) channels.push(audioBuffer.getChannelData(c));
+    for (let i=0;i<audioBuffer.length;i++){
+      for (let c=0;c<numChannels;c++){
+        const sample = Math.max(-1, Math.min(1, channels[c][i]));
+        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        offset += 2;
+      }
+    }
+    return new Blob([buffer], {type:'audio/wav'});
+  };
+
+  // Transcribe with OpenAI (requires EngineState.openaiKey)
+  root.transcribeFile = async function transcribeFile(file, filenameHint){
+    try{
+      const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
+      if(!key) throw new Error("Missing OpenAI API key");
+      const form = new FormData();
+      form.append('model','gpt-4o-mini-transcribe'); // or 'whisper-1'
+      form.append('file', file, filenameHint || 'audio.wav');
+      const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}` },
+        body: form
+      });
+      const data = await resp.json();
+      if (data?.text) return data.text.trim();
+      if (data?.error?.message) throw new Error(data.error.message);
+      return '';
+    }catch(err){
+      // Don't throw to avoid breaking UI; return empty string instead
+      console.error('[transcribeFile]', err);
+      return '';
+    }
+  };
+})();
+</script>
+<script>
 /* Objections module (full) */
 const OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
 
@@ -1905,58 +1967,7 @@ const VideoCoach=(function(){
   }
 
   // ---- Drop-in: direct transcription of uploaded file (with fallback) ----
-  async function transcribeFile(file, filenameHint){
-    if(!EngineState.openaiKey){
-      setStatus('Upload ready. Add API key to auto-transcribe.', true);
-      return '';
-    }
-    try{
-      const form = new FormData();
-      form.append('model','gpt-4o-mini-transcribe'); // or 'whisper-1' if you prefer
-      form.append('file', file, filenameHint || (file.name || 'audio.mp4'));
-      const resp = await fetch('https://api.openai.com/v1/audio/transcriptions',{
-        method:'POST',
-        headers:{ 'Authorization':`Bearer ${EngineState.openaiKey}` },
-        body: form
-      });
-      const data = await resp.json();
-      if (data?.text) return data.text.trim();
-      if (data?.error?.message) throw new Error(data.error.message);
-      return '';
-    }catch(err){
-      setStatus('Transcription error (direct): '+err.message, true);
-      return '';
-    }
-  }
-
-  // Convert any audio/video blob to a WAV blob
-  async function blobToWav(file){
-    const arrayBuffer = await file.arrayBuffer();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    const numChannels = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const length = audioBuffer.length * numChannels * 2 + 44;
-    const buffer = new ArrayBuffer(length);
-    const view = new DataView(buffer);
-    let offset = 0;
-    function writeString(str){ for(let i=0;i<str.length;i++){ view.setUint8(offset++, str.charCodeAt(i)); } }
-    function writeUint16(data){ view.setUint16(offset, data, true); offset += 2; }
-    function writeUint32(data){ view.setUint32(offset, data, true); offset += 4; }
-    writeString('RIFF'); writeUint32(length - 8); writeString('WAVE'); writeString('fmt ');
-    writeUint32(16); writeUint16(1); writeUint16(numChannels);
-    writeUint32(sampleRate); writeUint32(sampleRate * numChannels * 2);
-    writeUint16(numChannels * 2); writeUint16(16); writeString('data'); writeUint32(length - 44);
-    const channels=[]; for(let c=0;c<numChannels;c++) channels.push(audioBuffer.getChannelData(c));
-    for(let i=0;i<audioBuffer.length;i++){
-      for(let c=0;c<numChannels;c++){
-        const sample = Math.max(-1, Math.min(1, channels[c][i]));
-        view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-        offset += 2;
-      }
-    }
-    return new Blob([buffer], {type:'audio/wav'});
-  }
+  // transcribeFile and blobToWav are now provided by global helpers
 
   // ---- Replace your current handleUpload with this version ----
   async function handleUpload(file){
