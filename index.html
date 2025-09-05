@@ -1360,7 +1360,40 @@ function gptRecord(){
   $('objGPTInput').value='';
   updateGPTSend();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(SR){
+  // Prefer OpenAI transcription when an API key is available
+  if(EngineState.openaiKey && navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+   navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}}).then(stream=>{
+     gptRecStream=stream;
+     try{
+       const types=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus','audio/mpeg'];
+       const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+       const rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
+       gptRecog=rec;const chunks=[];
+       rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+       rec.onstop=async()=>{
+         $('btnGPTRecord').disabled=false;
+         $('btnGPTStopRecord').disabled=true;
+         gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
+         const type=rec.mimeType||mime||'audio/webm';
+         const blob=new Blob(chunks,{type});
+         try{
+           const wav=await blobToWav(blob);
+           const text=await transcribeFile(wav,'audio.wav');
+           if(text){$('objGPTInput').value=text;}
+         }catch(err){alert('Transcription error: '+err.message);}
+         updateGPTSend();
+       };
+       rec.start();
+       $('btnGPTRecord').disabled=true;
+       $('btnGPTStopRecord').disabled=false;
+     }catch(e){
+       alert('MediaRecorder not supported: '+e.message);
+       gptRecStream.getTracks().forEach(t=>t.stop());
+       gptRecStream=null;
+     }
+   }).catch(err=>alert('Mic error: '+err.message));
+  } else if(SR){
+   // Fallback to browser speech recognition when no API key is available
    gptRecog=new SR();
    let txt='';
    gptRecog.lang='en-US';
@@ -1389,43 +1422,10 @@ function gptRecord(){
    $('btnGPTRecord').disabled=true;
    $('btnGPTStopRecord').disabled=false;
    gptRecog.start();
-  } else if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-   navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-     gptRecStream=stream;
-     try{
-       const types=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus','audio/mpeg'];
-       const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
-       const rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined);
-       gptRecog=rec;const chunks=[];
-       rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-       rec.onstop=async()=>{
-         $('btnGPTRecord').disabled=false;
-         $('btnGPTStopRecord').disabled=true;
-         gptRecog=null; if(gptRecStream){gptRecStream.getTracks().forEach(t=>t.stop());gptRecStream=null;}
-         const type=rec.mimeType||mime||'audio/webm';
-         const blob=new Blob(chunks,{type});
-         const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':'webm';
-         const form=new FormData();form.append('model','gpt-4o-mini-transcribe');form.append('file',blob,`audio.${ext}`);
-         try{
-           const resp=await fetch('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':`Bearer ${EngineState.openaiKey}`},body:form});
-           const data=await resp.json();const text=data?.text?.trim();
-           if(text){$('objGPTInput').value=text;}
-         }catch(err){alert('Transcription error: '+err.message);}
-         updateGPTSend();
-       };
-       rec.start();
-       $('btnGPTRecord').disabled=true;
-       $('btnGPTStopRecord').disabled=false;
-     }catch(e){
-       alert('MediaRecorder not supported: '+e.message);
-       gptRecStream.getTracks().forEach(t=>t.stop());
-       gptRecStream=null;
-     }
-   }).catch(err=>alert('Mic error: '+err.message));
   } else {
    alert('Speech recognition not supported in this browser.');
   }
- }
+}
 function gptStopRecord(){
   if(gptRecog){
    $('btnGPTStopRecord').disabled=true;
@@ -1929,8 +1929,8 @@ const VideoCoach=(function(){
     }
   }
 
-  // Keep as fallback if direct upload ever fails
-  async function videoToAudioBlob(file){
+  // Convert any audio/video blob to a WAV blob
+  async function blobToWav(file){
     const arrayBuffer = await file.arrayBuffer();
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
@@ -1987,7 +1987,7 @@ const VideoCoach=(function(){
     // 2) Fallback: extract WAV, then transcribe
     if(!text){
       try{
-        const wav = await videoToAudioBlob(file);
+        const wav = await blobToWav(file);
         text = await transcribeFile(wav, (file.name || 'audio')+'.wav');
       }catch(e){
         setStatus('Audio extraction error: ' + e.message, true);
