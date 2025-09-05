@@ -254,7 +254,8 @@ a.inline{color:var(--accent);text-decoration:underline}
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
       <button id="btnVideoStart" class="btn primary">Start Recording</button>
       <button id="btnStopRecording" class="btn secondary">Stop</button>
-      <input id="videoFile" type="file" accept="video/*" style="display:none">
+      <input id="videoFile" type="file" accept="audio/*,video/*" style="display:none">
+      <button id="btnUploadVideo" class="btn secondary">Upload</button>
       <button id="btnPlayRecording" class="btn secondary">Play</button>
       <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
       <span>Timer: <span id="videoTimer">00:00</span></span>
@@ -630,8 +631,7 @@ const MT_SCORING = (() => {
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
-  const key = /-mini$/i.test(model) ? 'max_completion_tokens' : 'max_tokens';
-  return { [key]: maxTokens };
+  return { max_tokens: maxTokens };
 }
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
@@ -998,7 +998,11 @@ function attachVideoGateHandlers(){
     const key=$('openaiKey').value.trim();
     const model=$('openaiModel').value;
     const maxt=Number($('openaiMaxTokens').value)||600;
-    if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
+    const isValidKey = /^sk-[A-Za-z0-9_-]{20,}$/.test(key); // allows sk-*** and sk-proj-***
+    if(!isValidKey){
+      alert('Paste a valid OpenAI API key (starts with "sk-").');
+      return;
+    }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
@@ -2299,6 +2303,7 @@ const VideoCoach=(function(){
       r.style.display=c.style.display=show?'block':'none';
     });
     $('videoFile').addEventListener('change',e=> handleUpload(e.target.files&&e.target.files[0]));
+    $('btnUploadVideo').addEventListener('click', () => $('videoFile').click());
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
