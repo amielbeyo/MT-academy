@@ -838,6 +838,8 @@ var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation
 var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
+// Predeclare EngineState to avoid reference errors in non-browser environments.
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600 };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -951,7 +953,7 @@ function makeRubricMap(stateName, abbr){
 }
 
 /* Global engine state */
-const EngineState = {
+EngineState = {
   get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
   set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
   get openaiKey(){ return load('mtpl.openaiKey','') },
