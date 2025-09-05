@@ -865,25 +865,78 @@ Reward: short leading questions, page/line anchors, clean admissions.
 Return JSON with keys: {"content","leading","impeach","brevity","delivery"}.`
   };
 }
-  $('btnUseBuiltin').addEventListener('click', ()=>{
-    EngineState.mode='builtin'; closeVideoGate(); renderModeBadge();
-    $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
+
+// ==== Engine state + gateway helpers (needed by Video Coach & Objections) ====
+const EngineState = {
+  get mode(){ return load('mtpl.engineMode','builtin') },     // 'builtin' | 'chatgpt'
+  set mode(v){ save('mtpl.engineMode', v||'builtin'); renderModeBadge(); },
+
+  get openaiKey(){ return load('mtpl.openaiKey','') },
+  set openaiKey(v){ save('mtpl.openaiKey', v||'') },
+
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+
+  get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+};
+
+function renderModeBadge(){
+  const b=$('modeBadge'), banner=$('videoModeBanner');
+  if(!b) return;
+  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+    b.textContent='Mode: ChatGPT (OpenAI API)';
+    if(banner) banner.innerHTML='Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
+  }else{
+    b.textContent='Mode: Built-in (less accurate)';
+    if(banner) banner.innerHTML='Scoring via <strong>built-in heuristic engine</strong>.';
+  }
+}
+
+function openVideoGate(){
+  const m=$('videoGate'); if(!m) return;
+  m.style.display='flex';
+  $('openaiKey').value = EngineState.openaiKey||'';
+  $('openaiModel').value = EngineState.openaiModel||'gpt-4o-mini';
+  $('openaiMaxTokens').value = EngineState.openaiMaxTokens||600;
+}
+function closeVideoGate(){ const m=$('videoGate'); if(m) m.style.display='none'; }
+
+function maybeShowVideoGate(){
+  // first visit, or if no prior choice
+  const seen = load('mtpl.videoGateSeen', false);
+  if(!seen){ openVideoGate(); save('mtpl.videoGateSeen', true); }
+}
+
+function attachVideoGateHandlers(){
+  const btnClose = $('btnCloseGate');
+  const btnBuiltin = $('btnUseBuiltin');
+  const btnChatGPT = $('btnUseChatGPT');
+  const btnForget = $('btnForgetKey');
+
+  if(btnClose) btnClose.addEventListener('click', closeVideoGate);
+
+  if(btnBuiltin) btnBuiltin.addEventListener('click', ()=>{
+    EngineState.mode='builtin';
+    closeVideoGate(); renderModeBadge();
+    const s=$('videoStatus'); if(s) s.textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
   });
-  $('btnUseChatGPT').addEventListener('click', ()=>{
+
+  if(btnChatGPT) btnChatGPT.addEventListener('click', ()=>{
     const key=$('openaiKey').value.trim();
     const model=$('openaiModel').value;
     const maxt=Number($('openaiMaxTokens').value)||600;
     if(!/^sk-[\w-]{20,}$/.test(key)){ alert('Paste a valid OpenAI API key (starts with "sk-").'); return; }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
-    $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
+    const s=$('videoStatus'); if(s) s.textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
   });
-  $('btnForgetKey').addEventListener('click', ()=>{
+
+  if(btnForget) btnForget.addEventListener('click', ()=>{
     EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
     alert('Removed saved API key. Falling back to built-in scoring.');
   });
 }
-document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
 
 /* Env warnings + error surface */
 function envWarn(){
@@ -2380,7 +2433,7 @@ async function analyzePostureFast(){
   syncOffSize();
 
   const originalRate=video.playbackRate||1;
-  try{ video.playbackRate=Math.min(FAST_ANALYSIS.maxPlaybackRate, Math.max(1, originalRate)); }catch(_){}}
+  try{ video.playbackRate=Math.min(FAST_ANALYSIS.maxPlaybackRate, Math.max(1, originalRate)); }catch(_){}
 
   const durationSec=Math.max(video.duration||0, 1);
   const {cues, wpm}=buildTranscriptCues(transcript, type, durationSec);
@@ -2829,6 +2882,7 @@ function envWarnInit(){envWarn();}
 
 document.addEventListener('DOMContentLoaded',()=>{
   try{
+    attachVideoGateHandlers();
     Objections.wire();
     VideoCoach.wire();
     RulesExplorer.wire();
