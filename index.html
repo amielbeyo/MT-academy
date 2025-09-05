@@ -9,7 +9,7 @@
     g.EngineState = {
       mode: 'builtin',
       openaiKey: '',
-      openaiModel: 'gpt-4o-mini',
+      openaiModel: 'gpt-4',
       openaiMaxTokens: 600
     };
   }
@@ -174,19 +174,12 @@ a.inline{color:var(--accent);text-decoration:underline}
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger.</li>
           </ol>
           <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
           <label class="small">OpenAI API Key
             <input id="openaiKey" class="input" type="password" placeholder="sk-...">
           </label>
           <div class="row" style="margin-top:8px">
-            <label class="small" style="flex:1">Model
-              <select id="openaiModel" class="input">
-                <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
-                <option value="gpt-4o">gpt-4o (better)</option>
-              </select>
-            </label>
             <label class="small" style="flex:1">Max tokens
               <input id="openaiMaxTokens" class="input" type="number" value="600" min="200" max="2000">
             </label>
@@ -345,7 +338,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <ul class="small">
       <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
       <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> choose the speech type, record, then view <em>Metrics</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing.</li>
-      <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> choose a type, add your notes and goals, then click <em>Ask ChatGPT to Draft</em> to get help writing new material; use <em>API Key / Engine</em> to pick the model.</li>
+      <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> choose a type, add your notes and goals, then click <em>Ask ChatGPT to Draft</em> to get help writing new material; use <em>API Key / Engine</em> to enable ChatGPT.</li>
       <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> search by number or topic, then tap a rule to see the text and a plain-language <em>What it means</em> explanation.</li>
       <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> choose mode, rule set, question count and difficulty, then hit <em>Start Quiz</em>. Use <em>Next</em> to advance; the top shows your score and best.</li>
     </ul>
@@ -354,8 +347,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <li>Visit <strong>platform.openai.com</strong> and create an API key.</li>
       <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
       <li>In this app, click the “API Key” or “API Key / Engine” button.</li>
-      <li>Paste your key and choose a model. The key is stored only in your browser.</li>
-        <li>Expect roughly $0.01 per short scoring request with <em>gpt‑4o‑mini</em>, so a $5 deposit covers around 500 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
+      <li>Paste your key. The key is stored only in your browser.</li>
     </ol>
   </section>
   <!-- Contact -->
@@ -1010,8 +1002,8 @@ function makeRubricMap(stateName, abbr){
     set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
     get openaiKey(){ return load('mtpl.openaiKey','') },
     set openaiKey(v){ save('mtpl.openaiKey', v || '') },
-    get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-    set openaiModel(v){ save('mtpl.openaiModel', v || 'gpt-4o-mini') },
+    get openaiModel(){ return load('mtpl.openaiModel','gpt-4') },
+    set openaiModel(v){ save('mtpl.openaiModel', v || 'gpt-4') },
     get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
     set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v) || 600) }
   };
@@ -1042,7 +1034,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* Gateway wiring */
-function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
+function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
 function closeVideoGate(){ $('videoGate').style.display='none' }
 function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
 function attachVideoGateHandlers(){
@@ -1053,14 +1045,13 @@ function attachVideoGateHandlers(){
   });
   $('btnUseChatGPT').addEventListener('click', ()=>{
     const key=$('openaiKey').value.trim();
-    const model=$('openaiModel').value;
     const maxt=Number($('openaiMaxTokens').value)||600;
     const isValidKey = /^sk-[A-Za-z0-9_-]{20,}$/.test(key); // allows sk-*** and sk-proj-***
     if(!isValidKey){
       alert('Paste a valid OpenAI API key (starts with "sk-").');
       return;
     }
-    EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
+    EngineState.openaiKey=key; EngineState.openaiModel='gpt-4'; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
   });
@@ -1134,7 +1125,7 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
       const key = (root.EngineState && root.EngineState.openaiKey) ? root.EngineState.openaiKey : "";
       if(!key) throw new Error("Missing OpenAI API key");
       const form = new FormData();
-      form.append('model','gpt-4o-mini-transcribe'); // or 'whisper-1'
+      form.append('model','whisper-1');
       form.append('file', file, filenameHint || 'audio.wav');
       const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
@@ -1355,7 +1346,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4';
    const raw = await callOpenAIChat({
     messages,
     model,
@@ -1443,18 +1434,16 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
-    const tokenParam=chatTokenParam(model,150);
-    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
+    const model=EngineState.openaiModel||'gpt-4';
+    const text=await callOpenAIChat({
+     messages:gptChat,
+     model,
+     maxTokens:150,
+     json:false
     });
-   const data=await resp.json();
-   const text=data?.choices?.[0]?.message?.content?.trim()||'';
-   gptChat.push({role:'assistant',content:text});
-   appendChat('chatgpt',text);
-  }catch(e){
+    gptChat.push({role:'assistant',content:text.trim()});
+    appendChat('chatgpt',text.trim());
+   }catch(e){
     console.error('[GPT Argue]',e);
     appendChat('chatgpt','ChatGPT error.');
    }
@@ -1466,17 +1455,15 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
-   const tokenParam=chatTokenParam(model,150);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const reply=data?.choices?.[0]?.message?.content?.trim()||'';
-   gptChat.push({role:'assistant',content:reply});
-   appendChat('chatgpt',reply);
+   const model=EngineState.openaiModel||'gpt-4';
+   const reply=await callOpenAIChat({
+    messages:gptChat,
+    model,
+    maxTokens:150,
+    json:false
+   });
+   gptChat.push({role:'assistant',content:reply.trim()});
+   appendChat('chatgpt',reply.trim());
   }catch(e){
    console.error('[GPT Send]',e);
    appendChat('chatgpt','ChatGPT error.');
@@ -1613,20 +1600,13 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
-      const tokenParam = chatTokenParam(model,400);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body: JSON.stringify({
-          model,
-          messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
-          ...tokenParam
-        })
+      const model = EngineState.openaiModel || 'gpt-4';
+      const text = await callOpenAIChat({
+        messages:[{role:'user', content: prompt}],
+        model,
+        maxTokens:400,
+        json:true
       });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || '';
 
       try{
         const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
@@ -2113,7 +2093,7 @@ const VideoCoach=(function(){
   async function scoreViaChatGPT(type, transcript){
     const key = EngineState.openaiKey;
     if(!key){ throw new Error('no_key'); }
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4';
     const maxTokens = EngineState.openaiMaxTokens || 600;
     const tokenParam = chatTokenParam(model, maxTokens);
 
@@ -2273,7 +2253,7 @@ const VideoCoach=(function(){
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4';
     try{
       const content = await callOpenAIChat({
         messages: [
@@ -2309,16 +2289,14 @@ const VideoCoach=(function(){
     ];
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
-      const tokenParam=chatTokenParam(model,maxTokens);
-      const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
+      const model=EngineState.openaiModel||'gpt-4';
+      const text=await callOpenAIChat({
+        messages,
+        model,
+        maxTokens,
+        json:false
       });
-      const data=await resp.json();
-      const text=data?.choices?.[0]?.message?.content?.trim()||'';
-      out.value=text;
+      out.value=text.trim();
     }catch(e){
       console.error('[GPT Write]',e);
       out.value='ChatGPT error.';
