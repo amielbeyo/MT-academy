@@ -9,7 +9,7 @@
     g.EngineState = {
       mode: 'builtin',
       openaiKey: '',
-      openaiModel: 'gpt-4o-mini',
+      openaiModel: 'gpt-4',
       openaiMaxTokens: 600
     };
   }
@@ -1002,8 +1002,8 @@ function makeRubricMap(stateName, abbr){
     set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
     get openaiKey(){ return load('mtpl.openaiKey','') },
     set openaiKey(v){ save('mtpl.openaiKey', v || '') },
-    get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-    set openaiModel(v){ save('mtpl.openaiModel', v || 'gpt-4o-mini') },
+    get openaiModel(){ return load('mtpl.openaiModel','gpt-4') },
+    set openaiModel(v){ save('mtpl.openaiModel', v || 'gpt-4') },
     get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
     set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v) || 600) }
   };
@@ -1051,7 +1051,7 @@ function attachVideoGateHandlers(){
       alert('Paste a valid OpenAI API key (starts with "sk-").');
       return;
     }
-    EngineState.openaiKey=key; EngineState.openaiModel='gpt-4o-mini'; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
+    EngineState.openaiKey=key; EngineState.openaiModel='gpt-4'; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
   });
@@ -1346,7 +1346,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4';
    const raw = await callOpenAIChat({
     messages,
     model,
@@ -1434,7 +1434,7 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
+    const model=EngineState.openaiModel||'gpt-4';
     const text=await callOpenAIChat({
      messages:gptChat,
      model,
@@ -1455,7 +1455,7 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4';
    const reply=await callOpenAIChat({
     messages:gptChat,
     model,
@@ -1600,7 +1600,7 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel || 'gpt-4';
       const text = await callOpenAIChat({
         messages:[{role:'user', content: prompt}],
         model,
@@ -2093,7 +2093,7 @@ const VideoCoach=(function(){
   async function scoreViaChatGPT(type, transcript){
     const key = EngineState.openaiKey;
     if(!key){ throw new Error('no_key'); }
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4';
     const maxTokens = EngineState.openaiMaxTokens || 600;
     const tokenParam = chatTokenParam(model, maxTokens);
 
@@ -2107,12 +2107,12 @@ const VideoCoach=(function(){
         const preview = (prompt || '').slice(0, 400);
         console.info('[ChatGPT] outbound preview:', preview);
       }
-      // Prefer JSON mode; if unsupported the helper falls back to plain text.
+      // Request plain text; helper will retry without JSON if needed
       const raw = await callOpenAIChat({
         messages,
         model,
         maxTokens,
-        json: true,
+        json: false,
         signal
       });
 
@@ -2285,7 +2285,7 @@ const VideoCoach=(function(){
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4';
     try{
       const content = await callOpenAIChat({
         messages: [
@@ -2321,7 +2321,7 @@ const VideoCoach=(function(){
     ];
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
+      const model=EngineState.openaiModel||'gpt-4';
       const text=await callOpenAIChat({
         messages,
         model,
