@@ -872,7 +872,7 @@ function makeRubricMap(stateName, abbr){
   - Organization & Roadmap (25)
   - Persuasiveness (20)
   - Delivery (15)
-  Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask.
+  Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme.
   Evaluate using this checklist:
   \u25a1 Provided a case overview and story
   \u25a1 The theme/theory of the case was identified
@@ -1552,7 +1552,7 @@ const VideoCoach=(function(){
   };
 
   const PATS={
-    opening:{must:["theme","the evidence will show","you will hear","you will see","roadmap","first","second","burden","preponderance","ask you to return a verdict"],nice:["negligence","duty","breach","causation","damages","timeline","exhibit","witness","theory","story"]},
+    opening:{must:["theme","the evidence will show","you will hear","you will hear from","you will see","roadmap","first","second","burden","preponderance","ask you to return a verdict","verdict"],nice:["negligence","duty","breach","causation","damages","timeline","exhibit","witness","theory","story"]},
     closing:{must:["apply the law","element","burden","preponderance","more likely than not","address","they said","the only fair verdict"],nice:["theme","duty","breach","causation","damages","exhibit","admissions","refutation","jury instruction","standard of proof"]},
     direct:{must:["please introduce yourself","what did you","how do you recognize","fair and accurate","move to admit","what happened next"],nice:["open-ended","exhibit","foundation","background","event","aftermath","follow-up","authenticate","identify","admit into evidence"]},
     cross:{must:["correct?","right?","yes or no","you wrote","on page","line","you can\u2019t say","isn\u2019t it true"],nice:["leading","impeach","admission","one fact per question","control","statement","affidavit","deposition"]}
@@ -1591,7 +1591,13 @@ const VideoCoach=(function(){
     const mustScore=libs.must.length? mustHits/libs.must.length : 0;
     const niceScore=libs.nice.length? Math.min(1, niceHits/(libs.nice.length*0.7)) : 0;
     let struct=0;
-    if(type==='opening'){struct+=SIGNPOSTS_OPEN.test(transcript)?0.6:0; struct+=/\b(theme|theory|story)\b/i.test(transcript)?0.2:0; struct+=/\bask (you|the jury)|we ask you\b/i.test(transcript)?0.2:0;}
+    if(type==='opening'){
+      struct+=/\b(theme|theory|story)\b/i.test(transcript)?0.2:0;
+      struct+=/\bask (you|the jury)|we ask you\b|verdict\b/i.test(transcript)?0.2:0;
+      struct+=/\bburden|preponderance\b/i.test(transcript)?0.2:0;
+      struct+=/\byou will hear from\b/i.test(transcript)?0.2:0;
+      struct+=SIGNPOSTS_OPEN.test(transcript)?0.2:0;
+    }
     else if(type==='closing'){struct+=SIGNPOSTS_CLOSE.test(transcript)?0.5:0; struct+=/\b(refut|they said|they claim)\b/i.test(transcript)?0.3:0; struct+=/\bburden|preponderance|more likely than not\b/i.test(transcript)?0.2:0;}
     else if(type==='direct'){struct+=/\bplease introduce yourself|state your name\b/i.test(transcript)?0.3:0; struct+=/\brecognize|fair and accurate|move to admit\b/i.test(transcript)?0.4:0; struct+=/\bwhat happened next\b/i.test(transcript)?0.3:0;}
     else if(type==='cross'){struct+=/\b(correct\?|right\?|yes or no|isn't it true)\b/i.test(transcript)?0.5:0; struct+=/\b(page|line|statement|affidavit|deposition)\b/i.test(transcript)?0.3:0; struct+=/\bone fact per\b/i.test(transcript)?0.2:0;}
