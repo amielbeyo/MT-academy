@@ -2002,6 +2002,13 @@ const VideoCoach=(function(){
         <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
         <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
       </div>`;
+    if(result.audio){
+      const a=result.audio;
+      $('videoFeedback').innerHTML += `<div class="kv" style="margin-top:8px">
+        <div>Volume</div><div>${escHTML(a.volRating)} (${a.avgVolume} dB)</div>
+        <div>Tone</div><div>${escHTML(a.toneRating)} (${a.pitchVar} Hz)</div>
+      </div><div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
+    }
     if(result.explanation){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
     }
@@ -2065,6 +2072,56 @@ const VideoCoach=(function(){
       reader.onerror=reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  async function analyzeVoice(blob){
+    try{
+      const arrayBuffer=await blob.arrayBuffer();
+      const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const audioBuffer=await audioCtx.decodeAudioData(arrayBuffer);
+      const data=audioBuffer.getChannelData(0);
+      let sum=0,sumSq=0;
+      for(let i=0;i<data.length;i++){const v=data[i];sum+=Math.abs(v);sumSq+=v*v;}
+      const meanAmp=sum/data.length;
+      const rms=Math.sqrt(sumSq/data.length);
+      const db=20*Math.log10(rms);
+      let varSum=0;for(let i=0;i<data.length;i++){const diff=Math.abs(data[i])-meanAmp;varSum+=diff*diff;}
+      const volVar=Math.sqrt(varSum/data.length);
+      function autoCorrelate(buf,sampleRate){
+        let bestOff=-1,bestCorr=0;
+        const maxSample=Math.min(buf.length,sampleRate);
+        for(let off=50;off<sampleRate/2;off++){
+          let corr=0;
+          for(let i=0;i<maxSample;i++){
+            const v1=buf[i],v2=buf[i+off];
+            if(v1===undefined||v2===undefined) break;
+            corr+=v1*v2;
+          }
+          if(corr>bestCorr){bestCorr=corr;bestOff=off;}
+        }
+        return (bestOff>0&&bestCorr>0)?sampleRate/bestOff:0;
+      }
+      const step=Math.floor(audioBuffer.sampleRate/10);
+      const pitches=[];
+      for(let i=0;i+step*2<data.length;i+=step){
+        const slice=data.slice(i,i+step);
+        const p=autoCorrelate(slice,audioBuffer.sampleRate);
+        if(p>50&&p<500) pitches.push(p);
+      }
+      const avgPitch=pitches.length?pitches.reduce((a,b)=>a+b,0)/pitches.length:0;
+      const pitchVar=pitches.length?Math.sqrt(pitches.reduce((s,v)=>s+(v-avgPitch)**2,0)/pitches.length):0;
+      let volRating='Good';
+      if(db<-40) volRating='Too quiet'; else if(db>-10) volRating='Too loud';
+      let toneRating='Good';
+      if(pitchVar<20) toneRating='Too steady'; else if(pitchVar>150) toneRating='Too much change';
+      const tips=[];
+      if(volRating!=='Good') tips.push(volRating==='Too quiet'?'Speak louder.':'Speak softer.');
+      else tips.push('Volume level is good.');
+      if(toneRating==='Too steady') tips.push('Add more pitch variety.');
+      else if(toneRating==='Too much change') tips.push('Steady your tone.');
+      else tips.push('Tone variation is good.');
+      return {avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),volRating,toneRating,tips:tips.join(' ')};
+    }catch(e){return null;}
   }
 
   async function startCamera(){
@@ -2219,12 +2276,13 @@ const VideoCoach=(function(){
     }
   }
 
-  function scoreWithBuiltin(type, txt){
+  function scoreWithBuiltin(type, txt, audio){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
     const det=detectObjections(type,transcript);
     const engine=score(type,transcript);
     engine.applyObjectionAdjustments(det);
     const result=engine.buildScores();
+    if(audio) result.audio=audio;
     const wpm=result.metrics?.wpm||0;
     if(wpm<95||wpm>125){
       result.total=Math.max(0,result.total-10);
@@ -2234,15 +2292,16 @@ const VideoCoach=(function(){
     renderReport(type,result,det);
     highlightTranscriptArea(type,det);
   }
-
-  function scoreNow(){
+  async function scoreNow(){
     const type=$('videoType').value||'opening';
     const raw=$('videoTranscript').value||'';
-  const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+    let audio=null;
+    if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
 
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+    if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
-        scoreViaChatGPT(type, transcript).then(parsed=>{
+      scoreViaChatGPT(type, transcript).then(parsed=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
   const conf = RUBRICS[type];
 
@@ -2266,7 +2325,8 @@ const VideoCoach=(function(){
     metrics: m,
     compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
     qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
-    effWords: (transcript.trim().match(/\S+/g)||[]).length
+    effWords: (transcript.trim().match(/\S+/g)||[]).length,
+    audio
   };
 
   // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
@@ -2290,7 +2350,7 @@ const VideoCoach=(function(){
         $('videoStatus').textContent = msg;
 
         // IMPORTANT: Do NOT flip EngineState.mode
-        scoreWithBuiltin(type, raw);
+        scoreWithBuiltin(type, raw, audio);
         showProvenance('Built-in score used (ChatGPT not reached).', true);
 
         const badge = $('modeBadge');
@@ -2304,7 +2364,7 @@ const VideoCoach=(function(){
       });
       return;
     }
-    scoreWithBuiltin(type, raw);
+    scoreWithBuiltin(type, raw, audio);
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
   }
 
