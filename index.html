@@ -98,12 +98,12 @@ textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);bo
 .scorebar>span{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:999px}
 /* Gateway modal */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9999}
-.modal{width:min(740px,94vw);background:var(--card);border:1px solid rgba(0,0,0,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:16px}
+.modal{width:min(740px,94vw);max-height:90vh;overflow-y:auto;background:var(--card);border:1px solid rgba(0,0,0,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2);padding:16px}
 .modal h2{margin:0 0 6px}
 .modal .note{font-size:1em;color:var(--muted);margin-bottom:10px}
 .input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,.1);background:var(--secondary);color:var(--text)}
 .row{display:flex;gap:10px;flex-wrap:wrap}
-.choice{flex:1;border:1px solid rgba(0,0,0,.1);border-radius:10px;padding:12px;background:var(--secondary)}
+.choice{flex:1 1 260px;border:1px solid rgba(0,0,0,.1);border-radius:10px;padding:12px;background:var(--secondary)}
 .choice h3{margin:0 0 6px}
 .warn{background:#fef2f2;color:#991b1b;border:1px solid #fca5a5;padding:6px 8px;border-radius:8px;font-size:1em}
 .ok{background:#f0fdf4;color:#166534;border:1px solid #6ee7b7;padding:6px 8px;border-radius:8px}
@@ -188,6 +188,26 @@ a.inline{color:var(--accent);text-decoration:underline}
           <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
         </div>
+        <div class="choice">
+          <h3>Movement Scoring</h3>
+          <ol class="small" style="margin-top:6px">
+            <li>Visit <strong>ai.google.dev</strong> → API keys → create a key.</li>
+            <li>Paste the key below. Stored only in your browser.</li>
+          </ol>
+          <label class="small">Gemini API Key
+            <input id="geminiKey" class="input" type="password" placeholder="AIza...">
+          </label>
+          <label class="small" style="margin-top:8px">Model
+            <select id="geminiModel" class="input">
+              <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
+            </select>
+          </label>
+          <div class="row" style="margin-top:8px">
+            <button id="btnSaveGeminiKey" class="btn primary">Save Gemini Key</button>
+            <button id="btnForgetGeminiKey" class="btn secondary" title="Delete saved key">Remove</button>
+          </div>
+        </div>
       </div>
       <hr class="sep">
       <div class="row" style="justify-content:flex-end">
@@ -266,10 +286,12 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="controls">
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
+      <button id="btnAnalyzeMovement" class="btn secondary">Movement (Gemini)</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="movementFeedback" class="small" style="margin-top:8px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
     <div id="videoObjections" class="small" style="margin-top:10px"></div>
@@ -330,7 +352,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <p class="small">Use the tabs above to explore the different practice tools.</p>
     <ul class="small">
       <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> filter by topic and difficulty, click <em>New Drill</em> for a fresh scenario, pick an objection, then <em>Check</em>. Use <em>GPT Prompt</em> or <em>ChatGPT Argue</em> (with text or audio and role selection) to practice with AI; <em>Reset Stats</em> clears progress.</li>
-      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> choose the speech type, record, then view <em>Metrics</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing.</li>
+      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> choose the speech type, record, then view <em>Metrics</em> and the objection finder. Use <em>Re-score</em> or <em>Download</em> as needed. The <em>API Key / Engine</em> option enables ChatGPT-based scoring and testing and lets you save a Gemini key for <em>Movement</em> analysis.</li>
       <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> choose a type, add your notes and goals, then click <em>Ask ChatGPT to Draft</em> to get help writing new material; use <em>API Key / Engine</em> to pick the model.</li>
       <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> search by number or topic, then tap a rule to see the text and a plain-language <em>What it means</em> explanation.</li>
       <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> choose mode, rule set, question count and difficulty, then hit <em>Start Quiz</em>. Use <em>Next</em> to advance; the top shows your score and best.</li>
@@ -742,7 +764,7 @@ const PROMPT_TEMPLATE =
 `   from the transcript and offering concrete alternative wording or steps.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10>\n`+
+`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
@@ -768,11 +790,11 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10>\n`+
+`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for extremely brief or egregiously poor performances (e.g., one or two sentences).";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for extremely brief or egregiously poor performances (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70).";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -784,6 +806,10 @@ const PROMPT_TEMPLATE_RULING =
     if (wordCount < 15) {
       cleaned += '\n\n[Note: The response is very brief and may lack substantive reasoning; according to the rubric this should likely receive a low score.]';
     }
+    const sentenceCount = (cleaned.match(/[.!?](?:\s|$)/g) || []).length;
+    if (sentenceCount < 10) {
+      cleaned += '\n\n[Note: Fewer than 10 sentences; overall score must be below 3/10 (30/100).]';
+    }
     const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
     return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
   }
@@ -791,7 +817,7 @@ const PROMPT_TEMPLATE_RULING =
   function parseScoreResponse(text){
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
     const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore:/i);
-    const scoreMatch = text.match(/Score:\s*(\d+)/i);
+    const scoreMatch = text.match(/Score:\s*(\d+(?:\.\d+)?)/i);
     const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
     if(!scoreMatch || !explanationMatch){
@@ -839,7 +865,7 @@ var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600 };
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -961,7 +987,11 @@ EngineState = {
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
   set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
-  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
+  get geminiKey(){ return load('mtpl.geminiKey','') },
+  set geminiKey(v){ save('mtpl.geminiKey', v||'') },
+  get geminiModel(){ return load('mtpl.geminiModel','gemini-1.5-flash') },
+  set geminiModel(v){ save('mtpl.geminiModel', v||'gemini-1.5-flash') }
 };
 
 function renderModeBadge(){
@@ -989,7 +1019,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* Gateway wiring */
-function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
+function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; $('geminiKey').value=EngineState.geminiKey||''; $('geminiModel').value=EngineState.geminiModel; }
 function closeVideoGate(){ $('videoGate').style.display='none' }
 function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
 function attachVideoGateHandlers(){
@@ -1014,6 +1044,18 @@ function attachVideoGateHandlers(){
   $('btnForgetKey').addEventListener('click', ()=>{
     EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
     alert('Removed saved API key. Falling back to built-in scoring.');
+  });
+  $('btnSaveGeminiKey')?.addEventListener('click', ()=>{
+    const key=$('geminiKey').value.trim();
+    const model=$('geminiModel').value;
+    if(!key){ alert('Paste a Gemini API key.'); return; }
+    EngineState.geminiKey=key; EngineState.geminiModel=model;
+    closeVideoGate();
+    const s=$('videoStatus'); if(s) s.textContent='Gemini key saved. Use Movement for analysis.';
+  });
+  $('btnForgetGeminiKey')?.addEventListener('click', ()=>{
+    EngineState.geminiKey='';
+    const s=$('videoStatus'); if(s) s.textContent='Removed Gemini key.';
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
@@ -2010,8 +2052,24 @@ const VideoCoach=(function(){
   function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
   function tUpd(){ $('videoTimer').textContent=new Date(sec*1000).toISOString().substr(14,5)}
 
+  function blobToBase64(blob){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      // Data URLs may contain extra commas before the base64 payload (e.g. codec lists).
+      // Split on commas and take the last segment to ensure we return only the encoded data.
+      reader.onload=()=>{
+        const result = reader.result || '';
+        const b64 = result.split(',').pop() || '';
+        resolve(b64);
+      };
+      reader.onerror=reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
   async function startCamera(){
     uploaded=false; setStatus('Requesting camera/mic\u2026');
+    $('movementFeedback').innerHTML='';
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
     catch(e){ setStatus('Camera/mic error: '+e.message, true); return; }
@@ -2036,6 +2094,7 @@ const VideoCoach=(function(){
   // ---- Replace your current handleUpload with this version ----
   async function handleUpload(file){
     if(!file) return;
+    $('movementFeedback').innerHTML='';
     uploaded = true; lastVideoBlob = file;
 
     if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL = null; }
@@ -2279,6 +2338,45 @@ const VideoCoach=(function(){
     }
   }
 
+  async function analyzeMovement(){
+    if(!EngineState.geminiKey){
+      alert('Add a Gemini API key in “API Key / Engine”.');
+      return;
+    }
+    if(!lastVideoBlob){
+      alert('Record or upload a video first.');
+      return;
+    }
+    const transcript = $('videoTranscript').value.trim();
+    if(!transcript){
+      alert('Transcript required for movement analysis.');
+      return;
+    }
+    setStatus('Analyzing movement with Gemini…');
+    try{
+      const b64 = await blobToBase64(lastVideoBlob);
+      const model = EngineState.geminiModel || 'gemini-1.5-flash';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
+      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
+      const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
+      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:512}};
+      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!resp.ok){
+        const errTxt = await resp.text();
+        let msg = 'Gemini API error';
+        try{ msg = JSON.parse(errTxt).error?.message || msg; }catch(_){ if(errTxt) msg = errTxt; }
+        throw new Error(msg);
+      }
+      const data=await resp.json();
+      const text=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join('\n').trim();
+      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(text||'No feedback returned.').replace(/\n/g,'<br>')}</div>`;
+      setStatus('Movement analyzed by Gemini.');
+    }catch(e){
+      console.error(e);
+      setStatus('Gemini analysis failed: '+(e?.message||'error'), true);
+    }
+  }
+
   async function gptWrite(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
@@ -2315,6 +2413,7 @@ const VideoCoach=(function(){
     $('btnVideoStart').addEventListener('click',startCamera);
     $('btnStopRecording').addEventListener('click',stop);
     $('btnScoreVideo').addEventListener('click',scoreNow);
+    $('btnAnalyzeMovement')?.addEventListener('click', analyzeMovement);
     $('btnShowRubric')?.addEventListener('click',()=>{
       crit($('videoType').value);
       const r=$('videoRubricDetails'),c=$('videoCriteria');
