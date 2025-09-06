@@ -2055,7 +2055,13 @@ const VideoCoach=(function(){
   function blobToBase64(blob){
     return new Promise((resolve,reject)=>{
       const reader=new FileReader();
-      reader.onload=()=>resolve((reader.result||'').split(',')[1]||'');
+      // Data URLs may contain extra commas before the base64 payload (e.g. codec lists).
+      // Split on commas and take the last segment to ensure we return only the encoded data.
+      reader.onload=()=>{
+        const result = reader.result || '';
+        const b64 = result.split(',').pop() || '';
+        resolve(b64);
+      };
       reader.onerror=reject;
       reader.readAsDataURL(blob);
     });
