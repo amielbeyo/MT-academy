@@ -2357,9 +2357,9 @@ const VideoCoach=(function(){
       const b64 = await blobToBase64(lastVideoBlob);
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
-      const prompt = 'You are a mock trial performance coach. Analyze the speaker\u2019s movement and gestures in the video in relation to the transcript. Provide specific, actionable feedback referencing the transcript.';
+      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
-      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:256}};
+      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:512}};
       const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       if(!resp.ok){
         const errTxt = await resp.text();
@@ -2369,7 +2369,7 @@ const VideoCoach=(function(){
       }
       const data=await resp.json();
       const text=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join('\n').trim();
-      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(text||'No feedback returned.')}</div>`;
+      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(text||'No feedback returned.').replace(/\n/g,'<br>')}</div>`;
       setStatus('Movement analyzed by Gemini.');
     }catch(e){
       console.error(e);
