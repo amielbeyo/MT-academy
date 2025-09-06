@@ -2352,9 +2352,18 @@ const VideoCoach=(function(){
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
       const prompt = 'You are a mock trial performance coach. Analyze the speaker\u2019s movement and gestures in the video in relation to the transcript. Provide specific, actionable feedback referencing the transcript.';
-      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:lastVideoBlob.type||'video/mp4',data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:256}};
-      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(!resp.ok) throw new Error('Gemini API error');
+      const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
+      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:256}};
+      const controller = new AbortController();
+      const to = setTimeout(()=>controller.abort(),120000);
+      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:controller.signal});
+      clearTimeout(to);
+      if(!resp.ok){
+        const errTxt = await resp.text();
+        let msg = 'Gemini API error';
+        try{ msg = JSON.parse(errTxt).error?.message || msg; }catch(_){ if(errTxt) msg = errTxt; }
+        throw new Error(msg);
+      }
       const data=await resp.json();
       const text=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join('\n').trim();
       $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(text||'No feedback returned.')}</div>`;
