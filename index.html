@@ -2008,6 +2008,7 @@ const VideoCoach=(function(){
         <div>Volume</div><div>${escHTML(a.volRating)} (${a.avgVolume} dB)</div>
         <div>Tone</div><div>${escHTML(a.toneRating)} (${a.pitchVar} Hz)</div>
         <div>Clarity</div><div>${escHTML(a.clarityRating)}</div>
+        <div>Speed</div><div>${escHTML(a.speedRating)} (${a.wpm} WPM)</div>
       </div>`;
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
       if(a.points&&a.points.length){
@@ -2329,8 +2330,13 @@ const VideoCoach=(function(){
     const engine=score(type,transcript);
     engine.applyObjectionAdjustments(det);
     const result=engine.buildScores();
-    if(audio) result.audio=audio;
     const wpm=result.metrics?.wpm||0;
+    if(audio){
+      audio.wpm=wpm;
+      audio.speedRating=wpm<100?'Too slow':wpm>135?'Too fast':'Good';
+      audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+      result.audio=audio;
+    }
     if(wpm<95||wpm>125){
       result.total=Math.max(0,result.total-10);
     }else if(wpm>=100&&wpm<=115){
@@ -2361,6 +2367,11 @@ const VideoCoach=(function(){
 
   // Display-only metrics/highlights (do not affect scoring)
   const m = baseMetrics(transcript);
+  if(audio){
+    audio.wpm=m.wpm;
+    audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
+    audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+  }
   const det = detectObjections(type, transcript);
 
   const result = {
