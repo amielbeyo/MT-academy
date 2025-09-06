@@ -2007,7 +2007,12 @@ const VideoCoach=(function(){
       $('videoFeedback').innerHTML += `<div class="kv" style="margin-top:8px">
         <div>Volume</div><div>${escHTML(a.volRating)} (${a.avgVolume} dB)</div>
         <div>Tone</div><div>${escHTML(a.toneRating)} (${a.pitchVar} Hz)</div>
-      </div><div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
+        <div>Clarity</div><div>${escHTML(a.clarityRating)}</div>
+      </div>`;
+      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
+      if(a.points&&a.points.length){
+        $('videoFeedback').innerHTML += `<div class="small"><strong>Notable Voice Moments:</strong> ${escHTML(a.points.join('; '))}</div>`;
+      }
     }
     if(result.explanation){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
@@ -2080,13 +2085,18 @@ const VideoCoach=(function(){
       const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
       const audioBuffer=await audioCtx.decodeAudioData(arrayBuffer);
       const data=audioBuffer.getChannelData(0);
-      let sum=0,sumSq=0;
-      for(let i=0;i<data.length;i++){const v=data[i];sum+=Math.abs(v);sumSq+=v*v;}
-      const meanAmp=sum/data.length;
+      const sampleRate=audioBuffer.sampleRate;
+      let sumSq=0,claritySum=0;
+      for(let i=0;i<data.length;i++){
+        const v=data[i];
+        sumSq+=v*v;
+        if(i>0) claritySum+=Math.abs(v-data[i-1]);
+      }
       const rms=Math.sqrt(sumSq/data.length);
       const db=20*Math.log10(rms);
-      let varSum=0;for(let i=0;i<data.length;i++){const diff=Math.abs(data[i])-meanAmp;varSum+=diff*diff;}
-      const volVar=Math.sqrt(varSum/data.length);
+      const clarityScore=claritySum/data.length;
+      let clarityRating='Clear';
+      if(clarityScore<0.015) clarityRating='Muffled';
       function autoCorrelate(buf,sampleRate){
         let bestOff=-1,bestCorr=0;
         const maxSample=Math.min(buf.length,sampleRate);
@@ -2101,11 +2111,11 @@ const VideoCoach=(function(){
         }
         return (bestOff>0&&bestCorr>0)?sampleRate/bestOff:0;
       }
-      const step=Math.floor(audioBuffer.sampleRate/10);
+      const step=Math.floor(sampleRate/10);
       const pitches=[];
       for(let i=0;i+step*2<data.length;i+=step){
         const slice=data.slice(i,i+step);
-        const p=autoCorrelate(slice,audioBuffer.sampleRate);
+        const p=autoCorrelate(slice,sampleRate);
         if(p>50&&p<500) pitches.push(p);
       }
       const avgPitch=pitches.length?pitches.reduce((a,b)=>a+b,0)/pitches.length:0;
@@ -2120,7 +2130,44 @@ const VideoCoach=(function(){
       if(toneRating==='Too steady') tips.push('Add more pitch variety.');
       else if(toneRating==='Too much change') tips.push('Steady your tone.');
       else tips.push('Tone variation is good.');
-      return {avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),volRating,toneRating,tips:tips.join(' ')};
+      if(clarityRating!=='Clear') tips.push('Enunciate more for clarity.');
+
+      const points=[];
+      const segLen=sampleRate; // 1s segments
+      let prevSegPitch=null;
+      for(let start=0; start+segLen<=data.length; start+=segLen){
+        let sSumSq=0,sClarity=0;
+        for(let i=start;i<start+segLen;i++){
+          const v=data[i];
+          sSumSq+=v*v;
+          if(i>start) sClarity+=Math.abs(v-data[i-1]);
+        }
+        const segRms=Math.sqrt(sSumSq/segLen);
+        const segDb=20*Math.log10(segRms);
+        const time=start/sampleRate;
+        const tStr=new Date(time*1000).toISOString().substr(14,5);
+        if(segDb<-40) points.push(`${tStr} speak louder`);
+        else if(segDb>-10) points.push(`${tStr} speak softer`);
+
+        const localPitches=[];
+        for(let i=start;i+step<start+segLen && i+step*2<data.length;i+=step){
+          const slice=data.slice(i,i+step);
+          const p=autoCorrelate(slice,sampleRate);
+          if(p>50&&p<500) localPitches.push(p);
+        }
+        if(localPitches.length){
+          const segAvg=localPitches.reduce((a,b)=>a+b,0)/localPitches.length;
+          const segVar=Math.sqrt(localPitches.reduce((s,v)=>s+(v-segAvg)**2,0)/localPitches.length);
+          if(segVar<15) points.push(`${tStr} add pitch variety`);
+          else if(segVar>180) points.push(`${tStr} steady your tone`);
+          if(prevSegPitch!==null && Math.abs(segAvg-prevSegPitch)>50) points.push(`${tStr} voice trembling`);
+          prevSegPitch=segAvg;
+        }
+        const segClarity=sClarity/segLen;
+        if(segClarity<0.015) points.push(`${tStr} enunciate words`);
+      }
+
+      return {avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
     }catch(e){return null;}
   }
 
