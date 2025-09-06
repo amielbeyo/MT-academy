@@ -764,7 +764,7 @@ const PROMPT_TEMPLATE =
 `   from the transcript and offering concrete alternative wording or steps.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10>\n`+
+`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
@@ -790,11 +790,11 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10>\n`+
+`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for extremely brief or egregiously poor performances (e.g., one or two sentences).";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for extremely brief or egregiously poor performances (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70).";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -806,6 +806,10 @@ const PROMPT_TEMPLATE_RULING =
     if (wordCount < 15) {
       cleaned += '\n\n[Note: The response is very brief and may lack substantive reasoning; according to the rubric this should likely receive a low score.]';
     }
+    const sentenceCount = (cleaned.match(/[.!?](?:\s|$)/g) || []).length;
+    if (sentenceCount < 10) {
+      cleaned += '\n\n[Note: Fewer than 10 sentences; overall score must be below 3/10 (30/100).]';
+    }
     const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
     return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
   }
@@ -813,7 +817,7 @@ const PROMPT_TEMPLATE_RULING =
   function parseScoreResponse(text){
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
     const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore:/i);
-    const scoreMatch = text.match(/Score:\s*(\d+)/i);
+    const scoreMatch = text.match(/Score:\s*(\d+(?:\.\d+)?)/i);
     const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
     if(!scoreMatch || !explanationMatch){
@@ -2348,7 +2352,7 @@ const VideoCoach=(function(){
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
       const prompt = 'You are a mock trial performance coach. Analyze the speaker\u2019s movement and gestures in the video in relation to the transcript. Provide specific, actionable feedback referencing the transcript.';
-      const body = {contents:[{role:'user',parts:[{text:prompt},{inline_data:{mime_type:lastVideoBlob.type||'video/mp4',data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:256}};
+      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:lastVideoBlob.type||'video/mp4',data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:256}};
       const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       if(!resp.ok) throw new Error('Gemini API error');
       const data=await resp.json();
