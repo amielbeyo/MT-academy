@@ -2002,6 +2002,19 @@ const VideoCoach=(function(){
         <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
         <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
       </div>`;
+    if(result.audio){
+      const a=result.audio;
+      $('videoFeedback').innerHTML += `<div class="kv" style="margin-top:8px">
+        <div>Volume</div><div>${escHTML(a.volRating)} (${a.avgVolume} dB)</div>
+        <div>Tone</div><div>${escHTML(a.toneRating)} (${a.pitchVar} Hz)</div>
+        <div>Clarity</div><div>${escHTML(a.clarityRating)}</div>
+        <div>Speed</div><div>${escHTML(a.speedRating)} (${a.wpm} WPM)</div>
+      </div>`;
+      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
+      if(a.points&&a.points.length){
+        $('videoFeedback').innerHTML += `<div class="small"><strong>Notable Voice Moments:</strong> ${escHTML(a.points.join('; '))}</div>`;
+      }
+    }
     if(result.explanation){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
     }
@@ -2065,6 +2078,98 @@ const VideoCoach=(function(){
       reader.onerror=reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  async function analyzeVoice(blob){
+    try{
+      const arrayBuffer=await blob.arrayBuffer();
+      const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const audioBuffer=await audioCtx.decodeAudioData(arrayBuffer);
+      const data=audioBuffer.getChannelData(0);
+      const sampleRate=audioBuffer.sampleRate;
+      let sumSq=0,claritySum=0;
+      for(let i=0;i<data.length;i++){
+        const v=data[i];
+        sumSq+=v*v;
+        if(i>0) claritySum+=Math.abs(v-data[i-1]);
+      }
+      const rms=Math.sqrt(sumSq/data.length);
+      const db=20*Math.log10(rms);
+      const clarityScore=claritySum/data.length;
+      let clarityRating='Clear';
+      if(clarityScore<0.015) clarityRating='Muffled';
+      function autoCorrelate(buf,sampleRate){
+        let bestOff=-1,bestCorr=0;
+        const maxSample=Math.min(buf.length,sampleRate);
+        for(let off=50;off<sampleRate/2;off++){
+          let corr=0;
+          for(let i=0;i<maxSample;i++){
+            const v1=buf[i],v2=buf[i+off];
+            if(v1===undefined||v2===undefined) break;
+            corr+=v1*v2;
+          }
+          if(corr>bestCorr){bestCorr=corr;bestOff=off;}
+        }
+        return (bestOff>0&&bestCorr>0)?sampleRate/bestOff:0;
+      }
+      const step=Math.floor(sampleRate/10);
+      const pitches=[];
+      for(let i=0;i+step*2<data.length;i+=step){
+        const slice=data.slice(i,i+step);
+        const p=autoCorrelate(slice,sampleRate);
+        if(p>50&&p<500) pitches.push(p);
+      }
+      const avgPitch=pitches.length?pitches.reduce((a,b)=>a+b,0)/pitches.length:0;
+      const pitchVar=pitches.length?Math.sqrt(pitches.reduce((s,v)=>s+(v-avgPitch)**2,0)/pitches.length):0;
+      let volRating='Good';
+      if(db<-40) volRating='Too quiet'; else if(db>-10) volRating='Too loud';
+      let toneRating='Good';
+      if(pitchVar<20) toneRating='Too steady'; else if(pitchVar>150) toneRating='Too much change';
+      const tips=[];
+      if(volRating!=='Good') tips.push(volRating==='Too quiet'?'Speak louder.':'Speak softer.');
+      else tips.push('Volume level is good.');
+      if(toneRating==='Too steady') tips.push('Add more pitch variety.');
+      else if(toneRating==='Too much change') tips.push('Steady your tone.');
+      else tips.push('Tone variation is good.');
+      if(clarityRating!=='Clear') tips.push('Enunciate more for clarity.');
+
+      const points=[];
+      const segLen=sampleRate; // 1s segments
+      let prevSegPitch=null;
+      for(let start=0; start+segLen<=data.length; start+=segLen){
+        let sSumSq=0,sClarity=0;
+        for(let i=start;i<start+segLen;i++){
+          const v=data[i];
+          sSumSq+=v*v;
+          if(i>start) sClarity+=Math.abs(v-data[i-1]);
+        }
+        const segRms=Math.sqrt(sSumSq/segLen);
+        const segDb=20*Math.log10(segRms);
+        const time=start/sampleRate;
+        const tStr=new Date(time*1000).toISOString().substr(14,5);
+        if(segDb<-40) points.push(`${tStr} speak louder`);
+        else if(segDb>-10) points.push(`${tStr} speak softer`);
+
+        const localPitches=[];
+        for(let i=start;i+step<start+segLen && i+step*2<data.length;i+=step){
+          const slice=data.slice(i,i+step);
+          const p=autoCorrelate(slice,sampleRate);
+          if(p>50&&p<500) localPitches.push(p);
+        }
+        if(localPitches.length){
+          const segAvg=localPitches.reduce((a,b)=>a+b,0)/localPitches.length;
+          const segVar=Math.sqrt(localPitches.reduce((s,v)=>s+(v-segAvg)**2,0)/localPitches.length);
+          if(segVar<15) points.push(`${tStr} add pitch variety`);
+          else if(segVar>180) points.push(`${tStr} steady your tone`);
+          if(prevSegPitch!==null && Math.abs(segAvg-prevSegPitch)>50) points.push(`${tStr} voice trembling`);
+          prevSegPitch=segAvg;
+        }
+        const segClarity=sClarity/segLen;
+        if(segClarity<0.015) points.push(`${tStr} enunciate words`);
+      }
+
+      return {avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
+    }catch(e){return null;}
   }
 
   async function startCamera(){
@@ -2219,13 +2324,19 @@ const VideoCoach=(function(){
     }
   }
 
-  function scoreWithBuiltin(type, txt){
+  function scoreWithBuiltin(type, txt, audio){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
     const det=detectObjections(type,transcript);
     const engine=score(type,transcript);
     engine.applyObjectionAdjustments(det);
     const result=engine.buildScores();
     const wpm=result.metrics?.wpm||0;
+    if(audio){
+      audio.wpm=wpm;
+      audio.speedRating=wpm<100?'Too slow':wpm>135?'Too fast':'Good';
+      audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+      result.audio=audio;
+    }
     if(wpm<95||wpm>125){
       result.total=Math.max(0,result.total-10);
     }else if(wpm>=100&&wpm<=115){
@@ -2234,15 +2345,16 @@ const VideoCoach=(function(){
     renderReport(type,result,det);
     highlightTranscriptArea(type,det);
   }
-
-  function scoreNow(){
+  async function scoreNow(){
     const type=$('videoType').value||'opening';
     const raw=$('videoTranscript').value||'';
-  const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
+    let audio=null;
+    if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
 
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+    if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
-        scoreViaChatGPT(type, transcript).then(parsed=>{
+      scoreViaChatGPT(type, transcript).then(parsed=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
   const conf = RUBRICS[type];
 
@@ -2255,6 +2367,11 @@ const VideoCoach=(function(){
 
   // Display-only metrics/highlights (do not affect scoring)
   const m = baseMetrics(transcript);
+  if(audio){
+    audio.wpm=m.wpm;
+    audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
+    audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+  }
   const det = detectObjections(type, transcript);
 
   const result = {
@@ -2266,7 +2383,8 @@ const VideoCoach=(function(){
     metrics: m,
     compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
     qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
-    effWords: (transcript.trim().match(/\S+/g)||[]).length
+    effWords: (transcript.trim().match(/\S+/g)||[]).length,
+    audio
   };
 
   // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
@@ -2290,7 +2408,7 @@ const VideoCoach=(function(){
         $('videoStatus').textContent = msg;
 
         // IMPORTANT: Do NOT flip EngineState.mode
-        scoreWithBuiltin(type, raw);
+        scoreWithBuiltin(type, raw, audio);
         showProvenance('Built-in score used (ChatGPT not reached).', true);
 
         const badge = $('modeBadge');
@@ -2304,7 +2422,7 @@ const VideoCoach=(function(){
       });
       return;
     }
-    scoreWithBuiltin(type, raw);
+    scoreWithBuiltin(type, raw, audio);
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
   }
 
