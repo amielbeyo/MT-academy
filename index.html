@@ -753,7 +753,7 @@ Explicit allowance for brevity stops the model from downgrading concise, correct
 Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
 const PROMPT_TEMPLATE =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -769,15 +769,17 @@ const PROMPT_TEMPLATE =
 `6. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
 `7. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n\n`+
+`   from the transcript and offering concrete alternative wording or steps.\n`+
+`8. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
+`Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
 const PROMPT_TEMPLATE_RULING =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -794,15 +796,17 @@ const PROMPT_TEMPLATE_RULING =
 `7. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
 `8. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n\n`+
+`   from the transcript and offering concrete alternative wording or steps.\n`+
+`9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
+`Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score.";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -826,7 +830,8 @@ const PROMPT_TEMPLATE_RULING =
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
     const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore:/i);
     const scoreMatch = text.match(/Score:\s*(\d+(?:\.\d+)?)/i);
-    const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
+    const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nAssumptions?:|\nImprovements?:|\n?$)/i);
+    const assumptionsMatch = text.match(/Assumptions?:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
     if(!scoreMatch || !explanationMatch){
       throw new Error('Response did not match expected format');
@@ -836,6 +841,7 @@ const PROMPT_TEMPLATE_RULING =
       summary: summaryMatch ? summaryMatch[1].trim() : '',
       score: Number(scoreMatch[1]),
       explanation: explanationMatch[1].trim(),
+      assumptions: assumptionsMatch ? assumptionsMatch[1].trim() : '',
       improvement: improvementMatch ? improvementMatch[1].trim() : ''
     };
   }
@@ -1406,17 +1412,22 @@ function appendJudgeDecision(res){
   sum.innerHTML=`<strong>Summary:</strong> ${escHTML(res.summary)}`;
   div.appendChild(sum);
  }
- const score=document.createElement('div');
- score.innerHTML=`<strong>Score:</strong> ${escHTML(res.score)}`;
- div.appendChild(score);
- const explain=document.createElement('div');
- explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
- div.appendChild(explain);
- if(res.improvement){
+  const score=document.createElement('div');
+  score.innerHTML=`<strong>Score:</strong> ${escHTML(res.score)}`;
+  div.appendChild(score);
+  const explain=document.createElement('div');
+  explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
+  div.appendChild(explain);
+  if(res.assumptions){
+   const as=document.createElement('div');
+   as.innerHTML=`<strong>Assumptions:</strong> ${escHTML(res.assumptions)}`;
+   div.appendChild(as);
+  }
+  if(res.improvement){
   const improv=document.createElement('div');
   improv.innerHTML=`<strong>Improvements:</strong> ${escHTML(res.improvement)}`;
   div.appendChild(improv);
- }
+  }
  out.appendChild(div);
  out.scrollTop=out.scrollHeight;
 }
@@ -2692,8 +2703,8 @@ const CA_RULES=[
 
 /* State configuration */
 const STATES={
-  AZ:{name:'Arizona',abbr:'AZ',rules:AZ_RULES,judgePrompt:'You are an Arizona High School Mock Trial judge.',rubricMap:makeRubricMap('Arizona','AZ')},
-  CA:{name:'California',abbr:'CA',rules:CA_RULES,judgePrompt:'You are a California High School Mock Trial judge.',rubricMap:makeRubricMap('California','CA')}
+  AZ:{name:'Arizona',abbr:'AZ',rules:AZ_RULES,judgePrompt:'You are an impartial Arizona High School Mock Trial judge. Speak formally, cite relevant rules, and state any assumptions. Make your ruling precise and accurate.',rubricMap:makeRubricMap('Arizona','AZ')},
+  CA:{name:'California',abbr:'CA',rules:CA_RULES,judgePrompt:'You are an impartial California High School Mock Trial judge. Speak formally, cite relevant rules, and state any assumptions. Make your ruling precise and accurate.',rubricMap:makeRubricMap('California','CA')}
 };
 
 /* Rules Explorer (full) */
