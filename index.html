@@ -2141,6 +2141,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       else if(toneRating==='Too much change') tips.push('Steady your tone.');
       else tips.push('Tone variation is good.');
       if(clarityRating!=='Clear') tips.push('Enunciate more for clarity.');
+      tips.push('Use strategic pauses and vary your pace for emphasis.');
 
       const rawPoints=[];
       const segLen=sampleRate; // 1s segments
@@ -2215,16 +2216,52 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         }
       }
 
-      const points=rawPoints.map(pt=>{
-        const tStr=new Date(pt.time*1000).toISOString().substr(14,5);
-        let quote="";
-        if(pt.word) quote=` "${pt.word.trim()}"`;
-        else if(words.length){
-          const mid=pt.time+0.5;
-          const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
-          if(Math.abs(nearest.start-mid)<=1.5) quote=` "${nearest.word.trim()}"`;
+      rawPoints.sort((a,b)=>a.time-b.time);
+      const merged=[];
+      for(const pt of rawPoints){
+        const last=merged[merged.length-1];
+        if(last && pt.time-last.end<1){
+          last.end=pt.time;
+          if(pt.word) last.words.push(pt.word);
+          last.msgs.add(pt.msg);
+        }else{
+          merged.push({start:pt.time,end:pt.time,words:pt.word?[pt.word]:[],msgs:new Set([pt.msg])});
         }
-        return `${tStr}${quote} ${pt.msg}`;
+      }
+      const priority={'enunciate words':1,'voice trembling':2,'speaking too slow':3,'speaking too fast':4,'speak louder':5,'speak softer':6,'add pitch variety':7,'steady your tone':8};
+      const resolved=merged.map(g=>{const msgs=[...g.msgs].sort((a,b)=>(priority[a]||99)-(priority[b]||99));return {msg:msgs[0],start:g.start,end:g.end,words:g.words};});
+
+      const points=resolved.map(group=>{
+        let phrase="";
+        if(group.words.length){
+          phrase=group.words.map(w=>w.trim()).join(' ');
+        }else if(words.length){
+          const mid=group.start+0.5;
+          const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
+          if(Math.abs(nearest.start-mid)<=1.5) phrase=nearest.word.trim();
+        }
+        const quote=phrase?` "${phrase}"`:"";
+        const around=quote?` around${quote}`:"";
+        switch(group.msg){
+          case 'speak louder':
+            return `Speak louder${around} to project confidence.`;
+          case 'speak softer':
+            return `Speak softer${around} to create contrast.`;
+          case 'add pitch variety':
+            return `Add pitch variety${around} to keep the audience engaged.`;
+          case 'steady your tone':
+            return `Steady your tone${around} for a smoother delivery.`;
+          case 'voice trembling':
+            return `Pause here${around} and steady your voice.`;
+          case 'enunciate words':
+            return `Pause and enunciate${around} for clarity.`;
+          case 'speaking too fast':
+            return `Slow down here${around} to let the message land.`;
+          case 'speaking too slow':
+            return `Speed up here${around} to maintain energy.`;
+          default:
+            return `${group.msg}${around}.`;
+        }
       });
 
       const res={avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
