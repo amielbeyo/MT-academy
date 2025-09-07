@@ -1169,7 +1169,9 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
         const data=await resp.json();
         if(data?.text){
           const words=[];
-          if(Array.isArray(data.segments)){
+          if(Array.isArray(data.words)){
+            data.words.forEach(w=>{ if(w?.word) words.push({word:w.word,start:w.start,end:w.end}); });
+          } else if(Array.isArray(data.segments)){
             data.segments.forEach(seg=>{
               if(Array.isArray(seg.words)){
                 seg.words.forEach(w=>{ if(w?.word) words.push({word:w.word,start:w.start,end:w.end}); });
