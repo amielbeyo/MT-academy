@@ -1233,8 +1233,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
         temperature,
         max_output_tokens: max
       };
-      // The Responses API requires json_schema for structured output; to keep
-      // things simple across versions we don't request JSON here.
+      if (useJson) body.response_format = { type: 'json_object' };
     } else {
       // Classic Chat Completions for non-gpt-5 models
       url = 'https://api.openai.com/v1/chat/completions';
@@ -1290,8 +1289,8 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
   }
 
   try {
-    // For gpt-5 we don't request JSON; other models may
-    return await attempt(!isGpt5 && json);
+    // Attempt JSON if requested
+    return await attempt(json);
   } catch (e) {
     const msg = String(e?.message || '').toLowerCase();
     if (!isGpt5 && json && (e.status === 400 || msg.includes('response_format') || msg.includes('json'))) {
