@@ -2215,6 +2215,18 @@ const VideoCoach=(function(){
         }catch(_e){}
       }
 
+      if(!words.length){
+        const tEl=document.getElementById('videoTranscript');
+        const txt=tEl?tEl.value.trim():"";
+        if(txt){
+          const rawWords=txt.split(/\s+/).filter(Boolean);
+          const total=data.length/sampleRate;
+          const step=rawWords.length?total/rawWords.length:0;
+          words=rawWords.map((w,i)=>({word:w,start:i*step,end:(i+1)*step}));
+          transcript=txt;
+        }
+      }
+
       let wpm=0, speedRating='';
       if(words.length>1){
         const dur=words[words.length-1].end-words[0].start;
