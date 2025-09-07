@@ -916,8 +916,8 @@ function extractFirstJson(str){
 function makeRubricMap(stateName, abbr){
   return {
     opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
-  - Content & Law/Facts (40)
-  - Organization & Roadmap (25)
+  - Content & Law/Facts (32.5)
+  - Organization & Roadmap (32.5)
   - Persuasiveness (20)
   - Delivery (15)
   Rules: No new facts. The opening must not analyze the law or facts, draw conclusions, or otherwise argue; deduct points for any such argument. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme. Openings should begin with a theme and brief story, clearly state the side represented, explain the burden of proof, preview key witnesses and evidence, and end with the verdict requested.
@@ -1832,7 +1832,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   const RUBRICS={
-    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.40},{key:'organization',n:'Organization & Roadmap',w:0.25},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
+    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.325},{key:'organization',n:'Organization & Roadmap',w:0.325},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
     closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.35},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15}]},
     direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.30},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15}]},
     cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
