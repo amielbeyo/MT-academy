@@ -732,7 +732,7 @@ PENALTIES / GUARDRAILS
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score: single number 1–10 (respect the floors above).
+Score Range: two numbers from 1–10 (high minus low ≤ 1.0; respect the floors above).
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -760,7 +760,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must be no more than 1.0 apart.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -772,7 +772,7 @@ const PROMPT_TEMPLATE =
 `9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low ≤ 1.0>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -787,7 +787,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must be no more than 1.0 apart.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -801,7 +801,7 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low ≤ 1.0>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -828,18 +828,25 @@ const PROMPT_TEMPLATE_RULING =
 
   function parseScoreResponse(text){
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
-    const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore:/i);
-    const scoreMatch = text.match(/Score:\s*(\d+(?:\.\d+)?)/i);
+    const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore(?: Range)?:/i);
+    const scoreMatch = text.match(/Score(?: Range)?:\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
     const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nAssumptions?:|\nImprovements?:|\n?$)/i);
     const assumptionsMatch = text.match(/Assumptions?:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
     if(!scoreMatch || !explanationMatch){
       throw new Error('Response did not match expected format');
     }
+    const low = Number(scoreMatch[1]);
+    const high = scoreMatch[2] ? Number(scoreMatch[2]) : undefined;
+    const scoreStr = high !== undefined
+      ? `${Math.round(low * 10)}-${Math.round(high * 10)}`
+      : `${Math.round(low * 10)}`;
     return {
       ruling: rulingMatch ? rulingMatch[1] : null,
       summary: summaryMatch ? summaryMatch[1].trim() : '',
-      score: Number(scoreMatch[1]),
+      score: scoreStr,
+      scoreLow: low,
+      scoreHigh: high,
       explanation: explanationMatch[1].trim(),
       assumptions: assumptionsMatch ? assumptionsMatch[1].trim() : '',
       improvement: improvementMatch ? improvementMatch[1].trim() : ''
@@ -930,7 +937,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Discussed the burden of proof
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
@@ -949,7 +956,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Use of notes was minimal, effective, and purposeful
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
-  Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
@@ -967,7 +974,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -987,7 +994,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -1413,7 +1420,7 @@ function appendJudgeDecision(res){
   div.appendChild(sum);
  }
   const score=document.createElement('div');
-  score.innerHTML=`<strong>Score:</strong> ${escHTML(res.score)}`;
+  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
   div.appendChild(score);
   const explain=document.createElement('div');
   explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
@@ -2033,7 +2040,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
-        <div>Final Score</div><div><strong>${result.total}</strong> / 100</div>
+        <div>Final Score</div><div><strong>${result.range || result.total}</strong> / 100</div>
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
         <div>Fillers</div><div>${m.fillers}</div>
@@ -2369,14 +2376,46 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       // If not JSON, parse your "Summary/Score/Explanation" text format
       if (!payload) {
         const tParsed = ChatGPTScoring.parseScoreResponse(raw);
+        let avg = tParsed.scoreLow || 0;
+        let rangeStr = '';
+        if (typeof tParsed.scoreHigh === 'number') {
+          avg = (tParsed.scoreLow + tParsed.scoreHigh) / 2;
+          rangeStr = `${Math.round(tParsed.scoreLow * 10)}-${Math.round(tParsed.scoreHigh * 10)}`;
+        }
         payload = {
-          total: Math.round((Number(tParsed.score) || 0) * 10),
+          total: Math.round(avg * 10),
+          range: rangeStr,
           explanation: tParsed.explanation || "",
           notes: tParsed.improvement || "",
           categories: {},
           comments: {},
           qa: []
         };
+      }
+
+      if (payload && !payload.range && typeof payload.total_low === 'number' && typeof payload.total_high === 'number') {
+        const avg = (payload.total_low + payload.total_high) / 2;
+        payload.range = `${Math.round(payload.total_low)}-${Math.round(payload.total_high)}`;
+        if (!Number.isFinite(Number(payload.total))) payload.total = avg;
+      }
+      if (payload && payload.range) {
+        const parts = String(payload.range).split('-').map(Number);
+        if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
+          let [low, high] = parts;
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = (low + high) / 2;
+          }
+          // Clamp range to a maximum 10-point spread
+          const avg = Number(payload.total);
+          if (high - low > 10) {
+            low = Math.max(0, Math.round(avg - 5));
+            high = Math.min(100, Math.round(avg + 5));
+          } else {
+            low = Math.round(low);
+            high = Math.round(high);
+          }
+          payload.range = `${low}-${high}`;
+        }
       }
 
       const conf = RUBRICS[type] || { cats: [] };
@@ -2393,7 +2432,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           ? Math.max(0, Math.min(100, Number(payload.total)))
           : Math.round(conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0));
 
-      return { total, explanation: payload.explanation || "", notes: payload.notes || "", categories: cats, comments, qa: Array.isArray(payload.qa) ? payload.qa : [] };
+      return { total, range: payload.range || '', explanation: payload.explanation || "", notes: payload.notes || "", categories: cats, comments, qa: Array.isArray(payload.qa) ? payload.qa : [] };
     } finally {
       clearTimeout(t);
     }
@@ -2417,6 +2456,9 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
+    const low=Math.max(0,result.total-5);
+    const high=Math.min(100,result.total+5);
+    result.range=`${low}-${high}`;
     renderReport(type,result);
     $('videoStatus').textContent='Scored.';
   }
@@ -2467,7 +2509,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     compare: {lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
     qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
     effWords: (transcript.trim().match(/\S+/g)||[]).length,
-    audio
+    audio,
+    range: parsed.range || ''
   };
 
   // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
