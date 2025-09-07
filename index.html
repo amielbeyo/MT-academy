@@ -1144,6 +1144,47 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
     }
     return "";
   };
+
+  root.transcribeFileDetailed = async function transcribeFileDetailed(file, filenameHint){
+    const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
+    if(!key) return { text:"", words:[] };
+    const tryModels=["whisper-1","gpt-4o-transcribe"];
+    const mkForm=(f,name)=>{
+      const form=new FormData();
+      form.append("file",f,name||"audio.wav");
+      form.append("temperature","0");
+      form.append("response_format","verbose_json");
+      form.append("timestamp_granularities[]","word");
+      return form;
+    };
+    for(const m of tryModels){
+      try{
+        const form=mkForm(file,filenameHint||"audio.wav");
+        form.append("model",m);
+        const resp=await fetch("https://api.openai.com/v1/audio/transcriptions",{
+          method:"POST",
+          headers:{"Authorization":`Bearer ${key}`},
+          body:form
+        });
+        const data=await resp.json();
+        if(data?.text){
+          const words=[];
+          if(Array.isArray(data.segments)){
+            data.segments.forEach(seg=>{
+              if(Array.isArray(seg.words)){
+                seg.words.forEach(w=>{ if(w?.word) words.push({word:w.word,start:w.start,end:w.end}); });
+              }
+            });
+          }
+          return { text:data.text.trim(), words };
+        }
+        if(data?.error?.message) throw new Error(data.error.message);
+      }catch(_e){
+        // try next model
+      }
+    }
+    return { text:"", words:[] };
+  };
 })();
 </script>
 <script>
@@ -2131,7 +2172,7 @@ const VideoCoach=(function(){
       else tips.push('Tone variation is good.');
       if(clarityRating!=='Clear') tips.push('Enunciate more for clarity.');
 
-      const points=[];
+      const rawPoints=[];
       const segLen=sampleRate; // 1s segments
       let prevSegPitch=null;
       for(let start=0; start+segLen<=data.length; start+=segLen){
@@ -2144,9 +2185,8 @@ const VideoCoach=(function(){
         const segRms=Math.sqrt(sSumSq/segLen);
         const segDb=20*Math.log10(segRms);
         const time=start/sampleRate;
-        const tStr=new Date(time*1000).toISOString().substr(14,5);
-        if(segDb<-40) points.push(`${tStr} speak louder`);
-        else if(segDb>-10) points.push(`${tStr} speak softer`);
+        if(segDb<-40) rawPoints.push({time,msg:'speak louder'});
+        else if(segDb>-10) rawPoints.push({time,msg:'speak softer'});
 
         const localPitches=[];
         for(let i=start;i+step<start+segLen && i+step*2<data.length;i+=step){
@@ -2157,16 +2197,45 @@ const VideoCoach=(function(){
         if(localPitches.length){
           const segAvg=localPitches.reduce((a,b)=>a+b,0)/localPitches.length;
           const segVar=Math.sqrt(localPitches.reduce((s,v)=>s+(v-segAvg)**2,0)/localPitches.length);
-          if(segVar<15) points.push(`${tStr} add pitch variety`);
-          else if(segVar>180) points.push(`${tStr} steady your tone`);
-          if(prevSegPitch!==null && Math.abs(segAvg-prevSegPitch)>50) points.push(`${tStr} voice trembling`);
+          if(segVar<15) rawPoints.push({time,msg:'add pitch variety'});
+          else if(segVar>180) rawPoints.push({time,msg:'steady your tone'});
+          if(prevSegPitch!==null && Math.abs(segAvg-prevSegPitch)>50) rawPoints.push({time,msg:'voice trembling'});
           prevSegPitch=segAvg;
         }
         const segClarity=sClarity/segLen;
-        if(segClarity<0.015) points.push(`${tStr} enunciate words`);
+        if(segClarity<0.015) rawPoints.push({time,msg:'enunciate words'});
       }
 
-      return {avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
+      let words=[], transcript="";
+      if(typeof EngineState!=="undefined" && EngineState.openaiKey){
+        try{
+          const wav=await blobToWav(blob);
+          const t=await transcribeFileDetailed(wav,'audio.wav');
+          if(t){ transcript=t.text||""; words=Array.isArray(t.words)?t.words:[]; }
+        }catch(_e){}
+      }
+
+      let wpm=0, speedRating='';
+      if(words.length>1){
+        const dur=words[words.length-1].end-words[0].start;
+        if(dur>0){
+          wpm=words.length/(dur/60);
+          speedRating=wpm<100?'Too slow':wpm>135?'Too fast':'Good';
+          tips.push(speedRating==='Too slow'?'Increase your pace.':speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+        }
+      }
+
+      const points=rawPoints.map(pt=>{
+        const tStr=new Date(pt.time*1000).toISOString().substr(14,5);
+        const w=words.find(w=>pt.time>=w.start && pt.time<=w.end);
+        return w?`${tStr} "${w.word.trim()}" ${pt.msg}`:`${tStr} ${pt.msg}`;
+      });
+
+      const res={avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
+      if(words.length) res.words=words;
+      if(transcript) res.transcript=transcript;
+      if(wpm){ res.wpm=+wpm.toFixed(1); res.speedRating=speedRating; }
+      return res;
     }catch(e){return null;}
   }
 
@@ -2303,9 +2372,11 @@ const VideoCoach=(function(){
     const result=engine.buildScores();
     const wpm=result.metrics?.wpm||0;
     if(audio){
-      audio.wpm=wpm;
-      audio.speedRating=wpm<100?'Too slow':wpm>135?'Too fast':'Good';
-      audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+      if(!audio.wpm && wpm) audio.wpm=wpm;
+      if(audio.wpm){
+        audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
+        audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+      }
       result.audio=audio;
     }
     if(wpm<95||wpm>125){
@@ -2347,9 +2418,11 @@ const VideoCoach=(function(){
   // Display-only metrics/highlights (do not affect scoring)
   const m = baseMetrics(transcript);
   if(audio){
-    audio.wpm=m.wpm;
-    audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
-    audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+    if(!audio.wpm && m.wpm) audio.wpm=m.wpm;
+    if(audio.wpm){
+      audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
+      audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+    }
   }
   const det = detectObjections(type, transcript);
 
