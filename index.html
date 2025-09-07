@@ -1937,7 +1937,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return {buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
 
-    const isVeryShort=(effWords<10&&qM.qCount<2);
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
 
     let delivery=6;
@@ -2018,7 +2017,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
 
     let total=0; conf.cats.forEach(c=>{ total+=clamp(pack[c.key],1,10)*(c.w*10) }); total=Math.round(total);
-    if(isVeryShort) total=Math.min(total,25);
 
     return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
