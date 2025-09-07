@@ -754,9 +754,11 @@ Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutra
 
 const PROMPT_TEMPLATE =
 `You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments.\n\n`+
-`Below is a transcript of an argument or discussion.\n\n`+
+`Below is a transcript of an argument or discussion along with a high-quality exemplar and scoring criteria.\n\n`+
 `Transcript:\n{transcript}\n\n`+
+`Exemplar:\n{exemplar}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Criteria:\n{criteria}\n\n`+
 `Your task:\n`+
 `1. Read the entire transcript carefully from start to finish.\n`+
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
@@ -769,7 +771,8 @@ const PROMPT_TEMPLATE =
 `6. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
 `7. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n\n`+
+`   from the transcript and offering concrete alternative wording or steps.\n`+
+`8. Base your score strictly on the transcript and rubric; if information is insufficient, assign a low score rather than guessing.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
@@ -778,9 +781,11 @@ const PROMPT_TEMPLATE =
 
 const PROMPT_TEMPLATE_RULING =
 `You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments.\n\n`+
-`Below is a transcript of an argument or discussion.\n\n`+
+`Below is a transcript of an argument or discussion along with a high-quality exemplar and scoring criteria.\n\n`+
 `Transcript:\n{transcript}\n\n`+
+`Exemplar:\n{exemplar}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Criteria:\n{criteria}\n\n`+
 `Your task:\n`+
 `1. Read the entire transcript carefully from start to finish.\n`+
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
@@ -794,7 +799,8 @@ const PROMPT_TEMPLATE_RULING =
 `7. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
 `8. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n\n`+
+`   from the transcript and offering concrete alternative wording or steps.\n`+
+`9. Base your score strictly on the transcript and rubric; if information is insufficient, assign a low score rather than guessing.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
@@ -802,9 +808,8 @@ const PROMPT_TEMPLATE_RULING =
 `Explanation: <short paragraph explaining the score>\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score.";
-
-  function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Do not guess or fabricate scores; justify every point using the transcript and rubric.";
+  function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, exemplar='', criteria=''){
     let cleaned = transcript.trim();
     const lowered = cleaned.toLowerCase();
     if (NON_ANSWER_PATTERNS.some(r => r.test(lowered))) {
@@ -819,7 +824,11 @@ const PROMPT_TEMPLATE_RULING =
       cleaned += '\n\n[Note: Fewer than 10 sentences; overall score must be below 3/10 (30/100).]';
     }
     const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
-    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
+    return tmpl
+      .replace('{transcript}', cleaned)
+      .replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric)
+      .replace('{exemplar}', exemplar || 'N/A')
+      .replace('{criteria}', criteria || 'N/A');
   }
 
   function parseScoreResponse(text){
@@ -1827,6 +1836,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
   };
 
+  const EXEMPLARS = {
+    opening: `Ladies and gentlemen of the jury, the evidence will show the defendant acted in self-defense. We will present testimony from eyewitness Jordan Smith and forensic expert Dr. Lee to prove our case. At the end of this trial, we will ask you to find the defendant not guilty.`,
+    closing: `Members of the jury, the facts are clear. The defendant ignored multiple safety warnings, leading to the plaintiff's injuries. When you weigh the evidence, justice demands a verdict for the plaintiff.`,
+    direct: `Q: Please state your name for the record.\nA: Jordan Smith.\nQ: Where were you on the night of May 5th?\nA: I was at the Corner Cafe near the window.\nQ: What did you observe?\nA: I saw the defendant enter and argue with the waiter.`,
+    cross: `Q: You were more than fifty feet away when you claim to have seen the incident, correct?\nA: Yes.\nQ: And it was dark outside, wasn't it?\nA: It was evening.\nQ: So your view was obstructed and lighting was poor?\nA: I suppose so.`
+  };
+
   function baseMetrics(text){
     const words=(text||'').trim().split(/\s+/).filter(Boolean);
     const wordCount=words.length;
@@ -2272,7 +2288,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   function buildChatGPTPrompt(type, transcript){
     const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
     const rubric = rubricMap[type] || rubricMap.opening;
-    return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
+    const exemplar = EXEMPLARS[type] || '';
+    const conf = RUBRICS[type] || {cats:[]};
+    const criteria = conf.cats.map(c=>`${c.n} (${(c.w*100).toFixed(0)}%)`).join('\n');
+    return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric, exemplar, criteria);
   }
 
   function buildChatGPTMessages(type, transcript){
