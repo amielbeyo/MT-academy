@@ -657,6 +657,9 @@ const MT_SCORING = (() => {
 })();
 </script>
 <script>
+// Fallback stub to prevent undefined-reference errors
+function isVeryShort(){ return false; }
+
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
   return { max_tokens: maxTokens };
