@@ -915,7 +915,7 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores but not hesitating to award a 9, 10, 90, or 100 when clearly earned. Categories/weights:
   - Content & Law/Facts (32.5)
   - Organization & Roadmap (32.5)
   - Persuasiveness (20)
@@ -931,7 +931,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
   Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores but willing to give a 9, 10, 90, or 100 for outstanding work. Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
   - Refutation & Rebuttal (15)
@@ -950,7 +950,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
   Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores yet granting a 9, 10, 90, or 100 when fully justified. Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
@@ -968,7 +968,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores but ready to award a 9, 10, 90, or 100 when performance truly excels. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
