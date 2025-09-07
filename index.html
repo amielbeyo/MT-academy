@@ -913,7 +913,7 @@ function makeRubricMap(stateName, abbr){
   - Organization & Roadmap (25)
   - Persuasiveness (20)
   - Delivery (15)
-  Rules: No new facts. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme.
+  Rules: No new facts. The opening must not analyze the law or facts, draw conclusions, or otherwise argue; deduct points for any such argument. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme.
   Evaluate using this checklist:
   \u25a1 Provided a case overview and story
   \u25a1 The theme/theory of the case was identified
@@ -921,7 +921,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Provided a clear and concise description of their team\u2019s evidence and side of the case
   \u25a1 Stated the relief or verdict requested
   \u25a1 Discussed the burden of proof
-  \u25a1 Presentation was non-argumentative; did not include improper statements or assume facts not in evidence
+  \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
   Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
@@ -930,13 +930,13 @@ function makeRubricMap(stateName, abbr){
   - Refutation & Rebuttal (15)
   - Persuasiveness (15)
   - Delivery (15)
-  Consider instructions, burden, element-by-element, addressing opponent ("they said...").
+  Consider instructions, burden, element-by-element, addressing opponent ("they said..."). Closings must argue by applying the law to the facts and urging the verdict; deduct points if they merely summarize without analysis.
   Evaluate using this checklist:
   \u25a1 Theme/theory reiterated in closing argument
   \u25a1 Summarized the evidence
   \u25a1 Emphasized the supporting points of their own case and mistakes and weaknesses of the opponent\u2019s case
   \u25a1 Concentrated on the important, not the trivial
-  \u25a1 Applied the relevant law
+  \u25a1 Applied the relevant law and tied it to the facts, urging the requested verdict
   \u25a1 Discussed burden of proof
   \u25a1 Did not discuss evidence that was not included in the trial presentation
   \u25a1 Overall, the closing statement was persuasive
