@@ -304,6 +304,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnWriteChangeEngine" class="btn secondary" title="Add or change API key">API Key / Engine</button>
     </div>
     <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
+    <div id="writeExemplar" class="small" style="margin-top:8px"></div>
   </section>
 
   <!-- Rules -->
@@ -913,7 +914,7 @@ function makeRubricMap(stateName, abbr){
   - Organization & Roadmap (25)
   - Persuasiveness (20)
   - Delivery (15)
-  Rules: No new facts. The opening must not analyze the law or facts, draw conclusions, or otherwise argue; deduct points for any such argument. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme.
+  Rules: No new facts. The opening must not analyze the law or facts, draw conclusions, or otherwise argue; deduct points for any such argument. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme. Openings should begin with a theme and brief story, clearly state the side represented, explain the burden of proof, preview key witnesses and evidence, and end with the verdict requested.
   Evaluate using this checklist:
   \u25a1 Provided a case overview and story
   \u25a1 The theme/theory of the case was identified
@@ -1753,12 +1754,7 @@ const VideoCoach=(function(){
       lastVideoBlob=null;
 
   const EXEMPLARS={
-    opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
-      the defendant chose speed over safety. You will hear from Officer Diaz, who clocked
-      62 in a 35 and recovered debris matching the defendant\u2019s bumper. You will see Exhibit 7,
-      a diagram placing the defendant's car in the wrong lane. We accept the burden by a preponderance
-      of the evidence. Our roadmap is simple: first, duty; second, breach; third, causation and damages.
-      At the end, we will ask you to return a verdict finding liability for negligence.`},
+    opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. On June 12th, the defendant's decision to speed turned a quiet intersection into a collision. I represent the plaintiff, Jordan Miles. We accept the burden to prove negligence by a preponderance of the evidence. You will hear from Officer Diaz, who clocked 62 in a 35 and recovered debris matching the defendant's bumper. You will see Exhibit 7, a diagram placing the defendant's car in the wrong lane. Our roadmap is simple: first, duty; second, breach; third, causation and damages. At the end, we will ask you to return a verdict finding the defendant liable for negligence.`,guide:`1. Theme & Story \u2013 Begin with a central theme and a brief, illustrative story.\n2. Position \u2013 Clearly state which side you represent.\n3. Burden of Proof \u2013 Explain the applicable standard and who carries it.\n4. Witnesses & Evidence \u2013 Preview the key witnesses and evidence.\n5. Desired Verdict \u2013 Conclude by emphasizing the verdict you are seeking.`},
     closing:{title:"Closing Exemplar",text:`Theme returned: choices have consequences. Apply the law the judge gave you to the facts.
       Element by element: Duty is undisputed. Breach\u2014the speed and lane position from Exhibit 7 and Officer Diaz.
       Causation\u2014the skid analysis from Dr. Shaw. Damages\u2014hospital bills and lost wages.
@@ -2545,6 +2541,13 @@ const VideoCoach=(function(){
     }
   }
 
+  function updateWriteExemplar(){
+    const type=$('writeType').value;
+    const guide=EXEMPLARS[type]?.guide;
+    const div=$('writeExemplar');
+    if(div) div.textContent=guide||'';
+  }
+
   function wire(){
     $('btnVideoStart').addEventListener('click',startCamera);
     $('btnStopRecording').addEventListener('click',stop);
@@ -2561,6 +2564,8 @@ const VideoCoach=(function(){
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
+    $('writeType').addEventListener('change', updateWriteExemplar);
+    updateWriteExemplar();
     renderModeBadge();
     tUpd(); crit('opening');
     setStatus('Tip: some browsers block camera in embedded previews.');
