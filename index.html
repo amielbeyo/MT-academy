@@ -274,8 +274,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
       <button id="btnVideoStart" class="btn primary">Start Recording</button>
       <button id="btnStopRecording" class="btn secondary">Stop</button>
-      <input id="videoFile" type="file" accept="audio/*,video/*" style="display:none">
-      <button id="btnUploadVideo" class="btn secondary">Upload</button>
       <button id="btnPlayRecording" class="btn secondary">Play</button>
       <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
       <span>Timer: <span id="videoTimer">00:00</span></span>
@@ -1693,7 +1691,7 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
-      uploaded=false, uploadedURL=null, lastVideoBlob=null;
+      lastVideoBlob=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. Today, the evidence will show that on June 12th,
@@ -2173,7 +2171,7 @@ const VideoCoach=(function(){
   }
 
   async function startCamera(){
-    uploaded=false; setStatus('Requesting camera/mic\u2026');
+    setStatus('Requesting camera/mic\u2026');
     $('movementFeedback').innerHTML='';
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
     try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
@@ -2191,58 +2189,6 @@ const VideoCoach=(function(){
         recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
       } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
     }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
-  }
-
-  // ---- Drop-in: direct transcription of uploaded file (with fallback) ----
-  // transcribeFile and blobToWav are now provided by global helpers
-
-  // ---- Replace your current handleUpload with this version ----
-  async function handleUpload(file){
-    if(!file) return;
-    $('movementFeedback').innerHTML='';
-    uploaded = true; lastVideoBlob = file;
-
-    if(uploadedURL){ URL.revokeObjectURL(uploadedURL); uploadedURL = null; }
-    uploadedURL = URL.createObjectURL(file);
-
-    const v = $('videoPreview');
-    v.srcObject = null; v.src = uploadedURL; v.controls = true;
-    v.onloadedmetadata = () => { sec = Math.round(v.duration || 0); tUpd(); };
-    v.play().catch(()=>{});
-
-    $('btnDownloadRecording').href = uploadedURL;
-    $('btnDownloadRecording').download = file.name || 'speech.webm';
-    $('btnPlayRecording').onclick = ()=>{ const pv=$('videoPreview'); pv.srcObject=null; pv.src=uploadedURL; pv.controls=true; pv.play().catch(()=>{}); };
-
-    $('btnVideoStart').disabled = true;
-    $('btnStopRecording').disabled = true;
-    if(timer){ clearInterval(timer); timer = null; }
-
-    setStatus('Transcribing uploaded video…');
-
-    // 1) Directly send the video file (OpenAI accepts common containers)
-    let text = await transcribeFile(file, file.name);
-
-    // 2) Fallback: extract WAV, then transcribe
-    if(!text){
-      try{
-        const wav = await blobToWav(file);
-        text = await transcribeFile(wav, (file.name || 'audio')+'.wav');
-      }catch(e){
-        setStatus('Audio extraction error: ' + e.message, true);
-      }
-    }
-
-    if(text){
-      $('videoTranscript').value = text;
-      setStatus('Transcribed uploaded video. Scoring…');
-      setTimeout(scoreNow, 200);
-    }else{
-      setStatus('Uploaded video ready. Add API key or paste your own transcript to score.', true);
-    }
-
-    $('btnVideoStart').disabled = false;
-    $('btnStopRecording').disabled = true;
   }
 
   function stop(){
@@ -2462,7 +2408,7 @@ const VideoCoach=(function(){
       return;
     }
     if(!lastVideoBlob){
-      alert('Record or upload a video first.');
+      alert('Record a video first.');
       return;
     }
     const transcript = $('videoTranscript').value.trim();
@@ -2538,8 +2484,6 @@ const VideoCoach=(function(){
       const show=r.style.display==='none'&&c.style.display==='none';
       r.style.display=c.style.display=show?'block':'none';
     });
-    $('videoFile').addEventListener('change',e=> handleUpload(e.target.files&&e.target.files[0]));
-    $('btnUploadVideo').addEventListener('click', () => $('videoFile').click());
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
