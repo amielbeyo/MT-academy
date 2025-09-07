@@ -1225,6 +1225,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     let url, body;
 
     if (isGpt5) {
+      // Use Responses API with "input_text" chunks
       url = 'https://api.openai.com/v1/responses';
       body = {
         model,
@@ -1232,11 +1233,10 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
         temperature,
         max_output_tokens: max
       };
-      // ✅ Request JSON from GPT-5 when the caller asked for it
-      if (useJson) {
-        body.response_format = { type: 'json_object' };
-      }
+      // The Responses API requires json_schema for structured output; to keep
+      // things simple across versions we don't request JSON here.
     } else {
+      // Classic Chat Completions for non-gpt-5 models
       url = 'https://api.openai.com/v1/chat/completions';
       body = {
         model,
@@ -1290,8 +1290,8 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
   }
 
   try {
-    // ✅ Now we *do* pass json=true through to GPT-5 as well
-    return await attempt(json);
+    // For gpt-5 we don't request JSON; other models may
+    return await attempt(!isGpt5 && json);
   } catch (e) {
     const msg = String(e?.message || '').toLowerCase();
     if (!isGpt5 && json && (e.status === 400 || msg.includes('response_format') || msg.includes('json'))) {
