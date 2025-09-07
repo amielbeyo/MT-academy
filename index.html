@@ -2017,7 +2017,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
 
     let total=0; conf.cats.forEach(c=>{ total+=clamp(pack[c.key],1,10)*(c.w*10) }); total=Math.round(total);
-    if(isVeryShort) total=Math.min(total,25);
 
     return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
