@@ -2216,16 +2216,30 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         }
       }
 
-      const points=rawPoints.map(pt=>{
-        let quote="";
-        if(pt.word) quote=` "${pt.word.trim()}"`;
-        else if(words.length){
-          const mid=pt.time+0.5;
-          const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
-          if(Math.abs(nearest.start-mid)<=1.5) quote=` "${nearest.word.trim()}"`;
+      rawPoints.sort((a,b)=>a.time-b.time);
+      const merged=[];
+      for(const pt of rawPoints){
+        const last=merged[merged.length-1];
+        if(last && last.msg===pt.msg && pt.time-last.end<1){
+          last.end=pt.time;
+          if(pt.word) last.words.push(pt.word);
+        }else{
+          merged.push({msg:pt.msg,start:pt.time,end:pt.time,words:pt.word?[pt.word]:[]});
         }
+      }
+
+      const points=merged.map(group=>{
+        let phrase="";
+        if(group.words.length){
+          phrase=group.words.map(w=>w.trim()).join(' ');
+        }else if(words.length){
+          const mid=group.start+0.5;
+          const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
+          if(Math.abs(nearest.start-mid)<=1.5) phrase=nearest.word.trim();
+        }
+        const quote=phrase?` "${phrase}"`:"";
         const around=quote?` around${quote}`:"";
-        switch(pt.msg){
+        switch(group.msg){
           case 'speak louder':
             return `Speak louder${around} to project confidence.`;
           case 'speak softer':
@@ -2243,7 +2257,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           case 'speaking too slow':
             return `Speed up here${around} to maintain energy.`;
           default:
-            return `${pt.msg}${around}.`;
+            return `${group.msg}${around}.`;
         }
       });
 
