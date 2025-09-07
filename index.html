@@ -2227,8 +2227,12 @@ const VideoCoach=(function(){
 
       const points=rawPoints.map(pt=>{
         const tStr=new Date(pt.time*1000).toISOString().substr(14,5);
-        const w=words.find(w=>pt.time>=w.start && pt.time<=w.end);
-        return w?`${tStr} "${w.word.trim()}" ${pt.msg}`:`${tStr} ${pt.msg}`;
+        let quote="";
+        if(words.length){
+          let nearest=words.reduce((a,b)=>Math.abs(b.start-pt.time)<Math.abs(a.start-pt.time)?b:a);
+          if(Math.abs(nearest.start-pt.time)<=1) quote=` "${nearest.word.trim()}"`;
+        }
+        return `${tStr}${quote} ${pt.msg}`;
       });
 
       const res={avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
