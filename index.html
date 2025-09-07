@@ -160,7 +160,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger.</li>
+            <li>Select a model. “gpt-4o” is recommended.</li>
           </ol>
           <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
           <label class="small">OpenAI API Key
@@ -169,8 +169,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <div class="row" style="margin-top:8px">
             <label class="small" style="flex:1">Model
               <select id="openaiModel" class="input">
-                <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
-                <option value="gpt-4o">gpt-4o (better)</option>
+                <option value="gpt-4o">gpt-4o</option>
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
@@ -361,7 +360,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
       <li>In this app, click the “API Key” or “API Key / Engine” button.</li>
       <li>Paste your key and choose a model. The key is stored only in your browser.</li>
-        <li>Expect roughly $0.01 per short scoring request with <em>gpt‑4o‑mini</em>, so a $5 deposit covers around 500 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
     </ol>
   </section>
   <!-- Contact -->
@@ -863,7 +861,7 @@ var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -982,8 +980,8 @@ EngineState = {
   set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
-  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o') },
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
   get geminiKey(){ return load('mtpl.geminiKey','') },
@@ -1120,7 +1118,7 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
     const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
     if(!key) return "";
 
-    const tryModels = ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"];
+    const tryModels = ["whisper-1", "gpt-4o-transcribe"];
     const mkForm = (f, name) => {
       const form = new FormData();
       form.append("file", f, name || "audio.wav");
@@ -1392,7 +1390,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,250);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
@@ -1482,7 +1480,7 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
+    const model=EngineState.openaiModel||'gpt-4o';
     const tokenParam=chatTokenParam(model,150);
     const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1505,7 +1503,7 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,150);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1528,7 +1526,14 @@ function gptRecord(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   // Prefer OpenAI transcription when an API key is available
   if(EngineState.openaiKey && navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-   navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}}).then(stream=>{
+   const getMicStream = async () => {
+     try {
+       return await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}});
+     } catch (_) {
+       return navigator.mediaDevices.getUserMedia({audio:true});
+     }
+   };
+   getMicStream().then(stream=>{
      gptRecStream=stream;
      try{
        const types=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus','audio/mpeg'];
@@ -1652,7 +1657,7 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel || 'gpt-4o';
       const tokenParam = chatTokenParam(model,400);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
@@ -1870,18 +1875,13 @@ const VideoCoach=(function(){
     const qM=questionMetrics(text,sec);
 
     const effWords=effectiveWordCount(text);
-    const noSpeech=isEffectivelyEmpty(text)||(effWords<3&&qM.qCount===0);
+    const noSpeech = isEffectivelyEmpty(text) || effWords < 5;
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
-      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;}
-      else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;}
-      else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;}
-      else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;}
-      let total=0; conf.cats.forEach(c=>{ total+=1*(c.w*10) }); total=Math.round(total);
-      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
+      conf.cats.forEach(c=>{ pack[c.key]=0; });
+      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
 
-    const isVeryShort=(effWords<10&&qM.qCount<2);
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
 
     let delivery=6;
@@ -2174,21 +2174,39 @@ const VideoCoach=(function(){
     setStatus('Requesting camera/mic\u2026');
     $('movementFeedback').innerHTML='';
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
-    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
-    catch(e){ setStatus('Camera/mic error: '+e.message, true); return; }
-    const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4'];
+    let hasAudio=true, hasVideo=true;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    }catch(e){
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({video:true});
+        hasAudio=false;
+      }catch(e2){
+        try{
+          stream=await navigator.mediaDevices.getUserMedia({audio:true});
+          hasVideo=false; hasAudio=true;
+        }catch(e3){ setStatus('Camera/mic error: '+e3.message, true); return; }
+      }
+    }
+    if(hasVideo){ $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(_){}} else { $('videoPreview').srcObject=null; }
+    const types= hasVideo
+       ? (hasAudio?['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4']
+                  :['video/webm;codecs=vp9','video/webm;codecs=vp8','video/mp4'])
+       : ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mpeg'];
     const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
     chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message, true); rec=null; }
-    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||'video/webm'; const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download='speech.'+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
+    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':type.includes('wav')?'wav':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download=(hasVideo?'speech.':'audio.')+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
-    try{
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
-        recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
-        recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
-      } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
-    }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; $('btnAnalyzeMovement').disabled=!hasVideo; setStatus(hasVideo?(hasAudio?'Recording\u2026':'Recording (no mic)\u2026'):'Recording (audio only)\u2026');
+    if(hasAudio){
+      try{
+        const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
+          recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
+          recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
+        } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
+      }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+    }
   }
 
   function stop(){
@@ -2221,8 +2239,15 @@ const VideoCoach=(function(){
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey) throw new Error("no_key");
-    const model = EngineState.openaiModel || "gpt-4o-mini";
+    const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
+
+    const eff = effectiveWordCount(transcript);
+    if(eff < 5){
+      const conf = RUBRICS[type] || {cats:[]};
+      const cats = {}; conf.cats.forEach(c=>{ cats[c.key]=0; });
+      return { total:0, explanation:'Transcript too short to score.', notes:'', categories: cats, comments:{}, qa:[] };
+    }
 
     const messages = [{ role: "user", content: buildChatGPTPrompt(type, transcript) }];
 
@@ -2297,6 +2322,14 @@ const VideoCoach=(function(){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
     let audio=null;
     if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
+
+    const eff = effectiveWordCount(transcript);
+    if(eff < 5){
+      $('videoStatus').textContent='Transcript too short to score.';
+      scoreWithBuiltin(type, raw, audio);
+      showProvenance('Transcript too short; score set to 0.', true);
+      return;
+    }
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
@@ -2384,7 +2417,7 @@ const VideoCoach=(function(){
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4o';
     try{
       const txt = await callOpenAIChat({
         messages: [
@@ -2407,7 +2440,7 @@ const VideoCoach=(function(){
       alert('Add a Gemini API key in “API Key / Engine”.');
       return;
     }
-    if(!lastVideoBlob){
+    if(!lastVideoBlob || !lastVideoBlob.type.startsWith('video/')){
       alert('Record a video first.');
       return;
     }
@@ -2457,7 +2490,7 @@ const VideoCoach=(function(){
     ];
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
+      const model=EngineState.openaiModel||'gpt-4o';
       const tokenParam=chatTokenParam(model,maxTokens);
       const resp=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
