@@ -2223,12 +2223,21 @@ const VideoCoach=(function(){
           speedRating=wpm<100?'Too slow':wpm>135?'Too fast':'Good';
           tips.push(speedRating==='Too slow'?'Increase your pace.':speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
         }
+        for(let i=0;i<words.length-1;i++){
+          const gap=words[i+1].start-words[i].start;
+          if(gap>0){
+            const wpmLocal=60/gap;
+            if(wpmLocal>180) rawPoints.push({time:words[i].start,msg:'speaking too fast',word:words[i].word});
+            else if(wpmLocal<120) rawPoints.push({time:words[i].start,msg:'speaking too slow',word:words[i].word});
+          }
+        }
       }
 
       const points=rawPoints.map(pt=>{
         const tStr=new Date(pt.time*1000).toISOString().substr(14,5);
         let quote="";
-        if(words.length){
+        if(pt.word) quote=` "${pt.word.trim()}"`;
+        else if(words.length){
           const mid=pt.time+0.5;
           const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
           if(Math.abs(nearest.start-mid)<=1.5) quote=` "${nearest.word.trim()}"`;
