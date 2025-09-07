@@ -160,7 +160,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <ol class="small" style="margin-top:6px">
             <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
             <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o-mini” is cost-effective; “gpt-4o” is stronger.</li>
+            <li>Select a model. “gpt-4o” is recommended.</li>
           </ol>
           <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
           <label class="small">OpenAI API Key
@@ -169,8 +169,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <div class="row" style="margin-top:8px">
             <label class="small" style="flex:1">Model
               <select id="openaiModel" class="input">
-                <option value="gpt-4o-mini">gpt-4o-mini (cheaper)</option>
-                <option value="gpt-4o">gpt-4o (better)</option>
+                <option value="gpt-4o">gpt-4o</option>
               </select>
             </label>
             <label class="small" style="flex:1">Max tokens
@@ -361,7 +360,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
       <li>In this app, click the “API Key” or “API Key / Engine” button.</li>
       <li>Paste your key and choose a model. The key is stored only in your browser.</li>
-        <li>Expect roughly $0.01 per short scoring request with <em>gpt‑4o‑mini</em>, so a $5 deposit covers around 500 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
+        <li>Expect roughly $0.03 per short scoring request with <em>gpt‑4o</em>, so a $5 deposit covers around 150 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
     </ol>
   </section>
   <!-- Contact -->
@@ -863,7 +862,7 @@ var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o-mini', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -982,8 +981,8 @@ EngineState = {
   set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
-  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o-mini') },
-  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o-mini') },
+  get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
+  set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o') },
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
   get geminiKey(){ return load('mtpl.geminiKey','') },
@@ -1120,7 +1119,7 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
     const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
     if(!key) return "";
 
-    const tryModels = ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"];
+    const tryModels = ["whisper-1", "gpt-4o-transcribe"];
     const mkForm = (f, name) => {
       const form = new FormData();
       form.append("file", f, name || "audio.wav");
@@ -1392,7 +1391,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,250);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
     method:'POST',
@@ -1482,7 +1481,7 @@ Task:
   gptSendLocked=false;
   updateGPTSend();
    try{
-    const model=EngineState.openaiModel||'gpt-4o-mini';
+    const model=EngineState.openaiModel||'gpt-4o';
     const tokenParam=chatTokenParam(model,150);
     const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1505,7 +1504,7 @@ Task:
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
   try{
-   const model=EngineState.openaiModel||'gpt-4o-mini';
+   const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,150);
    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
      method:'POST',
@@ -1652,7 +1651,7 @@ Scoring rule:
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
     try{
-      const model = EngineState.openaiModel || 'gpt-4o-mini';
+      const model = EngineState.openaiModel || 'gpt-4o';
       const tokenParam = chatTokenParam(model,400);
       const resp = await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
@@ -2221,7 +2220,7 @@ const VideoCoach=(function(){
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey) throw new Error("no_key");
-    const model = EngineState.openaiModel || "gpt-4o-mini";
+    const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
 
     const messages = [{ role: "user", content: buildChatGPTPrompt(type, transcript) }];
@@ -2384,7 +2383,7 @@ const VideoCoach=(function(){
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
-    const model = EngineState.openaiModel || 'gpt-4o-mini';
+    const model = EngineState.openaiModel || 'gpt-4o';
     try{
       const txt = await callOpenAIChat({
         messages: [
@@ -2457,7 +2456,7 @@ const VideoCoach=(function(){
     ];
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
-      const model=EngineState.openaiModel||'gpt-4o-mini';
+      const model=EngineState.openaiModel||'gpt-4o';
       const tokenParam=chatTokenParam(model,maxTokens);
       const resp=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
