@@ -659,9 +659,6 @@ const MT_SCORING = (() => {
 </script>
 <script>
 // ChatGPT scoring and transcript formatting utilities ported from Python
-function chatTokenParam(model, maxTokens){
-  return { max_tokens: maxTokens };
-}
 const ChatGPTScoring = (() => {
   const NON_ANSWER_PATTERNS = [
     /^i don't know$/i,
@@ -1208,18 +1205,23 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 })();
 </script>
 <script>
-// Universal OpenAI caller with JSON-mode first, then text fallback
-async function callOpenAIChat({ messages, model, maxTokens=600, json=false, signal }) {
-  const base = { model, messages, temperature: 0, max_tokens: Math.max(50, Math.min(8192, Number(maxTokens)||600)) };
+// Universal OpenAI caller supporting both chat-completions and responses API
+async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, temperature = 0, signal }) {
+  const isGpt5 = String(model || '').startsWith('gpt-5');
+  const max = Math.max(50, Math.min(8192, Number(maxTokens) || 600));
 
   async function attempt(useJson) {
-    const body = useJson ? { ...base, response_format: { type: "json_object" } } : base;
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
+    const body = isGpt5
+      ? { model, input: messages, temperature, max_output_tokens: max }
+      : { model, messages, temperature, max_tokens: max };
+    if (useJson) body.response_format = { type: 'json_object' };
+    const url = isGpt5 ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+    const resp = await fetch(url, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": `Bearer ${EngineState.openaiKey}`
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${EngineState.openaiKey}`
       },
       body: JSON.stringify(body),
       signal
@@ -1231,20 +1233,29 @@ async function callOpenAIChat({ messages, model, maxTokens=600, json=false, sign
       err.status = resp.status; err.code = data?.error?.code; err.type = data?.error?.type; err.raw = data || rawText;
       throw err;
     }
-    const content = data?.choices?.[0]?.message?.content ?? "";
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) return content.map(p => p?.text || "").join("");
-    return String(content || "");
+    if (isGpt5) {
+      const t = data?.output_text;
+      if (typeof t === 'string' && t) return t;
+      if (Array.isArray(data?.output)) {
+        return data.output.map(o => (o?.content || []).map(c => c?.text || '').join('')).join('');
+      }
+      return '';
+    } else {
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      if (typeof content === 'string') return content;
+      if (Array.isArray(content)) return content.map(p => p?.text || '').join('');
+      return String(content || '');
+    }
   }
 
   try {
     return await attempt(json);
   } catch (e) {
-    const msg = String(e?.message||"").toLowerCase();
-    if (json && (e.status === 400 || msg.includes("response_format") || msg.includes("json"))) {
+    const msg = String(e?.message || '').toLowerCase();
+    if (json && (e.status === 400 || msg.includes('response_format') || msg.includes('json'))) {
       return await attempt(false);
     }
-    if (e.status === 429) e.code = e.code || "rate_limit";
+    if (e.status === 429) e.code = e.code || 'rate_limit';
     throw e;
   }
 }
@@ -1457,14 +1468,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
    const model=EngineState.openaiModel||'gpt-5';
-   const tokenParam=chatTokenParam(model,250);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify({model,messages,response_format:{type:'json_object'},...tokenParam})
-   });
-   const data=await resp.json();
-   const raw=data?.choices?.[0]?.message?.content||'';
+   const raw=await callOpenAIChat({messages,model,maxTokens:250,json:true,temperature:0.7});
    const obj=extractFirstJson(raw);
    if(obj&&obj.fact&&obj.q&&obj.ans){
     cur=obj;
@@ -1480,7 +1484,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
    console.error('[GPT Prompt]',e);
    alert('ChatGPT error');
   }
- }
+}
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
@@ -1547,16 +1551,10 @@ Task:
   updateGPTSend();
    try{
     const model=EngineState.openaiModel||'gpt-5';
-    const tokenParam=chatTokenParam(model,150);
-    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const text=data?.choices?.[0]?.message?.content?.trim()||'';
-   gptChat.push({role:'assistant',content:text});
-   appendChat('chatgpt',text);
+    const text=await callOpenAIChat({messages:gptChat,model,maxTokens:150,temperature:0.7});
+    const t=text.trim();
+    gptChat.push({role:'assistant',content:t});
+    appendChat('chatgpt',t);
   }catch(e){
     console.error('[GPT Argue]',e);
     appendChat('chatgpt','ChatGPT error.');
@@ -1570,16 +1568,10 @@ Task:
   appendChat('user',txt);
   try{
    const model=EngineState.openaiModel||'gpt-5';
-   const tokenParam=chatTokenParam(model,150);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const reply=data?.choices?.[0]?.message?.content?.trim()||'';
-   gptChat.push({role:'assistant',content:reply});
-   appendChat('chatgpt',reply);
+   const reply=await callOpenAIChat({messages:gptChat,model,maxTokens:150,temperature:0.7});
+   const r=reply.trim();
+   gptChat.push({role:'assistant',content:r});
+   appendChat('chatgpt',r);
   }catch(e){
    console.error('[GPT Send]',e);
    appendChat('chatgpt','ChatGPT error.');
@@ -1724,26 +1716,20 @@ Scoring rule:
 
     try{
       const model = EngineState.openaiModel || 'gpt-5';
-      const tokenParam = chatTokenParam(model,400);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body: JSON.stringify({
-          model,
-          messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
-          ...tokenParam
-        })
+      const text = await callOpenAIChat({
+        messages:[{role:'user',content:prompt}],
+        model,
+        maxTokens:400,
+        temperature:0.7
       });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || '';
+      const t = text.trim();
 
       try{
-        const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
+        const parsed = ChatGPTScoring.parseScoreResponse(t); // unchanged parser
         appendJudgeDecision(parsed);                            // unchanged UI
       }catch{
         // If the model didn't use the expected format, show raw text so you see what happened
-        appendChat('judge', text);
+        appendChat('judge', t);
       }
 
       gptSendLocked = true;
@@ -2590,15 +2576,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const maxTokens = EngineState.openaiMaxTokens || 600;
     try{
       const model=EngineState.openaiModel||'gpt-5';
-      const tokenParam=chatTokenParam(model,maxTokens);
-      const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
-      });
-      const data=await resp.json();
-      const text=data?.choices?.[0]?.message?.content?.trim()||'';
-      out.value=text;
+      const text=await callOpenAIChat({messages,model,maxTokens,temperature:0.7});
+      out.value=text.trim();
     }catch(e){
       console.error('[GPT Write]',e);
       out.value='ChatGPT error.';
