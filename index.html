@@ -80,15 +80,6 @@ textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);bo
 .badge{font-size:1em;padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff}
 .quiz-q{font-weight:600;margin-bottom:6px}.quiz-opt{display:block;margin:6px 0;padding:6px 8px;border:1px solid rgba(0,0,0,.1);border-radius:6px;background:var(--secondary)}
 .quiz-correct{background:rgba(34,197,94,.15)}.quiz-wrong{background:rgba(239,68,68,.15)}
-/* Transcript highlight classes */
-.hl-leading,.hl-hearsay,.hl-spec,.hl-narr,.hl-arg,.hl-comp,.hl-asked{font-weight:600;padding:0 2px;border-radius:4px}
-.hl-leading{background:rgba(79,195,247,.4)}
-.hl-hearsay{background:rgba(16,185,129,.4)}
-.hl-spec{background:rgba(99,102,241,.4)}
-.hl-narr{background:rgba(250,204,21,.4)}
-.hl-arg{background:rgba(239,68,68,.4)}
-.hl-comp{background:rgba(168,85,247,.4)}
-.hl-asked{background:rgba(148,163,184,.4)}
 .tag{display:inline-block;padding:2px 6px;border-radius:999px;border:1px solid rgba(0,0,0,.14);margin:0 4px 4px 0}
 .table{width:100%;border-collapse:collapse;margin-top:8px}
 .table th,.table td{border:1px solid rgba(0,0,0,.1);padding:6px 8px;text-align:left}
@@ -267,7 +258,7 @@ a.inline{color:var(--accent);text-decoration:underline}
 
   <!-- Video Coach -->
   <section id="video" class="card">
-    <h2>Video Coach (Transcribe & Type-Specific Rubric + Objection Finder)</h2>
+    <h2>Video Coach (Transcribe & Type-Specific Rubric)</h2>
     <div class="small" id="videoModeBanner"></div>
     <div class="controls small">
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
@@ -291,7 +282,6 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div id="movementFeedback" class="small" style="margin-top:8px"></div>
     <div id="videoRubricDetails" class="small" style="display:none"></div>
     <div id="videoCriteria" class="small" style="display:none"></div>
-    <div id="videoObjections" class="small" style="margin-top:10px"></div>
   </section>
 
   <!-- Writing -->
@@ -349,7 +339,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <p class="small">Open a tab for the tool you need and follow these steps.</p>
     <ul class="small">
       <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> Pick a topic and difficulty, hit <em>New Drill</em>, then decide whether the judge should sustain or overrule. Click <em>Check</em> for the answer. <em>ChatGPT Argue</em> lets you debate the AI and <em>GPT Prompt</em> takes custom practice. Use <em>Reset Stats</em> to wipe your record.</li>
-      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> Choose a speech, allow camera and mic, and record. When you stop, review <em>Metrics</em> and the objection finder. Add an OpenAI key under <em>API Key / Engine</em> for scoring and optionally a Gemini key to analyze movement. Use <em>Re-score</em> for another attempt or <em>Download</em> to save the session.</li>
+      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> Choose a speech, allow camera and mic, and record. When you stop, review <em>Metrics</em>. Add an OpenAI key under <em>API Key / Engine</em> for scoring and optionally a Gemini key to analyze movement. Use <em>Re-score</em> for another attempt or <em>Download</em> to save the session.</li>
       <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> Select the document type, add your notes, and click <em>Ask ChatGPT to Draft</em>. Pick the model in <em>API Key / Engine</em> and edit the result as needed.</li>
       <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> Search by number or topic to read the rule and its plain‑language explanation.</li>
       <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> Choose practice or test mode, pick a rule set, set the question count and difficulty, then press <em>Start Quiz</em>. Use <em>Next</em> to move ahead; the top bar tracks your score and best.</li>
@@ -950,7 +940,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -970,7 +960,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, aScore (1-10) with aReason, and note any likely objection with type and reason. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}; if none apply use "None". Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":"","objection":{"type":"","reason":""}}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -1772,19 +1762,7 @@ const VideoCoach=(function(){
     cross:{must:["correct?","right?","yes or no","you wrote","on page","line","you can\u2019t say","isn\u2019t it true"],nice:["leading","impeach","admission","one fact per question","control","statement","affidavit","deposition"]}
   };
 
-  const OBJ_RULES=[
-    {name:"Leading", rule:"611(c)", cls:"hl-leading", when:(s,ctx)=> ctx.type==="direct" && /\b(isn't it true|is it true that|wouldn't you agree|you admit|you agree|correct\?|right\?|yes or no|isn't that right)\b/i.test(s)},
-    {name:"Hearsay", rule:"801/802", cls:"hl-hearsay", when:(s)=>/\b(told me|said that|he said|she said|they said|my friend told|the neighbor said|i heard that)\b/i.test(s)},
-    {name:"Speculation", rule:"602", cls:"hl-spec", when:(s)=>/\b(i guess|i think he intended|probably|might have|must have thought|i assume)\b/i.test(s)},
-    {name:"Narrative", rule:"611(a)", cls:"hl-narr", when:(s)=> s.split(/\s+/).length>35 },
-    {name:"Argumentative", rule:"611(a)", cls:"hl-arg", when:(s)=>/\b(so you expect us to believe|that makes no sense|you\u2019re lying|ridiculous|absurd)\b/i.test(s)},
-    {name:"Compound", rule:"611(a)", cls:"hl-comp", when:(s)=>/\?[^?]+\?/.test(s)||/\b(and|or)\b.*\?/i.test(s)},
-    {name:"Asked & Answered", rule:"611(a)", cls:"hl-asked", when:(s,ctx)=>{ const key=s.toLowerCase().replace(/[^a-z ]/g,'').split(' ').slice(0,8).join(' '); if(ctx.qSeen.has(key)) return true; ctx.qSeen.add(key); return false; }}
-  ];
-
   function clean(s){return (s||'').toLowerCase().replace(/[^a-z0-9\s']/g,' ').replace(/\s+/g,' ').trim()}
-  // Safer sentence split (no lookbehind): convert punctuation to breaks
-  function sentences(raw){ if(!raw) return []; const withBreaks = raw.replace(/([.!?])\s+/g,'$1\n'); return withBreaks.split(/\n+/).map(s=>s.trim()).filter(Boolean); }
   function tokens(s){return clean(s).split(/\s+/).filter(Boolean)}
   function uniq(a){return Array.from(new Set(a))}
   function ngrams(arr,n){const out=[];for(let i=0;i<=arr.length-n;i++) out.push(arr.slice(i,i+n).join(' '));return out}
@@ -1922,7 +1900,7 @@ const VideoCoach=(function(){
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
       conf.cats.forEach(c=>{ pack[c.key]=0; });
-      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
+      return {buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
 
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
@@ -1984,21 +1962,6 @@ const VideoCoach=(function(){
       organization=clamp(organization+(brevity>=8?1:0)-(qMc.compoundRate>0.15?1:0),1,10);
     }
 
-    const det=detectObjections(type,text);
-    const adj={leading:det.counts?.Leading||0,hearsay:det.counts?.Hearsay||0,spec:det.counts?.Speculation||0,narrative:det.counts?.Narrative||0,argumentative:det.counts?.Argumentative||0,compound:det.counts?.Compound||0,asked:det.counts?.["Asked & Answered"]||0};
-
-    if(isDir){
-      openq=clamp(openq-Math.min(3,Math.floor(adj.leading/2)),1,10);
-      foundation=clamp((foundation||6)-Math.min(2,Math.floor((adj.hearsay+adj.spec)/3)),1,10);
-      listening=clamp((listening||6)-Math.min(2,Math.floor(adj.narrative/2)),1,10);
-    }
-    if(isCross){
-      leading=clamp((leading||6)-(Math.min(2,Math.floor(adj.compound/2))+Math.min(2,Math.floor(adj.asked/3))),1,10);
-      brevity=clamp((brevity||6)-Math.min(3,Math.floor((adj.compound+adj.argumentative)/2)),1,10);
-    }
-
-    const totalObj=(adj.leading||0)+(adj.hearsay||0)+(adj.spec||0)+(adj.narrative||0)+(adj.argumentative||0)+(adj.compound||0)+(adj.asked||0);
-    persuasion=clamp(persuasion-Math.min(2,Math.floor(totalObj/6)),1,10);
 
     const conf=RUBRICS[type]; const pack={};
     if(isOpen){pack.content=contentCore;pack.organization=organization;pack.persuasion=persuasion;pack.delivery=delivery;}
@@ -2014,18 +1977,12 @@ const VideoCoach=(function(){
     let total=0; conf.cats.forEach(c=>{ total+=clamp(pack[c.key],1,10)*(c.w*10) }); total=Math.round(total);
     if(isVeryShort) total=Math.min(total,25);
 
-    return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
-  }
-
-  function detectObjections(type, transcript){
-    const lines=sentences(transcript); const ctx={type,qSeen:new Set()}; const found=[];
-    lines.forEach((raw,idx)=>{ const s=raw.trim(); if(!s) return; for(const rule of OBJ_RULES){ try{ if(rule.when(s,ctx)){ found.push({index:idx+1,text:s,name:rule.name,rule:rule.rule,cls:rule.cls}); } }catch(e){} } });
-    const counts={}; found.forEach(f=>{counts[f.name]=(counts[f.name]||0)+1}); return {found,counts,lines};
+    return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
 
   function scorebar(val){const pct=clamp(Math.round((val/10)*100),0,100);return `<div>${val}/10<div class="scorebar"><span style="width:${pct}%"></span></div></div>`}
 
-  function renderReport(type, result, det){
+  function renderReport(type, result){
     const conf=RUBRICS[type], pack=result.cats, m=result.metrics, cmp=result.compare;
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
@@ -2062,45 +2019,10 @@ const VideoCoach=(function(){
     if(result.notes){
       $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
     }
-    $('videoFeedback').innerHTML += `
-      <div style="margin-top:6px">
-        <span class="tag">Leading: ${det.counts?.Leading||0}</span>
-        <span class="tag">Hearsay: ${det.counts?.Hearsay||0}</span>
-        <span class="tag">Speculation: ${det.counts?.Speculation||0}</span>
-        <span class="tag">Narrative: ${det.counts?.Narrative||0}</span>
-        <span class="tag">Argumentative: ${det.counts?.Argumentative||0}</span>
-        <span class="tag">Compound: ${det.counts?.Compound||0}</span>
-        <span class="tag">Asked & Answered: ${det.counts?.["Asked & Answered"]||0}</span>
-      </div>
-    `;
     if(result.qa && result.qa.length){
-      const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td><td>${qa.objection?escHTML((qa.objection.type||'')+(qa.objection.reason?': '+qa.objection.reason:'')):'N/A'}</td></tr>`).join('');
-      $('videoFeedback').innerHTML+=`<div style="margin-top:8px"><strong>Question/Answer Feedback</strong></div><table class="table"><thead><tr><th>#</th><th>Question</th><th>Q Score</th><th>Answer</th><th>A Score</th><th>Objection</th></tr></thead><tbody>${qaRows}</tbody></table>`;
+      const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td></tr>`).join('');
+      $('videoFeedback').innerHTML+=`<div style="margin-top:8px"><strong>Question/Answer Feedback</strong></div><table class="table"><thead><tr><th>#</th><th>Question</th><th>Q Score</th><th>Answer</th><th>A Score</th></tr></thead><tbody>${qaRows}</tbody></table>`;
     }
-  }
-
-  function highlightTranscriptArea(type, det){
-    const lines=det.lines;
-    const marks=new Map();
-    det.found.forEach(o=>{const arr=marks.get(o.index)||[];arr.push(o.cls);marks.set(o.index,arr);});
-    const html=lines.map((ln,i)=>{
-      const idx=i+1;
-      if(marks.has(idx)){
-        const cls=marks.get(idx).join(' ');
-        return `<div class="${cls}" style="padding:2px 4px;border-radius:4px;margin:2px 0">${ln}</div>`;
-      }
-      return `<div style="padding:2px 4px;margin:2px 0">${ln}</div>`;
-    }).join('');
-    $('videoStatus').innerHTML = (type==='direct'||type==='cross') ? 'Highlighted transcript (objection-prone lines are shaded below).' : 'Scored. Switch to Direct/Cross to see objection highlights.';
-    let preview=document.getElementById('transcriptPreview');
-    if(!preview){
-      preview=document.createElement('div');
-      preview.id='transcriptPreview';
-      preview.className='small';
-      preview.style.cssText='margin-top:8px;padding:8px;background:#0b1324;border-radius:6px;max-height:280px;overflow:auto';
-      $('video').appendChild(preview);
-    }
-    preview.innerHTML=`<div style="margin-bottom:6px"><strong>Transcript Preview (auto-highlight)</strong></div>${html}`;
   }
 
   function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
@@ -2394,9 +2316,7 @@ const VideoCoach=(function(){
 
   function scoreWithBuiltin(type, txt, audio){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
-    const det=detectObjections(type,transcript);
     const engine=score(type,transcript);
-    engine.applyObjectionAdjustments(det);
     const result=engine.buildScores();
     const wpm=result.metrics?.wpm||0;
     if(audio){
@@ -2412,8 +2332,8 @@ const VideoCoach=(function(){
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
-    renderReport(type,result,det);
-    highlightTranscriptArea(type,det);
+    renderReport(type,result);
+    $('videoStatus').textContent='Scored.';
   }
   async function scoreNow(){
     const type=$('videoType').value||'opening';
@@ -2452,8 +2372,6 @@ const VideoCoach=(function(){
       audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
     }
   }
-  const det = detectObjections(type, transcript);
-
   const result = {
     cats,
     comments: parsed.comments || {},
@@ -2474,8 +2392,7 @@ const VideoCoach=(function(){
   }
   result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
 
-  renderReport(type, result, det);
-  highlightTranscriptArea(type, det);
+  renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   showProvenance('LLM-only rubric scoring (no local blend).');
 }).catch(err=>{
