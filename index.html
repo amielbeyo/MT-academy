@@ -1205,17 +1205,48 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 })();
 </script>
 <script>
+// --- PATCH: proper gpt-5 Responses API caller (drop-in replacement) ---
+
+// Convert Chat Completions-style messages → Responses API "input"
+function toResponsesInput(messages){
+  // messages: [{role:'system'|'user'|'assistant', content:string}]
+  return (messages || []).map(m => ({
+    role: m.role,
+    content: [{ type: "input_text", text: typeof m.content === "string" ? m.content : String(m.content || "") }]
+  }));
+}
+
 // Universal OpenAI caller supporting both chat-completions and responses API
 async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, temperature = 0, signal }) {
-  const isGpt5 = String(model || '').startsWith('gpt-5');
+  const isGpt5 = String(model || '').toLowerCase().startsWith('gpt-5');
   const max = Math.max(50, Math.min(8192, Number(maxTokens) || 600));
 
   async function attempt(useJson) {
-    const body = isGpt5
-      ? { model, input: messages, temperature, max_output_tokens: max }
-      : { model, messages, temperature, max_tokens: max };
-    if (useJson) body.response_format = { type: 'json_object' };
-    const url = isGpt5 ? 'https://api.openai.com/v1/responses' : 'https://api.openai.com/v1/chat/completions';
+    let url, body;
+    if (isGpt5) {
+      // Use Responses API with proper "input_text" chunks
+      url = 'https://api.openai.com/v1/responses';
+      body = {
+        model,
+        input: toResponsesInput(messages),
+        temperature,
+        max_output_tokens: max
+      };
+      // IMPORTANT: The Responses API supports JSON formatting via json_schema;
+      // to keep things simple & robust across versions, we *do not* request JSON here.
+      // Downstream code already handles free-text fallback parsing.
+    } else {
+      // Classic Chat Completions for non-gpt-5
+      url = 'https://api.openai.com/v1/chat/completions';
+      body = {
+        model,
+        messages,
+        temperature,
+        max_tokens: max
+      };
+      if (useJson) body.response_format = { type: 'json_object' };
+    }
+
     const resp = await fetch(url, {
       method: 'POST',
       headers: {
@@ -1226,21 +1257,31 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
       body: JSON.stringify(body),
       signal
     });
+
     const rawText = await resp.text();
     let data = null; try { data = JSON.parse(rawText); } catch {}
+
     if (!resp.ok) {
       const err = new Error(data?.error?.message || `OpenAI HTTP ${resp.status}`);
-      err.status = resp.status; err.code = data?.error?.code; err.type = data?.error?.type; err.raw = data || rawText;
+      err.status = resp.status;
+      err.code = data?.error?.code;
+      err.type = data?.error?.type;
+      err.raw = data || rawText;
       throw err;
     }
+
     if (isGpt5) {
-      const t = data?.output_text;
-      if (typeof t === 'string' && t) return t;
+      // Responses API: prefer the top-level output_text when available
+      if (typeof data?.output_text === 'string' && data.output_text) return data.output_text;
+      // Fallback: stitch from content blocks
       if (Array.isArray(data?.output)) {
-        return data.output.map(o => (o?.content || []).map(c => c?.text || '').join('')).join('');
+        return data.output
+          .map(o => Array.isArray(o?.content) ? o.content.map(c => c?.text || '').join('') : '')
+          .join('');
       }
       return '';
     } else {
+      // Chat Completions
       const content = data?.choices?.[0]?.message?.content ?? '';
       if (typeof content === 'string') return content;
       if (Array.isArray(content)) return content.map(p => p?.text || '').join('');
@@ -1249,10 +1290,12 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
   }
 
   try {
-    return await attempt(json);
+    // For gpt-5 we *don’t* ask for JSON to avoid schema/version mismatches.
+    return await attempt(!isGpt5 && json);
   } catch (e) {
     const msg = String(e?.message || '').toLowerCase();
-    if (json && (e.status === 400 || msg.includes('response_format') || msg.includes('json'))) {
+    if (!isGpt5 && json && (e.status === 400 || msg.includes('response_format') || msg.includes('json'))) {
+      // Retry without JSON if classic endpoint complained about response_format
       return await attempt(false);
     }
     if (e.status === 429) e.code = e.code || 'rate_limit';
