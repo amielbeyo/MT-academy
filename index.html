@@ -2220,15 +2220,18 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const merged=[];
       for(const pt of rawPoints){
         const last=merged[merged.length-1];
-        if(last && last.msg===pt.msg && pt.time-last.end<1){
+        if(last && pt.time-last.end<1){
           last.end=pt.time;
           if(pt.word) last.words.push(pt.word);
+          last.msgs.add(pt.msg);
         }else{
-          merged.push({msg:pt.msg,start:pt.time,end:pt.time,words:pt.word?[pt.word]:[]});
+          merged.push({start:pt.time,end:pt.time,words:pt.word?[pt.word]:[],msgs:new Set([pt.msg])});
         }
       }
+      const priority={'enunciate words':1,'voice trembling':2,'speaking too slow':3,'speaking too fast':4,'speak louder':5,'speak softer':6,'add pitch variety':7,'steady your tone':8};
+      const resolved=merged.map(g=>{const msgs=[...g.msgs].sort((a,b)=>(priority[a]||99)-(priority[b]||99));return {msg:msgs[0],start:g.start,end:g.end,words:g.words};});
 
-      const points=merged.map(group=>{
+      const points=resolved.map(group=>{
         let phrase="";
         if(group.words.length){
           phrase=group.words.map(w=>w.trim()).join(' ');
