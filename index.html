@@ -273,15 +273,13 @@ a.inline{color:var(--accent);text-decoration:underline}
     <textarea id="videoTranscript" placeholder="Transcript will appear here"></textarea>
     <div class="controls">
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
-      <button id="btnShowRubric" class="btn secondary">Show Metrics</button>
+      <button id="btnShowVoice" class="btn secondary">Show Voice</button>
       <button id="btnAnalyzeMovement" class="btn secondary">Movement (Gemini)</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
-    <div id="videoFeedback" class="small"></div>
+    <div id="videoFeedback" class="small" style="display:none"></div>
     <div id="movementFeedback" class="small" style="margin-top:8px"></div>
-    <div id="videoRubricDetails" class="small" style="display:none"></div>
-    <div id="videoCriteria" class="small" style="display:none"></div>
   </section>
 
   <!-- Writing -->
@@ -2465,12 +2463,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     showProvenance('Built-in score used (ChatGPT mode not active).', true);
   }
 
-  function crit(type){
-    const conf=RUBRICS[type]||RUBRICS.opening;
-    $('videoCriteria').innerHTML=`<strong>${conf.name} \u2014 Criteria</strong><ul style="margin:6px 0 0 18px">${conf.cats.map(c=>`<li><strong>${c.n}</strong> (weight ${(c.w*100).toFixed(0)}%)</li>`).join('')}</ul>
-    <div style="margin-top:8px"><strong>Exemplar cues checked</strong>: ${(PATS[type]?.must||[]).concat(PATS[type]?.nice||[]).slice(0,10).join(' \u2022 ')} \u2026</div>`;
-  }
-
   async function testChatGPT(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
@@ -2578,11 +2570,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnStopRecording').addEventListener('click',stop);
     $('btnScoreVideo').addEventListener('click',scoreNow);
     $('btnAnalyzeMovement')?.addEventListener('click', analyzeMovement);
-    $('btnShowRubric')?.addEventListener('click',()=>{
-      crit($('videoType').value);
-      const r=$('videoRubricDetails'),c=$('videoCriteria');
-      const show=r.style.display==='none'&&c.style.display==='none';
-      r.style.display=c.style.display=show?'block':'none';
+    $('btnShowVoice')?.addEventListener('click',()=>{
+      const v=$('videoFeedback');
+      const show=v.style.display==='none';
+      v.style.display=show?'block':'none';
+      $('btnShowVoice').textContent=show?'Hide Voice':'Show Voice';
     });
     $('btnStopRecording').disabled=true;
     $('btnChangeEngine').addEventListener('click', openVideoGate);
@@ -2592,7 +2584,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('writeType').addEventListener('change', updateWriteExemplar);
     updateWriteExemplar();
     renderModeBadge();
-    tUpd(); crit('opening');
+    tUpd();
     setStatus('Tip: some browsers block camera in embedded previews.');
   }
 
