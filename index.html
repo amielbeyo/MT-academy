@@ -2027,7 +2027,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
-    $('videoFeedback').innerHTML=`
+    let html=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
@@ -2040,29 +2040,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
         <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
       </div>`;
+    if(result.explanation){
+      html+=`<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
+    }
+    if(result.notes){
+      html+=`<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
+    }
+    if(result.qa && result.qa.length){
+      const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td></tr>`).join('');
+      html+=`<div style="margin-top:8px"><strong>Question/Answer Feedback</strong></div><table class="table"><thead><tr><th>#</th><th>Question</th><th>Q Score</th><th>Answer</th><th>A Score</th></tr></thead><tbody>${qaRows}</tbody></table>`;
+    }
+    let voiceHTML='';
     if(result.audio){
       const a=result.audio;
-      $('videoFeedback').innerHTML += `<div class="kv" style="margin-top:8px">
+      voiceHTML+=`<div class="kv" style="margin-top:8px">
         <div>Volume</div><div>${escHTML(a.volRating)} (${a.avgVolume} dB)</div>
         <div>Tone</div><div>${escHTML(a.toneRating)} (${a.pitchVar} Hz)</div>
         <div>Clarity</div><div>${escHTML(a.clarityRating)}</div>
         <div>Speed</div><div>${escHTML(a.speedRating)} (${a.wpm} WPM)</div>
       </div>`;
-      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
+      voiceHTML+=`<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
       if(a.points&&a.points.length){
-        $('videoFeedback').innerHTML += `<div class="small"><strong>Notable Voice Moments:</strong> ${escHTML(a.points.join('; '))}</div>`;
+        voiceHTML+=`<div class="small"><strong>Notable Voice Moments:</strong> ${escHTML(a.points.join('; '))}</div>`;
       }
     }
-    if(result.explanation){
-      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
-    }
-    if(result.notes){
-      $('videoFeedback').innerHTML += `<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
-    }
-    if(result.qa && result.qa.length){
-      const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td></tr>`).join('');
-      $('videoFeedback').innerHTML+=`<div style="margin-top:8px"><strong>Question/Answer Feedback</strong></div><table class="table"><thead><tr><th>#</th><th>Question</th><th>Q Score</th><th>Answer</th><th>A Score</th></tr></thead><tbody>${qaRows}</tbody></table>`;
-    }
+    html+=`<div id="voiceFeedback" style="display:none;margin-top:8px">${voiceHTML}</div>`;
+    $('videoFeedback').innerHTML=html;
+    $('videoFeedback').style.display='block';
+    const btn=$('btnShowVoice');
+    if(btn) btn.textContent='Show Voice';
   }
 
   function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
@@ -2571,7 +2577,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnScoreVideo').addEventListener('click',scoreNow);
     $('btnAnalyzeMovement')?.addEventListener('click', analyzeMovement);
     $('btnShowVoice')?.addEventListener('click',()=>{
-      const v=$('videoFeedback');
+      const v=$('voiceFeedback');
+      if(!v) return;
       const show=v.style.display==='none';
       v.style.display=show?'block':'none';
       $('btnShowVoice').textContent=show?'Hide Voice':'Show Voice';
