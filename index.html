@@ -360,7 +360,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <li>Open your profile → <em>Billing</em> and add funds with a card; the API will not work until you have credit.</li>
       <li>In this app, click the “API Key” or “API Key / Engine” button.</li>
       <li>Paste your key and choose a model. The key is stored only in your browser.</li>
-        <li>Expect roughly $0.03 per short scoring request with <em>gpt‑4o</em>, so a $5 deposit covers around 150 requests. All payments go to OpenAI to run ChatGPT—nothing goes to the MT academy creator.</li>
     </ol>
   </section>
   <!-- Contact -->
@@ -1869,18 +1868,13 @@ const VideoCoach=(function(){
     const qM=questionMetrics(text,sec);
 
     const effWords=effectiveWordCount(text);
-    const noSpeech=isEffectivelyEmpty(text)||(effWords<3&&qM.qCount===0);
+    const noSpeech = isEffectivelyEmpty(text) || effWords < 5;
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
-      if(type==='opening'){pack.content=1;pack.organization=1;pack.persuasion=1;pack.delivery=1;}
-      else if(type==='closing'){pack.content=1;pack.organization=1;pack.refutation=1;pack.persuasion=1;pack.delivery=1;}
-      else if(type==='direct'){pack.content=1;pack.openq=1;pack.foundation=1;pack.listening=1;pack.delivery=1;}
-      else {pack.content=1;pack.leading=1;pack.impeach=1;pack.brevity=1;pack.delivery=1;}
-      let total=0; conf.cats.forEach(c=>{ total+=1*(c.w*10) }); total=Math.round(total);
-      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
+      conf.cats.forEach(c=>{ pack[c.key]=0; });
+      return {applyObjectionAdjustments(){},buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
 
-    const isVeryShort=(effWords<10&&qM.qCount<2);
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
 
     let delivery=6;
@@ -2223,6 +2217,13 @@ const VideoCoach=(function(){
     const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
 
+    const eff = effectiveWordCount(transcript);
+    if(eff < 5){
+      const conf = RUBRICS[type] || {cats:[]};
+      const cats = {}; conf.cats.forEach(c=>{ cats[c.key]=0; });
+      return { total:0, explanation:'Transcript too short to score.', notes:'', categories: cats, comments:{}, qa:[] };
+    }
+
     const messages = [{ role: "user", content: buildChatGPTPrompt(type, transcript) }];
 
     const ctrl = new AbortController();
@@ -2296,6 +2297,14 @@ const VideoCoach=(function(){
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
     let audio=null;
     if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
+
+    const eff = effectiveWordCount(transcript);
+    if(eff < 5){
+      $('videoStatus').textContent='Transcript too short to score.';
+      scoreWithBuiltin(type, raw, audio);
+      showProvenance('Transcript too short; score set to 0.', true);
+      return;
+    }
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
