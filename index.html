@@ -2429,10 +2429,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
 
     const eff = effectiveWordCount(transcript);
-    if(eff < 5){
-      $('videoStatus').textContent='Transcript too short to score.';
+    const qM = questionMetrics(transcript, sec);
+    if (eff < 5 || (eff < 10 && qM.qCount < 2)) {
+      $('videoStatus').textContent = 'Transcript too short to score.';
       scoreWithBuiltin(type, raw, audio);
-      showProvenance('Transcript too short; score set to 0.', true);
+      showProvenance('Transcript too short; using built-in engine.', true);
       return;
     }
 
