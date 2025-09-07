@@ -763,12 +763,13 @@ const PROMPT_TEMPLATE =
 `3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`6. Provide a brief explanation for why you chose that score, referring to \n`+
+`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
+`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`7. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`7. List specific improvement suggestions, quoting exact words or phrases \n`+
+`8. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`8. State any assumptions you made.\n\n`+
+`9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score: <number from 1 to 10 with one decimal place (e.g., 7.1)>\n`+
@@ -789,13 +790,14 @@ const PROMPT_TEMPLATE_RULING =
 `3. Assign a score from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1).\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`6. Decide whether the objection should be sustained or overruled.\n`+
-`7. Provide a brief explanation for why you chose that score, referring to \n`+
+`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
+`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`7. Decide whether the objection should be sustained or overruled.\n`+
+`8. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`8. List specific improvement suggestions, quoting exact words or phrases \n`+
+`9. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`9. State any assumptions you made.\n\n`+
+`10. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
