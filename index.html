@@ -686,7 +686,7 @@ const ChatGPTScoring = (() => {
   const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
-Scores should mirror real tournament averages: most objection arguments land between 7 and 10 points (70–100/100), with an average around 7. Reserve sub-7 scores for arguments that are exceptionally brief or poor.
+If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and reserve sub-7 scores for arguments that are exceptionally brief or poor.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -751,7 +751,7 @@ Explicit allowance for brevity stops the model from downgrading concise, correct
 Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
 const PROMPT_TEMPLATE =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -778,7 +778,7 @@ const PROMPT_TEMPLATE =
 `Improvements: <specific, actionable suggestions>`;
 
 const PROMPT_TEMPLATE_RULING =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -806,7 +806,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -915,7 +915,7 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law/Facts (32.5)
   - Organization & Roadmap (32.5)
   - Persuasiveness (20)
@@ -931,7 +931,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
   Return strict JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum of category scores (rounded).`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
   - Refutation & Rebuttal (15)
@@ -950,7 +950,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
   Return JSON: {"total":0-100,"categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
@@ -968,7 +968,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Total must equal weighted sum (rounded).`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament, avoiding inflated scores. Categories/weights:
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
