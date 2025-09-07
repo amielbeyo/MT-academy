@@ -657,6 +657,7 @@ const MT_SCORING = (() => {
 })();
 </script>
 <script>
+
 // ChatGPT scoring and transcript formatting utilities ported from Python
 function chatTokenParam(model, maxTokens){
   return { max_tokens: maxTokens };
@@ -806,7 +807,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
+const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). If the material is good, do not hesitate to award 8, 9, or 10 points (80, 90, or 100 out of 100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -2017,7 +2018,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
 
     let total=0; conf.cats.forEach(c=>{ total+=clamp(pack[c.key],1,10)*(c.w*10) }); total=Math.round(total);
-    if(isVeryShort) total=Math.min(total,25);
 
     return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
