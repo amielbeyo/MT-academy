@@ -686,7 +686,7 @@ const ChatGPTScoring = (() => {
   const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
-Scores should mirror real tournament averages: most objection arguments land between 7 and 10 points (70–100/100), with an average around 7. Reserve sub-7 scores for arguments that are exceptionally brief or poor.
+Scores should mirror real tournament averages: most objection arguments land between 7 and 10 points (70–100/100), with an average around 7. Reserve sub-7 scores for arguments that are exceptionally brief or poor. When an argument clearly excels across all categories, do not hesitate to award a 9, 10, 90, or even 100.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -806,7 +806,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; avoid inflating the result. Typical openings, closings, directs, crosses, and objection arguments should fall between 7 and 10 points (70–100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero unless the transcript clearly merits a perfect 90 or 100; if your best estimate is another multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). Don't hesitate to award a 9, 10, 90, or even 100 when justified by exceptional performance. If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
