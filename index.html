@@ -2141,6 +2141,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       else if(toneRating==='Too much change') tips.push('Steady your tone.');
       else tips.push('Tone variation is good.');
       if(clarityRating!=='Clear') tips.push('Enunciate more for clarity.');
+      tips.push('Use strategic pauses and vary your pace for emphasis.');
 
       const rawPoints=[];
       const segLen=sampleRate; // 1s segments
@@ -2216,7 +2217,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }
 
       const points=rawPoints.map(pt=>{
-        const tStr=new Date(pt.time*1000).toISOString().substr(14,5);
         let quote="";
         if(pt.word) quote=` "${pt.word.trim()}"`;
         else if(words.length){
@@ -2224,7 +2224,27 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           const nearest=words.reduce((a,b)=>Math.abs(b.start-mid)<Math.abs(a.start-mid)?b:a);
           if(Math.abs(nearest.start-mid)<=1.5) quote=` "${nearest.word.trim()}"`;
         }
-        return `${tStr}${quote} ${pt.msg}`;
+        const around=quote?` around${quote}`:"";
+        switch(pt.msg){
+          case 'speak louder':
+            return `Speak louder${around} to project confidence.`;
+          case 'speak softer':
+            return `Speak softer${around} to create contrast.`;
+          case 'add pitch variety':
+            return `Add pitch variety${around} to keep the audience engaged.`;
+          case 'steady your tone':
+            return `Steady your tone${around} for a smoother delivery.`;
+          case 'voice trembling':
+            return `Pause here${around} and steady your voice.`;
+          case 'enunciate words':
+            return `Pause and enunciate${around} for clarity.`;
+          case 'speaking too fast':
+            return `Slow down here${around} to let the message land.`;
+          case 'speaking too slow':
+            return `Speed up here${around} to maintain energy.`;
+          default:
+            return `${pt.msg}${around}.`;
+        }
       });
 
       const res={avgVolume:+db.toFixed(1),avgPitch:+avgPitch.toFixed(1),pitchVar:+pitchVar.toFixed(1),clarity:+clarityScore.toFixed(3),volRating,toneRating,clarityRating,tips:tips.join(' '),points};
