@@ -1526,7 +1526,14 @@ function gptRecord(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   // Prefer OpenAI transcription when an API key is available
   if(EngineState.openaiKey && navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-   navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}}).then(stream=>{
+   const getMicStream = async () => {
+     try {
+       return await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}});
+     } catch (_) {
+       return navigator.mediaDevices.getUserMedia({audio:true});
+     }
+   };
+   getMicStream().then(stream=>{
      gptRecStream=stream;
      try{
        const types=['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/ogg;codecs=opus','audio/mpeg'];
@@ -2167,21 +2174,31 @@ const VideoCoach=(function(){
     setStatus('Requesting camera/mic\u2026');
     $('movementFeedback').innerHTML='';
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
-    try{ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){} }
-    catch(e){ setStatus('Camera/mic error: '+e.message, true); return; }
-    const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4'];
+    let hasAudio=true;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    }catch(e){
+      hasAudio=false;
+      try{ stream=await navigator.mediaDevices.getUserMedia({video:true}); }
+      catch(e2){ setStatus('Camera/mic error: '+e2.message, true); return; }
+    }
+    $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(e){}
+    const types=hasAudio?['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4']
+                          :['video/webm;codecs=vp9','video/webm;codecs=vp8','video/mp4'];
     const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
     chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message, true); rec=null; }
     if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||'video/webm'; const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download='speech.'+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus('Recording\u2026');
-    try{
-      const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-      if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
-        recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
-        recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
-      } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
-    }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; setStatus(hasAudio?'Recording\u2026':'Recording (no mic)\u2026');
+    if(hasAudio){
+      try{
+        const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+        if(SR){ recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-US';
+          recog.onresult=ev=>{ let txt=''; for(let i=0;i<ev.results.length;i++){ txt+=ev.results[i][0].transcript+' ' } $('videoTranscript').value=txt.trim(); };
+          recog.onerror=err=>setStatus('Speech recognition: '+err.error,true); recog.start();
+        } else { setStatus('Live transcript not supported by this browser. You can paste a transcript.',true); }
+      }catch(e){ setStatus('Speech recognition init error: '+e.message,true); }
+    }
   }
 
   function stop(){
