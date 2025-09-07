@@ -931,8 +931,7 @@ function makeRubricMap(stateName, abbr){
   - Refutation & Rebuttal (15)
   - Persuasiveness (15)
   - Delivery (15)
-  Consider instructions, burden, element-by-element, addressing opponent ("they said..."). Closings must argue by applying the law to the facts and urging the verdict; deduct points if they merely summarize without analysis.
-  Evaluate using this checklist:
+  A strong closing should follow this organization:\n1. Introduction \u2013 start with a story or hook tying the theme to the case.\n2. Burden \u2013 state the burden of proof.\n3. Roadmap \u2013 highlight the evidence the fact-finder must focus on to see the case is proven.\n4. Witnesses \u2013 explain what each witness did and link it to the evidence and theme.\n5. Rebuttal \u2013 address opposing counsel\u2019s main points.\n6. Verdict Request \u2013 ask the jury or judge to rule in your favor.\n  Closings must apply the law to the facts and address the opponent ("they said..."). Deduct points if the argument omits or poorly organizes these elements or merely summarizes without analysis.\n  Evaluate using this checklist:
   \u25a1 Theme/theory reiterated in closing argument
   \u25a1 Summarized the evidence
   \u25a1 Emphasized the supporting points of their own case and mistakes and weaknesses of the opponent\u2019s case
@@ -1755,11 +1754,7 @@ const VideoCoach=(function(){
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Theme: choices have consequences. On June 12th, the defendant's decision to speed turned a quiet intersection into a collision. I represent the plaintiff, Jordan Miles. We accept the burden to prove negligence by a preponderance of the evidence. You will hear from Officer Diaz, who clocked 62 in a 35 and recovered debris matching the defendant's bumper. You will see Exhibit 7, a diagram placing the defendant's car in the wrong lane. Our roadmap is simple: first, duty; second, breach; third, causation and damages. At the end, we will ask you to return a verdict finding the defendant liable for negligence.`,guide:`1. Theme & Story \u2013 Begin with a central theme and a brief, illustrative story.\n2. Position \u2013 Clearly state which side you represent.\n3. Burden of Proof \u2013 Explain the applicable standard and who carries it.\n4. Witnesses & Evidence \u2013 Preview the key witnesses and evidence.\n5. Desired Verdict \u2013 Conclude by emphasizing the verdict you are seeking.`},
-    closing:{title:"Closing Exemplar",text:`Theme returned: choices have consequences. Apply the law the judge gave you to the facts.
-      Element by element: Duty is undisputed. Breach\u2014the speed and lane position from Exhibit 7 and Officer Diaz.
-      Causation\u2014the skid analysis from Dr. Shaw. Damages\u2014hospital bills and lost wages.
-      Address their points: they said \u201cit was raining,\u201d but the photos show dry pavement.
-      The burden is preponderance\u2014more likely than not. The evidence meets it. The only fair verdict is for the plaintiff.`},
+    closing:{title:"Closing Exemplar",text:`Choices have consequences. Last June, the defendant sped through a red light and ended Jordan Miles's routine drive. We accept the burden to prove negligence by a preponderance of the evidence. First, focus on Officer Diaz who clocked 62 in a 35 and matched debris to the defendant's bumper. Second, Dr. Shaw's skid analysis showed Jordan could not avoid the crash. Third, Jordan described the medical bills and lost wages. The defense says rain caused the wreck, yet the photos show dry pavement. They say Jordan was on the phone, but the call log is empty. The burden is met; the evidence is clear. We ask you to return a verdict for Jordan Miles.`,guide:`A good closing follows this structure:\n1. Introduction \u2013 Start with a story or hook that ties the theme to the case.\n2. Burden \u2013 State the burden of proof.\n3. Roadmap \u2013 Tell the fact-finder what evidence they must focus on that proves your case.\n4. Witnesses \u2013 Explain what each witness showed and connect it to the evidence and theme.\n5. Rebuttal \u2013 Respond to opposing counsel\u2019s main points.\n6. Verdict Request \u2013 Ask the jury or judge to rule in your favor.`},
     direct:{title:"Direct Exemplar",text:`Chapters with open questions: Background, Event, Aftermath.
       Background: Please introduce yourself. What do you do? How are you connected to June 12th?
       Event: What did you observe as you approached the intersection? What, if anything, did you notice about the blue sedan?
@@ -1774,7 +1769,7 @@ const VideoCoach=(function(){
 
   const PATS={
     opening:{must:["theme","the evidence will show","you will hear","you will hear from","you will see","roadmap","first","second","burden","preponderance","ask you to return a verdict","verdict"],nice:["negligence","duty","breach","causation","damages","timeline","exhibit","witness","theory","story"]},
-    closing:{must:["apply the law","element","burden","preponderance","more likely than not","address","they said","the only fair verdict"],nice:["theme","duty","breach","causation","damages","exhibit","admissions","refutation","jury instruction","standard of proof"]},
+    closing:{must:["burden","roadmap","witness","they said","ask you","verdict"],nice:["theme","apply the law","element","preponderance","more likely than not","refute","opposing","jury instruction","standard of proof"]},
     direct:{must:["please introduce yourself","what did you","how do you recognize","fair and accurate","move to admit","what happened next"],nice:["open-ended","exhibit","foundation","background","event","aftermath","follow-up","authenticate","identify","admit into evidence"]},
     cross:{must:["correct?","right?","yes or no","you wrote","on page","line","you can\u2019t say","isn\u2019t it true"],nice:["leading","impeach","admission","one fact per question","control","statement","affidavit","deposition"]}
   };
@@ -1785,7 +1780,6 @@ const VideoCoach=(function(){
   function ngrams(arr,n){const out=[];for(let i=0;i<=arr.length-n;i++) out.push(arr.slice(i,i+n).join(' '));return out}
   function cosineCount(a,b){const m=new Map();a.forEach(t=>m.set(t,(m.get(t)||0)+1));const n=new Map();b.forEach(t=>n.set(t,(n.get(t)||0)+1));let dot=0,na=0,nb=0;m.forEach((v,k)=>{na+=v*v;if(n.has(k)) dot+=v*n.get(k)});n.forEach(v=>nb+=v*v);return (na&&nb)? dot/(Math.sqrt(na)*Math.sqrt(nb)) : 0;}
   const SIGNPOSTS_OPEN=/\b(first|second|third|to begin|the evidence will show|you will hear|you will see|our roadmap)\b/i;
-  const SIGNPOSTS_CLOSE=/\b(apply the law|element|burden|therefore|in conclusion|the only fair verdict)\b/i;
 
   function compareToExemplar(type, transcript){
     const ex=EXEMPLARS[type]?.text||'';
@@ -1807,7 +1801,15 @@ const VideoCoach=(function(){
       struct+=/\byou will hear from\b/i.test(transcript)?0.2:0;
       struct+=SIGNPOSTS_OPEN.test(transcript)?0.2:0;
     }
-    else if(type==='closing'){struct+=SIGNPOSTS_CLOSE.test(transcript)?0.5:0; struct+=/\b(refut|they said|they claim)\b/i.test(transcript)?0.3:0; struct+=/\bburden|preponderance|more likely than not\b/i.test(transcript)?0.2:0;}
+    else if(type==='closing'){
+      const intro=/\b(theme|story)\b/i.test(transcript);
+      const burden=/\b(burden|preponderance|more likely than not)\b/i.test(transcript);
+      const roadmap=/\b(roadmap|first|second|third|element)\b/i.test(transcript);
+      const witnesses=/\b(witness(es)?|testif(?:y|ied)|evidence)\b/i.test(transcript);
+      const rebut=/\b(refut|they said|they claim|opposing counsel)\b/i.test(transcript);
+      const ask=/\b(ask (you|the jury)|return a verdict|rule in (your|our) favor)\b/i.test(transcript);
+      [intro,burden,roadmap,witnesses,rebut,ask].forEach(h=>{if(h) struct+=1/6;});
+    }
     else if(type==='direct'){struct+=/\bplease introduce yourself|state your name\b/i.test(transcript)?0.3:0; struct+=/\brecognize|fair and accurate|move to admit\b/i.test(transcript)?0.4:0; struct+=/\bwhat happened next\b/i.test(transcript)?0.3:0;}
     else if(type==='cross'){struct+=/\b(correct\?|right\?|yes or no|isn't it true)\b/i.test(transcript)?0.5:0; struct+=/\b(page|line|statement|affidavit|deposition)\b/i.test(transcript)?0.3:0; struct+=/\bone fact per\b/i.test(transcript)?0.2:0;}
     const blend=(0.35*lexCos+0.25*biCos+0.25*mustScore+0.10*niceScore+0.05*struct);
@@ -1948,6 +1950,14 @@ const VideoCoach=(function(){
       organization=Math.max(organization,clamp(5+(hasRoadmap?2:0)+(hasTheme?1:0)+(hasEWS?1:0)+(hasHearSee?1:0)+(asksVerdict?1:0),1,10));
       contentCore=clamp(Math.round(10*(0.45*ms+0.20*ns+0.25*cmp.biCos+0.10*cmp.lexCos))+(mentionsElements?1:0)+(mentionsBurden?1:0),1,10);
       persuasion=clamp(3+Math.round(3*cmp.lexCos)+Math.round(2*cmp.biCos)+(hasTheme?1:0)+(asksVerdict?1:0)+(mentionsBurden?1:0)-Math.min(2,Math.floor(bm.fillers/4)),1,10);
+    }
+
+    if(isClose){
+      const lower=text.toLowerCase();
+      const rebut=/\b(refut|they said|they claim|opposing counsel)\b/.test(lower);
+      const structHits=Math.round(cmp.struct*6);
+      organization=clamp(4+structHits,1,10);
+      refutation=rebut?8:4;
     }
 
     if(isDir){
