@@ -1420,7 +1420,7 @@ function appendJudgeDecision(res){
   div.appendChild(sum);
  }
   const score=document.createElement('div');
-  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
+  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)} / 100`;
   div.appendChild(score);
   const explain=document.createElement('div');
   explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
