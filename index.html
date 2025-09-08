@@ -732,7 +732,7 @@ PENALTIES / GUARDRAILS
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 0–100 separated by a hyphen (e.g., 75-82). High minus low must be more than 5 and less than 10 points; respect the floors above.
+Score Range: two numbers from 0–100 separated by a hyphen (e.g., 75-82). High minus low must be 10 points or less; respect the floors above.
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -760,7 +760,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 0). The high and low must differ by more than 5 and less than 10 points.\n`+
+`3. Assign a score range from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 0). The high and low must differ but be no more than 10 points apart.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -772,7 +772,7 @@ const PROMPT_TEMPLATE =
 `9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 0 to 100 (e.g., 75-82). High minus low must be >5 and <10>\n`+
+`Score Range: <low-high from 0 to 100 (e.g., 75-82). High minus low must be <=10 and numbers must differ>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -787,7 +787,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 0). The high and low must differ by more than 5 and less than 10 points.\n`+
+`3. Assign a score range from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 0). The high and low must differ but be no more than 10 points apart.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -801,7 +801,7 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 0 to 100 (e.g., 75-82). High minus low must be >5 and <10>\n`+
+`Score Range: <low-high from 0 to 100 (e.g., 75-82). High minus low must be <=10 and numbers must differ>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -845,14 +845,9 @@ const PROMPT_TEMPLATE_RULING =
       high *= 10;
     }
 
-    if (high <= low) high = Math.min(100, low + 6);
-
-    let diff = high - low;
-    if (diff < 6) {
-      const bump = 6 - diff;
-      if (high + bump <= 100) high += bump; else low = Math.max(0, low - bump);
-    } else if (diff > 9) {
-      high = Math.min(100, low + 9);
+    if (high <= low) high = Math.min(100, low + 1);
+    if (high - low > 10) {
+      high = Math.min(100, low + 10);
     }
 
     const scoreStr = scoreMatch[2] ? `${Math.round(low)}-${Math.round(high)}` : `${Math.round(low)}`;
@@ -2413,14 +2408,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         if (!payload.range && typeof payload.total_low === 'number' && typeof payload.total_high === 'number') {
           let low = Math.round(payload.total_low);
           let high = Math.round(payload.total_high);
-          if (high <= low) high = Math.min(100, low + 6);
-          let diff = high - low;
-          if (diff < 6) {
-            const bump = 6 - diff;
-            if (high + bump <= 100) high += bump; else low = Math.max(0, low - bump);
-          } else if (diff > 9) {
-            high = Math.min(100, low + 9);
-          }
+          if (high <= low) high = Math.min(100, low + 1);
+          if (high - low > 10) high = Math.min(100, low + 10);
           const avg = (low + high) / 2;
           payload.range = `${low}-${high}`;
           if (!Number.isFinite(Number(payload.total))) payload.total = avg;
@@ -2429,28 +2418,16 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         let parts = payload.range ? String(payload.range).split('-').map(Number) : [];
         if (parts.length !== 2 || parts.some(n=>!Number.isFinite(n)) || parts[1] <= parts[0]) {
           const base = Number.isFinite(Number(payload.total)) ? Math.round(Number(payload.total)) : 50;
-          let low = Math.max(0, base - 4);
-          let high = Math.min(100, base + 4);
-          let diff = high - low;
-          if (diff < 6) {
-            const bump = 6 - diff;
-            if (high + bump <= 100) high += bump; else low = Math.max(0, low - bump);
-          } else if (diff > 9) {
-            high = Math.min(100, low + 9);
-          }
+          let low = Math.max(0, base - 5);
+          let high = Math.min(100, base + 5);
+          if (high <= low) high = Math.min(100, low + 1);
           payload.range = `${low}-${high}`;
           parts = [low, high];
           if (!Number.isFinite(Number(payload.total))) payload.total = (low + high) / 2;
         } else {
           let [low, high] = parts.map(n=>Math.round(n));
-          if (high <= low) high = Math.min(100, low + 6);
-          let diff = high - low;
-          if (diff < 6) {
-            const bump = 6 - diff;
-            if (high + bump <= 100) high += bump; else low = Math.max(0, low - bump);
-          } else if (diff > 9) {
-            high = Math.min(100, low + 9);
-          }
+          if (high <= low) high = Math.min(100, low + 1);
+          if (high - low > 10) high = Math.min(100, low + 10);
           if (!Number.isFinite(Number(payload.total))) payload.total = (low + high) / 2;
           payload.range = `${low}-${high}`;
         }
@@ -2495,14 +2472,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       result.total=Math.min(100,result.total+7);
     }
     const base = Math.round(result.total);
-    let low = Math.max(0, base - 4);
-    let high = Math.min(100, base + 4);
-    let diff = high - low;
-    if (diff < 6) {
-      const bump = 6 - diff;
-      if (high + bump <= 100) high += bump; else low = Math.max(0, low - bump);
-    } else if (diff > 9) {
-      high = Math.min(100, low + 9);
+    let low = Math.max(0, base - 5);
+    let high = Math.min(100, base + 5);
+    if (high <= low) {
+      high = Math.min(100, low + 1);
     }
     result.range=`${low}-${high}`;
     renderReport(type,result);
