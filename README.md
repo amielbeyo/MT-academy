@@ -22,8 +22,7 @@ This project provides a minimal Express backend and demo frontend for a subscrip
    The server reads the key from this file so users never see it.
 3. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
-   - `STRIPE_BASIC_PRICE` – price ID for the $5 plan (20 prompts/day)
-   - `STRIPE_PREMIUM_PRICE` – price ID for the $10 plan (unlimited)
+   - `STRIPE_PREMIUM_PRICE` – price ID for the $5/month unlimited plan
 
 ## Installation
 Install dependencies and verify the tests:
@@ -62,11 +61,11 @@ node server.js
    ```bash
    curl -X POST http://localhost:3000/subscribe \
      -H "Content-Type: application/json" \
-     -d '{"userId":"<ID from login>","plan":"basic"}'
+     -d '{"userId":"<ID from login>"}'
    ```
    The response includes a Checkout `url` for the user to complete payment.
 
-The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, the Basic plan allows twenty per day, and Premium is unlimited.
+The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, while the paid plan is unlimited for $5 per month.
 
 ## Notes
 - All API keys remain on the server; the frontend never sees them.

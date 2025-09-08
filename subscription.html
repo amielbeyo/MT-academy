@@ -27,8 +27,7 @@
   </section>
   <section id="subscribe" style="display:none;">
     <h2>Subscribe</h2>
-    <button onclick="subscribe('basic')">Basic - $5/mo</button>
-    <button onclick="subscribe('premium')">Premium - $10/mo</button>
+    <button onclick="subscribe()">Unlimited - $5/mo</button>
   </section>
 <script>
 let userId=null;
@@ -57,8 +56,8 @@ async function sendPrompt(){
   const data=await res.json();
   document.getElementById('promptResponse').textContent=JSON.stringify(data);
 }
-async function subscribe(plan){
-  const res=await fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,plan})});
+async function subscribe(){
+  const res=await fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})});
   const data=await res.json();
   if(data.url) window.location=data.url; else alert(JSON.stringify(data));
 }

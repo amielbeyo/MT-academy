@@ -22,13 +22,8 @@ app.use(express.json());
 const users = new Map();
 
 const FREE_MONTHLY_LIMIT = 5;
-const BASIC_DAILY_LIMIT = 20;
 
-// Reset daily and monthly counters.
-setInterval(() => {
-  users.forEach(u => { u.promptsUsedToday = 0; });
-}, 24 * 60 * 60 * 1000).unref();
-
+// Reset monthly usage counts at the start of each new month.
 let currentMonth = new Date().getMonth();
 setInterval(() => {
   const now = new Date();
@@ -40,9 +35,6 @@ setInterval(() => {
 
 function checkAllowance(user) {
   if (user.plan === 'premium') return true;
-  if (user.plan === 'basic') {
-    return user.promptsUsedToday < BASIC_DAILY_LIMIT;
-  }
   return user.promptsUsedMonth < FREE_MONTHLY_LIMIT;
 }
 
@@ -53,7 +45,7 @@ app.post('/signup', async (req, res) => {
   if (existing) return res.status(400).json({ error: 'Email already registered.' });
   const hash = await bcrypt.hash(password, 10);
   const id = uuidv4();
-  users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedToday: 0, promptsUsedMonth: 0 });
+  users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
   res.json({ id });
 });
 
@@ -100,20 +92,18 @@ app.post('/prompt', async (req, res) => {
       // If the external API fails, fall back to the demo reply.
     }
   }
-  user.promptsUsedToday += 1;
   user.promptsUsedMonth += 1;
   res.json({ reply });
 });
 
 app.post('/subscribe', async (req, res) => {
-  const { userId, plan } = req.body; // plan = 'basic' or 'premium'
+  const { userId } = req.body;
   const user = users.get(userId);
   if (!user) return res.status(401).json({ error: 'Invalid user.' });
-  if (!['basic', 'premium'].includes(plan)) return res.status(400).json({ error: 'Invalid plan.' });
   if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
   try {
-    // Create a Stripe Checkout session.
-    const priceId = plan === 'basic' ? process.env.STRIPE_BASIC_PRICE : process.env.STRIPE_PREMIUM_PRICE;
+    // Create a Stripe Checkout session for the $5 unlimited plan.
+    const priceId = process.env.STRIPE_PREMIUM_PRICE;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
