@@ -932,7 +932,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Discussed the burden of proof
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low exactly 10. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
@@ -951,7 +951,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Use of notes was minimal, effective, and purposeful
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
-  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`,
+  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low exactly 10. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
@@ -969,7 +969,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low exactly 10. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -989,7 +989,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low exactly 10. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -2400,18 +2400,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           if (!Number.isFinite(Number(payload.total))) {
             payload.total = (low + high) / 2;
           }
-          // Ensure range spread is between 6 and 11 points
+          // Ensure range spread is exactly 10 points
           const avg = Number.isFinite(Number(payload.total)) ? Number(payload.total) : (low + high) / 2;
-          if (high - low < 6) {
-            low = Math.max(0, Math.round(avg - 3));
-            high = Math.min(100, low + 6);
-          } else if (high - low > 11) {
-            low = Math.max(0, Math.round(avg - 5.5));
-            high = Math.min(100, low + 11);
-          } else {
-            low = Math.round(low);
-            high = Math.round(high);
-          }
+          low = Math.max(0, Math.round(avg - 5));
+          high = Math.min(100, low + 10);
           payload.range = `${low}-${high}`;
         }
       }
