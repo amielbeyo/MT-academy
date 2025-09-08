@@ -1693,6 +1693,7 @@ function gptStopRecord(){
     // Build a USER-ONLY block that the judge must score
     const userOnly = gptChat
       .filter(m => m.role === 'user')
+      .slice(1)
       .map(m => `[USER]: ${m.content}`)
       .join('\n');
 
