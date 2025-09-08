@@ -836,11 +836,15 @@ const PROMPT_TEMPLATE_RULING =
     if(!scoreMatch || !explanationMatch){
       throw new Error('Response did not match expected format');
     }
-    const low = Number(scoreMatch[1]);
-    const high = scoreMatch[2] ? Number(scoreMatch[2]) : undefined;
-    const scoreStr = high !== undefined
-      ? `${Math.round(low * 10)}-${Math.round(high * 10)}`
-      : `${Math.round(low * 10)}`;
+    let low = Number(scoreMatch[1]);
+    let high = scoreMatch[2] ? Number(scoreMatch[2]) : low;
+    if (high <= low) high = Math.min(10, low + 0.5);
+    if (high - low > 1) {
+      const avg = (low + high) / 2;
+      low = Math.max(0, avg - 0.5);
+      high = Math.min(10, avg + 0.5);
+    }
+    const scoreStr = `${Math.round(low * 10)}-${Math.round(high * 10)}`;
     return {
       ruling: rulingMatch ? rulingMatch[1] : null,
       summary: summaryMatch ? summaryMatch[1].trim() : '',
@@ -1419,9 +1423,9 @@ function appendJudgeDecision(res){
   sum.innerHTML=`<strong>Summary:</strong> ${escHTML(res.summary)}`;
   div.appendChild(sum);
  }
-  const score=document.createElement('div');
-  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)} / 100`;
-  div.appendChild(score);
+ const score=document.createElement('div');
+ score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)} / 100`;
+ div.appendChild(score);
   const explain=document.createElement('div');
   explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
   div.appendChild(explain);
@@ -2036,11 +2040,12 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
+    const finalScore = escHTML(result.range || result.total);
     let html=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
-        <div>Final Score</div><div><strong>${result.range || result.total}</strong> / 100</div>
+        <div>Final Score</div><div><strong>${finalScore}</strong> / 100</div>
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
         <div>Fillers</div><div>${m.fillers}</div>
@@ -2464,8 +2469,9 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
-    const low=Math.max(0,result.total-5);
-    const high=Math.min(100,result.total+5);
+    let low=Math.max(0,Math.round(result.total)-5);
+    let high=Math.min(100,Math.round(result.total)+5);
+    if(high<=low){ if(high<100) high=low+1; else low=Math.max(0,high-1); }
     result.range=`${low}-${high}`;
     renderReport(type,result);
     $('videoStatus').textContent='Scored.';
@@ -2527,6 +2533,12 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     totalFromLLM = conf.cats.reduce((sum,c)=> sum + clamp(result.cats[c.key],1,10)*(c.w*10), 0);
   }
   result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
+  if(!result.range){
+    let low=Math.max(0,result.total-5);
+    let high=Math.min(100,result.total+5);
+    if(high<=low){ if(high<100) high=low+1; else low=Math.max(0,high-1); }
+    result.range=`${low}-${high}`;
+  }
 
   renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
