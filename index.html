@@ -732,7 +732,7 @@ PENALTIES / GUARDRAILS
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10 (high minus low between 0.6 and 1.1; respect the floors above).
+Score Range: two numbers from 1–10 (high minus low exactly 1.0; respect the floors above).
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -760,7 +760,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by more than 0.5 but less than 1.2.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by exactly 1.0.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -772,7 +772,7 @@ const PROMPT_TEMPLATE =
 `9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low between 0.6 and 1.1>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.5-8.5). High minus low exactly 1.0>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -787,7 +787,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by more than 0.5 but less than 1.2.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by exactly 1.0.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -801,7 +801,7 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low between 0.6 and 1.1>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.5-8.5). High minus low exactly 1.0>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
