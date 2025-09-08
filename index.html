@@ -732,7 +732,7 @@ PENALTIES / GUARDRAILS
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10 (high minus low ≤ 1.0; respect the floors above).
+Score Range: two numbers from 1–10 (high minus low between 0.6 and 1.1; respect the floors above).
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -760,7 +760,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must be no more than 1.0 apart.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by more than 0.5 but less than 1.2.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -772,7 +772,7 @@ const PROMPT_TEMPLATE =
 `9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low ≤ 1.0>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low between 0.6 and 1.1>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -787,7 +787,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must be no more than 1.0 apart.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by more than 0.5 but less than 1.2.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -801,7 +801,7 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low ≤ 1.0>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.1-8.2). High minus low between 0.6 and 1.1>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -932,7 +932,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Discussed the burden of proof
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
-  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum of category scores (rounded).`,
+  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
@@ -951,7 +951,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Use of notes was minimal, effective, and purposeful
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
-  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`,
+  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
@@ -969,7 +969,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`,
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -989,7 +989,7 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low ≤ 10. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with high minus low between 6 and 11. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -2400,11 +2400,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           if (!Number.isFinite(Number(payload.total))) {
             payload.total = (low + high) / 2;
           }
-          // Clamp range to a maximum 10-point spread
-          const avg = Number(payload.total);
-          if (high - low > 10) {
-            low = Math.max(0, Math.round(avg - 5));
-            high = Math.min(100, Math.round(avg + 5));
+          // Ensure range spread is between 6 and 11 points
+          const avg = Number.isFinite(Number(payload.total)) ? Number(payload.total) : (low + high) / 2;
+          if (high - low < 6) {
+            low = Math.max(0, Math.round(avg - 3));
+            high = Math.min(100, low + 6);
+          } else if (high - low > 11) {
+            low = Math.max(0, Math.round(avg - 5.5));
+            high = Math.min(100, low + 11);
           } else {
             low = Math.round(low);
             high = Math.round(high);
@@ -2451,8 +2454,24 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
-    const low=Math.max(0,result.total-5);
-    const high=Math.min(100,result.total+5);
+    let low=Math.max(0,Math.round(result.total-5));
+    let high=Math.min(100,Math.round(result.total+5));
+    if(high-low<6){
+      if(high===100){
+        low=Math.max(0,high-6);
+      }else if(low===0){
+        high=6;
+      }else{
+        high=low+6;
+      }
+    }
+    if(high-low>11){
+      if(low>0){
+        low=high-11;
+      }else{
+        high=low+11;
+      }
+    }
     result.range=`${low}-${high}`;
     renderReport(type,result);
     $('videoStatus').textContent='Scored.';
