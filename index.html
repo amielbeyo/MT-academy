@@ -2447,23 +2447,12 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }else if(wpm>=100&&wpm<=115){
       result.total=Math.min(100,result.total+7);
     }
-    let low=Math.max(0,Math.round(result.total-5));
-    let high=Math.min(100,Math.round(result.total+5));
-    if(high-low<6){
-      if(high===100){
-        low=Math.max(0,high-6);
-      }else if(low===0){
-        high=6;
-      }else{
-        high=low+6;
-      }
-    }
-    if(high-low>11){
-      if(low>0){
-        low=high-11;
-      }else{
-        high=low+11;
-      }
+    const center=Math.round(result.total);
+    let low=Math.max(0,center-5);
+    let high=low+10;
+    if(high>100){
+      high=100;
+      low=Math.max(0,high-10);
     }
     result.range=`${low}-${high}`;
     renderReport(type,result);
