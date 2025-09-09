@@ -19,6 +19,9 @@ This project provides a minimal Express backend and demo frontend for a subscrip
 4. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
    - `STRIPE_ENDPOINT_SECRET` – webhook signing secret for checkout events
+   - `STRIPE_PRICE_ID` – price ID for the subscription product
+   - `STRIPE_SUCCESS_URL` – URL users return to after successful checkout
+   - `STRIPE_CANCEL_URL` – URL users return to if they cancel checkout
    - `EMAIL_HOST` – SMTP server host used to send confirmations
    - `EMAIL_PORT` – SMTP port (e.g., 587)
    - `EMAIL_USER` – SMTP username
@@ -65,7 +68,11 @@ node server.js
      -H "Content-Type: application/json" \
      -d '{"userId":"<ID from login>","prompt":"hello"}'
    ```
-5. **Upgrade plan** via Stripe payment link:
+5. **Check current plan**:
+   ```bash
+   curl http://localhost:3000/plan/<ID from login>
+   ```
+6. **Upgrade plan** via Stripe Checkout:
    ```bash
    curl -X POST http://localhost:3000/subscribe \
      -H "Content-Type: application/json" \
