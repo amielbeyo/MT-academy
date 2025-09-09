@@ -1934,6 +1934,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
     const effWords=effectiveWordCount(text);
     const noSpeech = isEffectivelyEmpty(text) || effWords < 5;
+    const isVeryShort = effWords < 10 && qM.qCount < 2;
     if(noSpeech){
       const conf=RUBRICS[type]; const pack={};
       conf.cats.forEach(c=>{ pack[c.key]=0; });
