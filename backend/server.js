@@ -67,7 +67,13 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), (req, res
   }
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    const user = users.get(session.client_reference_id);
+    let user = null;
+    if (session.client_reference_id) {
+      user = users.get(session.client_reference_id);
+    }
+    if (!user && session.customer_email) {
+      user = Array.from(users.values()).find(u => u.email === session.customer_email);
+    }
     if (user) {
       user.plan = 'unlimited';
       user.stripeSubscriptionId = session.subscription;
@@ -124,43 +130,19 @@ app.post('/signup', async (req, res) => {
   users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
   saveUsers();
 
-  let paymentLink = null;
-  if (stripe && process.env.STRIPE_PRICE_ID) {
-    try {
-      const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
-        line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-        success_url:
-          process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/subscription.html?success=true',
-        cancel_url:
-          process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/subscription.html?canceled=true',
-        client_reference_id: id,
-        customer_email: email
-      });
-      paymentLink = session.url;
-    } catch (e) {
-      console.error('Stripe session error:', e);
-    }
-  }
-
-  // Fall back to a placeholder link if Stripe is not configured.
-  if (!paymentLink) {
-    paymentLink = `https://buy.stripe.com/test?client_reference_id=${id}`;
-  }
-
   if (mailer) {
     try {
       await mailer.sendMail({
         to: email,
         from: process.env.EMAIL_FROM || 'no-reply@example.com',
-        subject: 'Complete your MT Academy subscription',
-        text: `Thanks for signing up! Upgrade to unlimited prompts for $5 by visiting: ${paymentLink}`
+        subject: 'Welcome to MT Academy',
+        text: 'Thanks for signing up! Visit our subscription page to upgrade to unlimited prompts for $5/month.'
       });
     } catch (e) {
       console.error('Email error:', e);
     }
   }
-  res.json({ id, paymentLink });
+  res.json({ id });
 });
 
 app.post('/login', async (req, res) => {
@@ -262,32 +244,6 @@ app.get('/plan/:userId', (req, res) => {
   const user = users.get(req.params.userId);
   if (!user) return res.status(404).json({ error: 'Invalid user.' });
   res.json({ plan: user.plan });
-});
-
-app.post('/subscribe', async (req, res) => {
-  const { userId } = req.body;
-  const user = users.get(userId);
-  if (!user) return res.status(401).json({ error: 'Invalid user.' });
-  if (!stripe || !process.env.STRIPE_PRICE_ID) {
-    const url = `https://buy.stripe.com/test?client_reference_id=${userId}`;
-    return res.json({ url });
-  }
-  try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-      success_url:
-        process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/subscription.html?success=true',
-      cancel_url:
-        process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/subscription.html?canceled=true',
-      client_reference_id: userId,
-      customer_email: user.email
-    });
-    res.json({ url: session.url });
-  } catch (e) {
-    console.error('Stripe session error:', e);
-    res.status(500).json({ error: 'Failed to create checkout session.' });
-  }
 });
 
 if (require.main === module) {
