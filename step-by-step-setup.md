@@ -6,7 +6,7 @@ Follow these instructions to run the subscription demo without exposing your API
 - [Install Node.js](https://nodejs.org/) version 18 or newer.
 - Create accounts and obtain keys for:
   - **OpenAI** – gives you an API key.
-  - **Stripe** – you'll need a secret key and webhook signing secret.
+  - **Stripe** – you'll need a secret key, price ID, and webhook signing secret.
 
 ## 2. Download the Project
 - Download or clone this repository and open a terminal in the project folder.
@@ -28,6 +28,9 @@ Follow these instructions to run the subscription demo without exposing your API
 4. Open the new `.env` file in a text editor and replace the placeholders:
    ```ini
    STRIPE_SECRET=PASTE_YOUR_STRIPE_SECRET_HERE
+   STRIPE_PRICE_ID=PASTE_PRICE_ID_HERE
+   STRIPE_SUCCESS_URL=http://localhost:3000/subscription.html
+   STRIPE_CANCEL_URL=http://localhost:3000/subscription.html?canceled=true
    STRIPE_ENDPOINT_SECRET=PASTE_ENDPOINT_SECRET_HERE
    ```
    > **Important:** Keep `apikeys.js` and `.env` private; never share or commit them.
