@@ -1049,12 +1049,13 @@ function attachVideoGateHandlers(){
     $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
   });
   $('btnUseChatGPT').addEventListener('click', ()=>{
-    const key=$('openaiKey').value.trim();
-    const model=$('openaiModel').value;
-    const maxt=Number($('openaiMaxTokens').value)||600;
-    const isValidKey = /^sk-[A-Za-z0-9_-]{20,}$/.test(key); // allows sk-*** and sk-proj-***
-    if(!isValidKey){
-      alert('Paste a valid OpenAI API key (starts with "sk-").');
+    const key = $('openaiKey').value.trim();
+    const model = $('openaiModel').value;
+    const maxt = Number($('openaiMaxTokens').value) || 600;
+    // Accept sk- and sk-proj- and other future variants that start with sk-
+    const isValidKey = /^sk-[A-Za-z0-9_-]{10,}$/.test(key);
+    if (!isValidKey) {
+      alert('Paste a valid OpenAI API key (starts with \u201csk-\u201d).');
       return;
     }
     EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
@@ -1214,43 +1215,98 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 })();
 </script>
 <script>
-// Universal OpenAI caller with JSON-mode first, then text fallback
-async function callOpenAIChat({ messages, model, maxTokens=600, json=false, signal }) {
-  const base = { model, messages, temperature: 0, max_tokens: Math.max(50, Math.min(8192, Number(maxTokens)||600)) };
-
-  async function attempt(useJson) {
-    const body = useJson ? { ...base, response_format: { type: "json_object" } } : base;
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": `Bearer ${EngineState.openaiKey}`
-      },
-      body: JSON.stringify(body),
-      signal
-    });
-    const rawText = await resp.text();
-    let data = null; try { data = JSON.parse(rawText); } catch {}
-    if (!resp.ok) {
-      const err = new Error(data?.error?.message || `OpenAI HTTP ${resp.status}`);
-      err.status = resp.status; err.code = data?.error?.code; err.type = data?.error?.type; err.raw = data || rawText;
-      throw err;
-    }
-    const content = data?.choices?.[0]?.message?.content ?? "";
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) return content.map(p => p?.text || "").join("");
-    return String(content || "");
+// --- REPLACE callOpenAIChat with this hardened version ---
+async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, signal }) {
+  if (!EngineState.openaiKey || !/^sk-[A-Za-z0-9_-]{10,}/.test(EngineState.openaiKey)) {
+    const err = new Error('Missing or malformed OpenAI API key.');
+    err.type = 'config';
+    throw err;
   }
 
+  // 1) Quick ping to fail fast on invalid key/quota
+  async function ping() {
+    try {
+      const r = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${EngineState.openaiKey}` },
+        cache: 'no-store',
+        keepalive: true,
+      });
+      if (!r.ok) {
+        const t = await r.text().catch(()=> '');
+        let msg = 'OpenAI auth/models check failed';
+        try { const j = JSON.parse(t); msg = j?.error?.message || msg; } catch {}
+        const e = new Error(msg);
+        e.status = r.status;
+        throw e;
+      }
+    } catch (e) {
+      // Don’t block if ping fails due to adblockers; only throw on clear auth errors
+      if (e?.status === 401 || e?.status === 429 || e?.status === 403) throw e;
+    }
+  }
+
+  // 2) Try the ping, but ignore network-only failures
+  try { await ping(); } catch (e) { /* surface later if main call fails */ }
+
+  const baseBody = {
+    model,
+    messages,
+    temperature: 0,
+    max_tokens: Math.max(50, Math.min(8192, Number(maxTokens) || 600)),
+  };
+
+  async function attempt(useJson) {
+    const body = useJson
+      ? { ...baseBody, response_format: { type: 'json_object' } }
+      : baseBody;
+
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${EngineState.openaiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+      cache: 'no-store',
+      keepalive: true,
+    });
+
+    // Read text first to preserve error detail
+    const rawText = await resp.text();
+    let data = null;
+    try { data = JSON.parse(rawText); } catch {}
+
+    if (!resp.ok) {
+      const e = new Error(
+        data?.error?.message ||
+        `OpenAI HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0, 200)}` : ''}`
+      );
+      e.status = resp.status;
+      e.code = data?.error?.code;
+      e.type = data?.error?.type;
+      e.raw = data || rawText;
+      throw e;
+    }
+
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) return content.map(p => p?.text || '').join('');
+    return String(content || '');
+  }
+
+  // 3) Try JSON first, gracefully fall back to text
   try {
     return await attempt(json);
   } catch (e) {
-    const msg = String(e?.message||"").toLowerCase();
-    if (json && (e.status === 400 || msg.includes("response_format") || msg.includes("json"))) {
+    const msg = String(e?.message || '').toLowerCase();
+    const isSchemaish = msg.includes('response_format') || msg.includes('json');
+    if (json && (e.status === 400 || isSchemaish)) {
+      // Retry in plain text mode
       return await attempt(false);
     }
-    if (e.status === 429) e.code = e.code || "rate_limit";
+    if (e.status === 429) e.code = e.code || 'rate_limit';
     throw e;
   }
 }
@@ -1564,9 +1620,10 @@ Task:
    gptChat.push({role:'assistant',content:text});
    appendChat('chatgpt',text);
   }catch(e){
-    console.error('[GPT Argue]',e);
-    appendChat('chatgpt','ChatGPT error.');
-   }
+   console.error('[GPT Argue]',e);
+   const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
+   appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
+  }
   }
   async function gptSend(){
    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
@@ -1588,7 +1645,8 @@ Task:
    appendChat('chatgpt',reply);
   }catch(e){
    console.error('[GPT Send]',e);
-   appendChat('chatgpt','ChatGPT error.');
+   const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
+   appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
   }
   }
 function gptRecord(){
@@ -1759,7 +1817,8 @@ Scoring rule:
 
     }catch(e){
       console.error('[GPT Rule]', e);
-      appendChat('chatgpt','ChatGPT error.');
+      const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
+      appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
     }
   }
 function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
@@ -2525,28 +2584,30 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   showProvenance('LLM-only rubric scoring (no local blend).');
-}).catch(err=>{
-        let msg='ChatGPT scoring temporarily unavailable \u2014 using built-in for this score only.';
-        if(err?.code===429){ msg='Rate limit on your ChatGPT account \u2014 used built-in for this run. Try again shortly.'; }
-        else if(err?.message==='unauthorized' || err?.code===401){ msg='Your OpenAI API key is invalid/expired. Update it in \u201cChange Scoring Engine\u201d. Used built-in for this run.'; }
-        else if(err?.code==='insufficient_quota'){ msg='Your OpenAI quota is exhausted. Update billing or switch model. Used built-in for this run.'; }
-        else if(err?.message==='timeout'){ msg='ChatGPT timed out. Used built-in for this run.'; }
-        else if(err?.message==='bad_json'){ msg='ChatGPT returned malformed JSON. Used built-in for this run (your default remains ChatGPT).'; }
-        $('videoStatus').textContent = msg;
+}).catch(err => {
+  // Surface precise error info
+  let msg = 'ChatGPT scoring unavailable \u2014 using built-in for this run.';
+  if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
+  else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'Rate limit on your OpenAI account (429). Try again or switch model.';
+  else if (err?.status === 403) msg = 'OpenAI request forbidden (403). Check org/project access for this key.';
+  else if (err?.code === 'insufficient_quota') msg = 'OpenAI quota exhausted. Add billing or change organization.';
+  else if ((err?.message || '').toLowerCase().includes('network'))
+    msg = 'Network error reaching OpenAI. Check ad blockers / CORS / HTTPS.';
+  else if (err?.message) msg = `OpenAI error: ${err.message}`;
 
-        // IMPORTANT: Do NOT flip EngineState.mode
-        scoreWithBuiltin(type, raw, audio);
-        showProvenance('Built-in score used (ChatGPT not reached).', true);
+  const detail = err?.raw ? (typeof err.raw === 'string' ? err.raw.slice(0, 300) : JSON.stringify(err.raw).slice(0, 300)) : '';
+  $('videoStatus').innerHTML = `<strong>${escHTML(msg)}</strong>${detail ? `<div class="small">${escHTML(detail)}</div>` : ''}`;
+  $('videoStatus').style.color = '#ef9a9a';
 
-        const badge = $('modeBadge');
-        const banner = $('videoModeBanner');
-        if(badge && /ChatGPT/i.test(badge.textContent)){
-          badge.textContent = 'Mode: ChatGPT (temporary built-in fallback used)';
-        }
-        if(banner && /ChatGPT/i.test(banner.innerHTML)){
-          banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong> (ChatGPT unavailable).';
-        }
-      });
+  // Do NOT flip engine mode; just fall back this run
+  scoreWithBuiltin(type, raw, audio);
+  showProvenance('Built-in score used (OpenAI error).', true);
+
+  const badge = $('modeBadge');
+  if (badge && /ChatGPT/i.test(badge.textContent)) {
+    badge.textContent = 'Mode: ChatGPT (temporary built-in fallback used)';
+  }
+});
       return;
     }
     scoreWithBuiltin(type, raw, audio);
@@ -2554,13 +2615,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   async function testChatGPT(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+    if (!(EngineState.mode==='chatgpt' && EngineState.openaiKey)) {
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
     const model = EngineState.openaiModel || 'gpt-4o';
-    try{
+    try {
       const txt = await callOpenAIChat({
         messages: [
           { role: 'system', content: 'Return exactly {"ok":true} as plain text.' },
@@ -2570,10 +2631,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         maxTokens: 20,
         json: false
       });
-      let ok=false; try{ ok = JSON.parse(txt)?.ok === true; } catch(_){ }
-      showProvenance(ok ? 'ChatGPT reachable \u2705' : 'ChatGPT responded, but not in expected format. Try scoring.', !ok);
-    }catch(e){
-      showProvenance('ChatGPT test failed: ' + (e?.message || 'error'), true);
+      let ok = false; try { ok = JSON.parse(txt)?.ok === true; } catch (_){ }
+      showProvenance(ok ? 'ChatGPT reachable \u2705' : `ChatGPT responded but not as expected: ${txt.slice(0,120)}`, !ok);
+    } catch (e) {
+      const detail = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0, 200) : JSON.stringify(e.raw).slice(0, 200)) : '';
+      showProvenance(`ChatGPT test failed: ${e?.message || 'error'} ${detail ? `| ${detail}` : ''}`, true);
     }
   }
 
