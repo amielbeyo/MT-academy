@@ -71,7 +71,17 @@ async function sendGemini(){
   document.getElementById('geminiPromptResponse').textContent=JSON.stringify(data);
 }
 async function subscribe(){
-  window.location='https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00';
+  const res = await fetch(`${API_BASE}/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  });
+  const data = await res.json();
+  if (data.url) {
+    window.location = data.url;
+  } else {
+    alert('Subscription failed: ' + (data.error || 'Unknown error'));
+  }
 }
 </script>
 </body>
