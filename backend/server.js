@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
-const stripeSecret = process.env.STRIPE_SECRET;
+const stripeSecret = process.env.NODE_ENV === 'test' ? null : process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? require('stripe')(stripeSecret) : null;
 const nodemailer = require('nodemailer');
 
@@ -123,7 +123,31 @@ app.post('/signup', async (req, res) => {
   const id = uuidv4();
   users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
   saveUsers();
-  const paymentLink = `https://buy.stripe.com/fZu14n3Pzaoo85Q4vR2cg01?client_reference_id=${id}`;
+
+  let paymentLink = null;
+  if (stripe && process.env.STRIPE_PRICE_ID) {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+        success_url:
+          `${process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/subscription.html'}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url:
+          process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/subscription.html?canceled=true',
+        client_reference_id: id,
+        customer_email: email
+      });
+      paymentLink = session.url;
+    } catch (e) {
+      console.error('Stripe session error:', e);
+    }
+  }
+
+  // Fall back to a placeholder link if Stripe is not configured.
+  if (!paymentLink) {
+    paymentLink = `https://buy.stripe.com/test?client_reference_id=${id}`;
+  }
+
   if (mailer) {
     try {
       await mailer.sendMail({
@@ -234,12 +258,59 @@ app.post('/gemini', async (req, res) => {
   res.json({ reply });
 });
 
-app.post('/subscribe', (req, res) => {
+app.get('/plan/:userId', (req, res) => {
+  const user = users.get(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'Invalid user.' });
+  res.json({ plan: user.plan });
+});
+
+app.post('/subscribe', async (req, res) => {
   const { userId } = req.body;
   const user = users.get(userId);
   if (!user) return res.status(401).json({ error: 'Invalid user.' });
-  const url = `https://buy.stripe.com/fZu14n3Pzaoo85Q4vR2cg01?client_reference_id=${userId}`;
-  res.json({ url });
+  if (!stripe || !process.env.STRIPE_PRICE_ID) {
+    const url = `https://buy.stripe.com/test?client_reference_id=${userId}`;
+    return res.json({ url });
+  }
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
+      success_url:
+        `${process.env.STRIPE_SUCCESS_URL || 'http://localhost:3000/subscription.html'}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:
+        process.env.STRIPE_CANCEL_URL || 'http://localhost:3000/subscription.html?canceled=true',
+      client_reference_id: userId,
+      customer_email: user.email
+    });
+    res.json({ url: session.url });
+  } catch (e) {
+    console.error('Stripe session error:', e);
+    res.status(500).json({ error: 'Failed to create checkout session.' });
+  }
+});
+
+app.post('/confirm', async (req, res) => {
+  const { sessionId } = req.body;
+  if (!stripe || !sessionId) {
+    return res.status(400).json({ error: 'Missing Stripe configuration or sessionId.' });
+  }
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid') {
+      const user = users.get(session.client_reference_id);
+      if (user) {
+        user.plan = 'unlimited';
+        user.stripeSubscriptionId = session.subscription;
+        saveUsers();
+        return res.json({ userId: user.id, plan: user.plan });
+      }
+    }
+    res.status(400).json({ error: 'Invalid session.' });
+  } catch (e) {
+    console.error('Stripe confirm error:', e);
+    res.status(500).json({ error: 'Failed to confirm session.' });
+  }
 });
 
 if (require.main === module) {

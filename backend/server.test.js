@@ -1,4 +1,6 @@
 process.env.NODE_ENV = 'test';
+delete process.env.STRIPE_SECRET;
+delete process.env.STRIPE_PRICE_ID;
 const fs = require('fs');
 const path = require('path');
 const keyPath = path.join(__dirname, 'apikeys.js');
@@ -18,6 +20,24 @@ const app = require('./server');
     throw new Error('login should report free plan');
   }
   console.log('login plan test passed');
+
+  const planCheck = await request(app).get(`/plan/${userId}`);
+  if (planCheck.body.plan !== 'free') {
+    throw new Error('plan endpoint should return free');
+  }
+  console.log('plan endpoint test passed');
+
+  const subRes = await request(app).post('/subscribe').send({ userId });
+  if (!subRes.body.url) {
+    throw new Error('subscribe should return a url');
+  }
+  console.log('subscribe fallback test passed');
+
+  const confirmRes = await request(app).post('/confirm').send({ sessionId: 'x' });
+  if (confirmRes.status !== 400) {
+    throw new Error('confirm should require stripe');
+  }
+  console.log('confirm endpoint test passed');
 
   for (let i = 0; i < 5; i++) {
     const res = await request(app).post('/prompt').send({ userId, prompt: 'hi' });
