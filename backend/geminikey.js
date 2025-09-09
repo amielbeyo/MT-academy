@@ -1,1 +1,1 @@
-module.exports = 'PASTE_GEMINI_API_KEY_HERE';
+module.exports = AIzaSyBCSmpgyOV_dzYPLkQsaVSgx8DDzK1msOc
