@@ -1,1 +1,0 @@
-module.exports = 'PASTE_YOUR_OPENAI_API_KEY_HERE';

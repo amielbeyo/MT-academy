@@ -137,7 +137,6 @@ a.inline{color:var(--accent);text-decoration:underline}
     <a class="tab" href="#rules" id="rulesTab">AZ Rules</a>
     <a class="tab" href="#quiz">Rules Quiz</a>
     <a class="tab" href="#howto">How To Use</a>
-    <a class="tab" href="subscription.html">Subscribe</a>
     <a class="tab" href="#contact">Contact</a>
   </nav>
 
@@ -148,10 +147,30 @@ a.inline{color:var(--accent);text-decoration:underline}
       <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring or continue with the built-in scorer.</div>
       <div class="row">
         <div class="choice">
-          <h3>Option A — ChatGPT scoring (requires subscription)</h3>
-          <p class="small">API keys are handled by MT academy. Subscribers get the most accurate scoring.</p>
-          <a href="subscription.html" class="btn primary" style="margin-right:8px">Subscribe</a>
-          <button id="btnUseChatGPT" class="btn secondary">Use ChatGPT Scoring</button>
+          <h3>Option A — Use my ChatGPT account (recommended)</h3>
+          <ol class="small" style="margin-top:6px">
+            <li>Go to <strong>platform.openai.com</strong> → API keys → create a key.</li>
+            <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
+            <li>Select a model. “gpt-4o” is recommended.</li>
+          </ol>
+          <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
+          <label class="small">OpenAI API Key
+            <input id="openaiKey" class="input" type="password" placeholder="sk-...">
+          </label>
+          <div class="row" style="margin-top:8px">
+            <label class="small" style="flex:1">Model
+              <select id="openaiModel" class="input">
+                <option value="gpt-4o">gpt-4o</option>
+              </select>
+            </label>
+            <label class="small" style="flex:1">Max tokens
+              <input id="openaiMaxTokens" class="input" type="number" value="600" min="200" max="2000">
+            </label>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button id="btnUseChatGPT" class="btn primary">Use ChatGPT Scoring</button>
+            <button id="btnForgetKey" class="btn secondary" title="Delete saved key">Remove saved key</button>
+          </div>
         </div>
         <div class="choice">
           <h3>Option B — Built-in scoring (faster, <em>less accurate</em>)</h3>
@@ -159,7 +178,27 @@ a.inline{color:var(--accent);text-decoration:underline}
           <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
         </div>
+        <div class="choice">
+          <h3>Movement Scoring</h3>
+          <ol class="small" style="margin-top:6px">
+            <li>Visit <strong>ai.google.dev</strong> → API keys → create a key.</li>
+            <li>Paste the key below. Stored only in your browser.</li>
+          </ol>
+          <label class="small">Gemini API Key
+            <input id="geminiKey" class="input" type="password" placeholder="AIza...">
+          </label>
+          <label class="small" style="margin-top:8px">Model
+            <select id="geminiModel" class="input">
+              <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
+            </select>
+          </label>
+          <div class="row" style="margin-top:8px">
+            <button id="btnSaveGeminiKey" class="btn primary">Save Gemini Key</button>
+            <button id="btnForgetGeminiKey" class="btn secondary" title="Delete saved key">Remove</button>
+          </div>
         </div>
+      </div>
       <hr class="sep">
       <div class="row" style="justify-content:flex-end">
         <button id="btnCloseGate" class="btn">Close</button>
@@ -198,7 +237,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </select>
       </label>
       <button id="btnGPTNew" class="btn primary">GPT Prompt</button>
-      <button id="btnObjChangeEngine" class="btn secondary" title="Select scoring mode">Scoring Engine</button>
+      <button id="btnObjChangeEngine" class="btn secondary" title="Add or change API key">API Key</button>
     </div>
     <div class="small" style="margin-top:8px">Press <strong>ChatGPT Argue</strong> to show argument actions.</div>
     <button id="btnGPTArgue" class="btn primary" style="width:100%;margin-top:4px">ChatGPT Argue</button>
@@ -236,7 +275,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowVoice" class="btn secondary">Show Voice</button>
       <button id="btnAnalyzeMovement" class="btn secondary">Movement (Gemini)</button>
-      <button id="btnChangeEngine" class="btn secondary" title="Select scoring mode">Scoring Engine</button>
+      <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
     <div id="videoFeedback" class="small"></div>
@@ -260,7 +299,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <textarea id="gptWriteGoal" placeholder="Describe what you're trying to write or improve"></textarea>
     <div class="controls">
       <button id="btnGPTWrite" class="btn secondary">Ask ChatGPT to Draft</button>
-      <button id="btnWriteChangeEngine" class="btn secondary" title="Select scoring mode">Scoring Engine</button>
+      <button id="btnWriteChangeEngine" class="btn secondary" title="Add or change API key">API Key / Engine</button>
     </div>
     <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
     <div id="writeExemplar" class="small" style="margin-top:8px"></div>
@@ -299,12 +338,20 @@ a.inline{color:var(--accent);text-decoration:underline}
     <p class="small">Open a tab for the tool you need and follow these steps.</p>
     <ul class="small">
       <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> Pick a topic and difficulty, hit <em>New Drill</em>, then decide whether the judge should sustain or overrule. Click <em>Check</em> for the answer. <em>ChatGPT Argue</em> lets you debate the AI and <em>GPT Prompt</em> takes custom practice. Use <em>Reset Stats</em> to wipe your record.</li>
-      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> Choose a speech, allow camera and mic, and record. Subscribers get ChatGPT-based scoring; others receive built-in feedback. Use <em>Re-score</em> for another attempt or <em>Download</em> to save the session.</li>
-      <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> Select the document type, add your notes, and click <em>Ask ChatGPT to Draft</em>. Requires an active subscription.</li>
+      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> Choose a speech, allow camera and mic, and record. When you stop, review <em>Metrics</em>. Add an OpenAI key under <em>API Key / Engine</em> for scoring and optionally a Gemini key to analyze movement. Use <em>Re-score</em> for another attempt or <em>Download</em> to save the session.</li>
+      <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> Select the document type, add your notes, and click <em>Ask ChatGPT to Draft</em>. Pick the model in <em>API Key / Engine</em> and edit the result as needed.</li>
       <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> Search by number or topic to read the rule and its plain‑language explanation.</li>
       <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> Choose practice or test mode, pick a rule set, set the question count and difficulty, then press <em>Start Quiz</em>. Use <em>Next</em> to move ahead; the top bar tracks your score and best.</li>
     </ul>
-    
+    <h3>Save API Keys</h3>
+    <ol class="small" style="margin-top:6px">
+      <li>Create an OpenAI key at <strong>platform.openai.com</strong> and add a payment method. For movement analysis, make a Gemini key at <strong>ai.google.dev</strong>.</li>
+      <li>In MT academy, click “API Key” or “API Key / Engine”.</li>
+      <li>Paste the OpenAI key and choose a model for ChatGPT features. Paste the Gemini key to enable movement analysis in Video Coach.</li>
+      <li>Your keys stay only in this browser. Click “Remove” to forget them.</li>
+    </ol>
+    <h3>API Key Costs</h3>
+    <p class="small">You have to put money down for the ChatGPT API key; just put $5. For the Gemini API key, link it to a credit card; it's really cheap. If you can't afford it, then go get a job.</p>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -987,7 +1034,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* Gateway wiring */
-function openVideoGate(){ $('videoGate').style.display='flex'; }
+function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; $('geminiKey').value=EngineState.geminiKey||''; $('geminiModel').value=EngineState.geminiModel; }
 function closeVideoGate(){ $('videoGate').style.display='none' }
 function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
 function attachVideoGateHandlers(){
@@ -997,10 +1044,33 @@ function attachVideoGateHandlers(){
     $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
   });
   $('btnUseChatGPT').addEventListener('click', ()=>{
-    EngineState.mode='chatgpt';
-    EngineState.openaiKey='server';
+    const key=$('openaiKey').value.trim();
+    const model=$('openaiModel').value;
+    const maxt=Number($('openaiMaxTokens').value)||600;
+    const isValidKey = /^sk-[A-Za-z0-9_-]{20,}$/.test(key); // allows sk-*** and sk-proj-***
+    if(!isValidKey){
+      alert('Paste a valid OpenAI API key (starts with "sk-").');
+      return;
+    }
+    EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
     closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
+  });
+  $('btnForgetKey').addEventListener('click', ()=>{
+    EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
+    alert('Removed saved API key. Falling back to built-in scoring.');
+  });
+  $('btnSaveGeminiKey')?.addEventListener('click', ()=>{
+    const key=$('geminiKey').value.trim();
+    const model=$('geminiModel').value;
+    if(!key){ alert('Paste a Gemini API key.'); return; }
+    EngineState.geminiKey=key; EngineState.geminiModel=model;
+    closeVideoGate();
+    const s=$('videoStatus'); if(s) s.textContent='Gemini key saved. Use Movement for analysis.';
+  });
+  $('btnForgetGeminiKey')?.addEventListener('click', ()=>{
+    EngineState.geminiKey='';
+    const s=$('videoStatus'); if(s) s.textContent='Removed Gemini key.';
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
@@ -1372,7 +1442,7 @@ function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
  async function gptNew(){
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled. Subscribe to enable.');
+   alert('ChatGPT mode not enabled or API key missing.');
    return;
   }
   const diff=$('objGPTDiff').value||'easy';
@@ -1415,7 +1485,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled. Subscribe to enable.');
+   alert('ChatGPT mode not enabled or API key missing.');
    return;
   }
  const role = $('objGPTRole').value || 'chatgpt';
@@ -1494,7 +1564,7 @@ Task:
    }
   }
   async function gptSend(){
-   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled. Subscribe to enable.');return;}
+   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
    const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
    updateGPTSend();
   gptChat.push({role:'user',content:txt});
@@ -1517,7 +1587,7 @@ Task:
   }
   }
 function gptRecord(){
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled. Subscribe to enable.');return;}
+  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
   $('objGPTInput').value='';
   updateGPTSend();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -1602,7 +1672,7 @@ function gptStopRecord(){
 }
   async function gptRule(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled. Subscribe to enable.');
+      alert('ChatGPT mode not enabled or API key missing.');
       return;
     }
 
@@ -1870,7 +1940,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return {buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
 
-    const isVeryShort = (effWords < 10 && qM.qCount < 2);
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
 
     let delivery=6;
@@ -2480,7 +2549,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   async function testChatGPT(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled. Subscribe to enable. Click "Scoring Engine".');
+      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
@@ -2504,7 +2573,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   async function analyzeMovement(){
     if(!EngineState.geminiKey){
-      alert('Subscribe to enable movement analysis.');
+      alert('Add a Gemini API key in “API Key / Engine”.');
       return;
     }
     if(!lastVideoBlob || !lastVideoBlob.type.startsWith('video/')){
@@ -2543,7 +2612,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   async function gptWrite(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled. Subscribe to enable. Click "Scoring Engine".');
+      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
     const type=$('writeType').value;
@@ -2918,13 +2987,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.querySelectorAll('#navMenu .tab').forEach(link=>{
     link.addEventListener('click',e=>{
-      const href = link.getAttribute('href') || '';
-      if(!href.startsWith('#')){
-        // External link (e.g., Stripe checkout) - allow default navigation
-        return;
-      }
       e.preventDefault();
-      showSection(href.slice(1));
+      showSection(link.getAttribute('href').slice(1));
       const nav=$('navMenu');
       nav.classList.remove('open');
       $('menuToggle').setAttribute('aria-expanded','false');
