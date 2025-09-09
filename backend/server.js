@@ -15,6 +15,14 @@ try {
   // `apikeys.js` is optional; if missing, OPENAI_API_KEY stays undefined.
 }
 
+// Load the Gemini key from `geminikey.js` so it stays on the server.
+let GEMINI_API_KEY;
+try {
+  GEMINI_API_KEY = require('./geminikey');
+} catch (_) {
+  // `geminikey.js` is optional; if missing, GEMINI_API_KEY stays undefined.
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -105,6 +113,41 @@ app.post('/prompt', async (req, res) => {
       const data = await response.json();
       if (data.choices) {
         reply = data.choices[0].message.content;
+      }
+    } catch (e) {
+      // If the external API fails, fall back to the demo reply.
+    }
+  }
+  user.promptsUsedMonth += 1;
+  res.json({ reply });
+});
+
+app.post('/gemini', async (req, res) => {
+  const { userId, prompt } = req.body;
+  const user = users.get(userId);
+  if (!user) return res.status(401).json({ error: 'Invalid user.' });
+  if (!checkAllowance(user)) {
+    return res.status(403).json({ error: 'Usage limit reached.' });
+  }
+  // Call the Gemini API using a server-side key.
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'Gemini API key not configured.' });
+  }
+  let reply = `Processed prompt: ${prompt}`;
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }] };
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('\n').trim();
+      if (text) {
+        reply = text;
       }
     } catch (e) {
       // If the external API fails, fall back to the demo reply.
