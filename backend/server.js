@@ -123,7 +123,20 @@ app.post('/signup', async (req, res) => {
   const id = uuidv4();
   users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
   saveUsers();
-  res.json({ id });
+  const paymentLink = `https://buy.stripe.com/fZu14n3Pzaoo85Q4vR2cg01?client_reference_id=${id}`;
+  if (mailer) {
+    try {
+      await mailer.sendMail({
+        to: email,
+        from: process.env.EMAIL_FROM || 'no-reply@example.com',
+        subject: 'Complete your MT Academy subscription',
+        text: `Thanks for signing up! Upgrade to unlimited prompts for $5 by visiting: ${paymentLink}`
+      });
+    } catch (e) {
+      console.error('Email error:', e);
+    }
+  }
+  res.json({ id, paymentLink });
 });
 
 app.post('/login', async (req, res) => {
@@ -221,38 +234,12 @@ app.post('/gemini', async (req, res) => {
   res.json({ reply });
 });
 
-app.post('/subscribe', async (req, res) => {
+app.post('/subscribe', (req, res) => {
   const { userId } = req.body;
   const user = users.get(userId);
   if (!user) return res.status(401).json({ error: 'Invalid user.' });
-  if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
-  try {
-    // Create a Stripe Checkout session for the $5 unlimited plan.
-    const priceId = process.env.STRIPE_UNLIMITED_PRICE;
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: 'https://example.com/success',
-      cancel_url: 'https://example.com/cancel',
-      client_reference_id: userId
-    });
-    if (mailer) {
-      try {
-        await mailer.sendMail({
-          to: user.email,
-          from: process.env.EMAIL_FROM || 'no-reply@example.com',
-          subject: 'Subscription Confirmed',
-          text: 'Thank you for subscribing to MT Academy!'
-        });
-      } catch (e) {
-        console.error('Email error:', e);
-      }
-    }
-    res.json({ url: session.url });
-  } catch (err) {
-    res.status(500).json({ error: 'Stripe error', details: err.message });
-  }
+  const url = `https://buy.stripe.com/fZu14n3Pzaoo85Q4vR2cg01?client_reference_id=${userId}`;
+  res.json({ url });
 });
 
 if (require.main === module) {
