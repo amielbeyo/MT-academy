@@ -15,7 +15,8 @@ This project provides a minimal Express backend and demo frontend for a subscrip
    # edit .env to include real Stripe values
    ```
 2. The OpenAI key is stored in `backend/apikeys.js`. Replace the placeholder with your real key; the server reads it so users never see the key.
-3. Set these variables inside `backend/.env`:
+3. The Gemini key is stored in `backend/geminikey.js`. Replace the placeholder with your real Gemini API key.
+4. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
    - `STRIPE_UNLIMITED_PRICE` – price ID for the $5/month unlimited plan
    - `EMAIL_HOST` – SMTP server host used to send confirmations
@@ -57,7 +58,13 @@ node server.js
      -H "Content-Type: application/json" \
      -d '{"userId":"<ID from login>","prompt":"hello"}'
    ```
-4. **Upgrade plan** via Stripe Checkout:
+4. **Send a Gemini prompt** (also limited for free plans):
+   ```bash
+   curl -X POST http://localhost:3000/gemini \
+     -H "Content-Type: application/json" \
+     -d '{"userId":"<ID from login>","prompt":"hello"}'
+   ```
+5. **Upgrade plan** via Stripe Checkout:
    ```bash
    curl -X POST http://localhost:3000/subscribe \
      -H "Content-Type: application/json" \

@@ -25,6 +25,12 @@
     <button onclick="sendPrompt()">Send</button>
     <pre id="promptResponse"></pre>
   </section>
+  <section id="geminiPrompt" style="display:none;">
+    <h2>Send Gemini Prompt</h2>
+    <textarea id="geminiPromptText"></textarea>
+    <button onclick="sendGemini()">Send</button>
+    <pre id="geminiPromptResponse"></pre>
+  </section>
   <section id="subscribe" style="display:none;">
     <h2>Subscribe</h2>
     <button onclick="subscribe()">Unlimited - $5/mo</button>
@@ -47,6 +53,7 @@ async function login(){
   if(data.id){
     userId=data.id;
     document.getElementById('prompt').style.display='block';
+    document.getElementById('geminiPrompt').style.display='block';
     document.getElementById('subscribe').style.display='block';
   }
   alert(JSON.stringify(data));
@@ -56,6 +63,12 @@ async function sendPrompt(){
   const res=await fetch(`${API_BASE}/prompt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
   const data=await res.json();
   document.getElementById('promptResponse').textContent=JSON.stringify(data);
+}
+async function sendGemini(){
+  const prompt=document.getElementById('geminiPromptText').value;
+  const res=await fetch(`${API_BASE}/gemini`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
+  const data=await res.json();
+  document.getElementById('geminiPromptResponse').textContent=JSON.stringify(data);
 }
 async function subscribe(){
   window.location='https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00';
