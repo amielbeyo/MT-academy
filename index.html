@@ -2918,8 +2918,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.querySelectorAll('#navMenu .tab').forEach(link=>{
     link.addEventListener('click',e=>{
+      const href = link.getAttribute('href') || '';
+      if(!href.startsWith('#')){
+        // External link (e.g., Stripe checkout) - allow default navigation
+        return;
+      }
       e.preventDefault();
-      showSection(link.getAttribute('href').slice(1));
+      showSection(href.slice(1));
       const nav=$('navMenu');
       nav.classList.remove('open');
       $('menuToggle').setAttribute('aria-expanded','false');
