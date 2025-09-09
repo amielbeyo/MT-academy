@@ -2004,6 +2004,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       conf.cats.forEach(c=>{ pack[c.key]=0; });
       return {buildScores(){return {cats:pack,total:0,metrics:bm,compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},qm:qM,effWords}}};
     }
+    const isVeryShort=(effWords<10&&qM.qCount<2);
 
     const isOpen=type==='opening', isClose=type==='closing', isDir=type==='direct', isCross=type==='cross';
 
@@ -2531,10 +2532,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
 
     const eff = effectiveWordCount(transcript);
-    if(eff < 5){
-      $('videoStatus').textContent='Transcript too short to score.';
+    const qM = questionMetrics(transcript, sec);
+    if (eff < 5 || (eff < 10 && qM.qCount < 2)) {
+      $('videoStatus').textContent = 'Transcript too short to score.';
       scoreWithBuiltin(type, raw, audio);
-      showProvenance('Transcript too short; score set to 0.', true);
+      showProvenance('Transcript too short; using built-in engine.', true);
       return;
     }
 
