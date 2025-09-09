@@ -14,15 +14,15 @@ This project provides a minimal Express backend and demo frontend for a subscrip
    cp .env.example .env
    # edit .env to include real Stripe values
    ```
-2. Add your OpenAI key in one line by creating `apikey.js`:
+2. Add your OpenAI key in one line by creating `apikeys.js`:
    ```bash
-   cp apikey.example.js apikey.js
-   # open apikey.js and replace the placeholder with your real OpenAI key
+   cp apikeys.example.js apikeys.js
+   # open apikeys.js and replace the placeholder with your real OpenAI key
    ```
    The server reads the key from this file so users never see it.
 3. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
-   - `STRIPE_PREMIUM_PRICE` – price ID for the $5/month unlimited plan
+   - `STRIPE_UNLIMITED_PRICE` – price ID for the $5/month unlimited plan
 
 ## Installation
 Install dependencies and verify the tests:

@@ -22,15 +22,15 @@ Follow these instructions to run the subscription demo without exposing your API
    ```
 3. Add your OpenAI key in **one line** by copying the example file:
    ```bash
-   cp apikey.example.js apikey.js
-   # edit apikey.js and replace the placeholder with your OpenAI key
+   cp apikeys.example.js apikeys.js
+   # edit apikeys.js and replace the placeholder with your OpenAI key
    ```
 4. Open the new `.env` file in a text editor and replace the placeholders:
    ```ini
    STRIPE_SECRET=PASTE_YOUR_STRIPE_SECRET_HERE
-   STRIPE_PREMIUM_PRICE=PASTE_PRICE_ID_HERE
+   STRIPE_UNLIMITED_PRICE=PASTE_PRICE_ID_HERE
    ```
-   > **Important:** Keep `apikey.js` and `.env` private; never share or commit them.
+   > **Important:** Keep `apikeys.js` and `.env` private; never share or commit them.
 
 ## 4. Install and Test
 - Install packages and run tests:
