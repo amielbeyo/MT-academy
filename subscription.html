@@ -31,35 +31,55 @@
   </section>
 <script>
 let userId=null;
+const API_BASE=location.hostname==='localhost'?'http://localhost:3000':'';
 async function signup(){
   const email=document.getElementById('signupEmail').value;
   const password=document.getElementById('signupPassword').value;
-  const res=await fetch('/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  alert(JSON.stringify(data));
+  try{
+    const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(!res.ok){alert(data.error||'Signup failed');return;}
+    userId=data.id;
+    document.getElementById('prompt').style.display='block';
+    document.getElementById('subscribe').style.display='block';
+    alert('Account created. You are logged in.');
+  }catch(err){
+    alert('Signup failed: '+err.message);
+  }
 }
 async function login(){
   const email=document.getElementById('loginEmail').value;
   const password=document.getElementById('loginPassword').value;
-  const res=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.id){
+  try{
+    const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(!res.ok){alert(data.error||'Login failed');return;}
     userId=data.id;
     document.getElementById('prompt').style.display='block';
     document.getElementById('subscribe').style.display='block';
+    alert('Logged in.');
+  }catch(err){
+    alert('Login failed: '+err.message);
   }
-  alert(JSON.stringify(data));
 }
 async function sendPrompt(){
   const prompt=document.getElementById('promptText').value;
-  const res=await fetch('/prompt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
-  const data=await res.json();
-  document.getElementById('promptResponse').textContent=JSON.stringify(data);
+  try{
+    const res=await fetch(`${API_BASE}/prompt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
+    const data=await res.json();
+    document.getElementById('promptResponse').textContent=JSON.stringify(data);
+  }catch(err){
+    alert('Request failed: '+err.message);
+  }
 }
 async function subscribe(){
-  const res=await fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})});
-  const data=await res.json();
-  if(data.url) window.location=data.url; else alert(JSON.stringify(data));
+  try{
+    const res=await fetch(`${API_BASE}/subscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})});
+    const data=await res.json();
+    if(res.ok&&data.url)window.location=data.url;else alert(data.error||'Subscription failed');
+  }catch(err){
+    alert('Subscription failed: '+err.message);
+  }
 }
 </script>
 </body>

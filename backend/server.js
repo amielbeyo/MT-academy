@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? require('stripe')(stripeSecret) : null;
 
@@ -14,6 +15,7 @@ try {
 }
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // In-memory store for demonstration purposes.
@@ -42,7 +44,7 @@ app.post('/signup', async (req, res) => {
   const existing = Array.from(users.values()).find(u => u.email === email);
   if (existing) return res.status(400).json({ error: 'Email already registered.' });
   const hash = await bcrypt.hash(password, 10);
-  const id = uuidv4();
+  const id = randomUUID();
   users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
   res.json({ id });
 });
