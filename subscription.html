@@ -36,42 +36,73 @@
     <button onclick="subscribe()">Unlimited - $5/mo</button>
   </section>
 <script>
-let userId=null;
-const API_BASE='http://localhost:3000';
-async function signup(){
-  const email=document.getElementById('signupEmail').value;
-  const password=document.getElementById('signupPassword').value;
-  const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
+let userId = null;
+const API_BASE = 'http://localhost:3000';
+
+async function signup() {
+  const email = document.getElementById('signupEmail').value;
+  const password = document.getElementById('signupPassword').value;
+  const res = await fetch(`${API_BASE}/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
   alert(JSON.stringify(data));
 }
-async function login(){
-  const email=document.getElementById('loginEmail').value;
-  const password=document.getElementById('loginPassword').value;
-  const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.id){
-    userId=data.id;
-    document.getElementById('prompt').style.display='block';
-    document.getElementById('geminiPrompt').style.display='block';
-    document.getElementById('subscribe').style.display='block';
+
+async function login() {
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  const res = await fetch(`${API_BASE}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json();
+  if (data.id) {
+    userId = data.id;
+    document.getElementById('prompt').style.display = 'block';
+    document.getElementById('geminiPrompt').style.display = 'block';
+    document.getElementById('subscribe').style.display = 'block';
   }
   alert(JSON.stringify(data));
 }
-async function sendPrompt(){
-  const prompt=document.getElementById('promptText').value;
-  const res=await fetch(`${API_BASE}/prompt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
-  const data=await res.json();
-  document.getElementById('promptResponse').textContent=JSON.stringify(data);
+
+async function sendPrompt() {
+  const prompt = document.getElementById('promptText').value;
+  const res = await fetch(`${API_BASE}/prompt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, prompt })
+  });
+  const data = await res.json();
+  document.getElementById('promptResponse').textContent = JSON.stringify(data);
 }
-async function sendGemini(){
-  const prompt=document.getElementById('geminiPromptText').value;
-  const res=await fetch(`${API_BASE}/gemini`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
-  const data=await res.json();
-  document.getElementById('geminiPromptResponse').textContent=JSON.stringify(data);
+
+async function sendGemini() {
+  const prompt = document.getElementById('geminiPromptText').value;
+  const res = await fetch(`${API_BASE}/gemini`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, prompt })
+  });
+  const data = await res.json();
+  document.getElementById('geminiPromptResponse').textContent = JSON.stringify(data);
 }
-async function subscribe(){
-  window.location='https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00';
+
+async function subscribe() {
+  const res = await fetch(`${API_BASE}/subscribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  });
+  const data = await res.json();
+  if (data.url) {
+    window.location = data.url;
+  } else {
+    alert('Subscription failed: ' + (data.error || 'Unknown error'));
+  }
 }
 </script>
 </body>

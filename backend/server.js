@@ -54,7 +54,7 @@ const app = express();
 app.use(cors());
 
 // Stripe webhook must receive the raw body before JSON parsing
-app.post('/stripe-webhook', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/stripe-webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   if (!stripe || !process.env.STRIPE_ENDPOINT_SECRET) {
     return res.status(400).end();
   }
@@ -72,6 +72,18 @@ app.post('/stripe-webhook', express.raw({ type: 'application/json' }), (req, res
       user.plan = 'unlimited';
       user.stripeSubscriptionId = session.subscription;
       saveUsers();
+      if (mailer) {
+        try {
+          await mailer.sendMail({
+            to: user.email,
+            from: process.env.EMAIL_FROM || 'no-reply@example.com',
+            subject: 'Subscription Confirmed',
+            text: 'Thank you for subscribing to MT Academy!'
+          });
+        } catch (e) {
+          console.error('Email error:', e);
+        }
+      }
     }
   }
   res.json({ received: true });
@@ -237,18 +249,6 @@ app.post('/subscribe', async (req, res) => {
       cancel_url: 'https://example.com/cancel',
       client_reference_id: userId
     });
-    if (mailer) {
-      try {
-        await mailer.sendMail({
-          to: user.email,
-          from: process.env.EMAIL_FROM || 'no-reply@example.com',
-          subject: 'Subscription Confirmed',
-          text: 'Thank you for subscribing to MT Academy!'
-        });
-      } catch (e) {
-        console.error('Email error:', e);
-      }
-    }
     res.json({ url: session.url });
   } catch (err) {
     res.status(500).json({ error: 'Stripe error', details: err.message });
