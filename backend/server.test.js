@@ -19,6 +19,12 @@ const app = require('./server');
   }
   console.log('login plan test passed');
 
+  const planCheck = await request(app).get(`/plan/${userId}`);
+  if (planCheck.body.plan !== 'free') {
+    throw new Error('plan endpoint should return free');
+  }
+  console.log('plan endpoint test passed');
+
   for (let i = 0; i < 5; i++) {
     const res = await request(app).post('/prompt').send({ userId, prompt: 'hi' });
     if (res.status !== 200) {
