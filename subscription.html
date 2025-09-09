@@ -71,7 +71,11 @@ async function signup(){
   const email=document.getElementById('signupEmail').value;
   const password=document.getElementById('signupPassword').value;
   try{
-    const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const res=await fetch(`${API_BASE}/signup`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
     const data=await res.json();
     if(res.ok){
       alert('Signup successful! Check your email for the payment link.');
@@ -113,13 +117,21 @@ async function login(){
 }
 async function sendPrompt(){
   const prompt=document.getElementById('promptText').value;
-  const res=await fetch(`${API_BASE}/prompt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
+  const res=await fetch(`${API_BASE}/prompt`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({userId,prompt})
+  });
   const data=await res.json();
   document.getElementById('promptResponse').textContent=JSON.stringify(data);
 }
 async function sendGemini(){
   const prompt=document.getElementById('geminiPromptText').value;
-  const res=await fetch(`${API_BASE}/gemini`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
+  const res=await fetch(`${API_BASE}/gemini`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({userId,prompt})
+  });
   const data=await res.json();
   document.getElementById('geminiPromptResponse').textContent=JSON.stringify(data);
 }
