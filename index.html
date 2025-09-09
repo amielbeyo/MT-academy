@@ -2918,8 +2918,11 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.querySelectorAll('#navMenu .tab').forEach(link=>{
     link.addEventListener('click',e=>{
-      e.preventDefault();
-      showSection(link.getAttribute('href').slice(1));
+      const href=link.getAttribute('href')||'';
+      if(href.startsWith('#')){
+        e.preventDefault();
+        showSection(href.slice(1));
+      }
       const nav=$('navMenu');
       nav.classList.remove('open');
       $('menuToggle').setAttribute('aria-expanded','false');
