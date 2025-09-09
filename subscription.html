@@ -31,9 +31,13 @@
     <button onclick="sendGemini()">Send</button>
     <pre id="geminiPromptResponse"></pre>
   </section>
-  <section id="subscribe" style="display:none;">
+  <section id="subscribeSection" style="display:none;">
     <h2>Subscribe</h2>
-    <button onclick="subscribe()">Unlimited - $5/mo</button>
+    <script async src="https://js.stripe.com/v3/buy-button.js"></script>
+    <stripe-buy-button
+      buy-button-id="buy_btn_1S5IkRGjcFtLGwutsPk8XnpU"
+      publishable-key="pk_live_51S5Ea6GjcFtLGwutrmUh3W6qKpvIhv0pqpEmnZXyrsIkmSOqszyxyClM7WQCRdvVotLQI6RMtbHjrxIy2kgG0Gc900ElUoV6yb">
+    </stripe-buy-button>
   </section>
 <script>
 let userId=localStorage.getItem('userId');
@@ -48,6 +52,8 @@ const API_BASE=(location.hostname==='localhost'||location.hostname==='')
 if(userId){
   document.getElementById('prompt').style.display='block';
   document.getElementById('geminiPrompt').style.display='block';
+  const buyBtn=document.querySelector('stripe-buy-button');
+  if(buyBtn)buyBtn.setAttribute('client-reference-id',userId);
   refreshPlan();
 }
 
@@ -59,9 +65,9 @@ async function refreshPlan(){
     plan=data.plan;
     localStorage.setItem('plan',plan);
     if(plan==='unlimited'){
-      document.getElementById('subscribe').style.display='none';
+      document.getElementById('subscribeSection').style.display='none';
     }else{
-      document.getElementById('subscribe').style.display='block';
+      document.getElementById('subscribeSection').style.display='block';
     }
   }catch(e){
     // ignore
@@ -78,10 +84,14 @@ async function signup(){
     });
     const data=await res.json();
     if(res.ok){
-      alert('Signup successful! Check your email for the payment link.');
-      if(data.paymentLink){
-        window.open(data.paymentLink,'_blank');
+      if(data.emailSent){
+        alert('Signup successful! Check your email for next steps.');
+      }else{
+        alert('Signup successful!');
       }
+      document.getElementById('loginEmail').value=email;
+      document.getElementById('loginPassword').value=password;
+      await login();
     }else{
       alert(data.error||'Signup failed');
     }
@@ -104,6 +114,8 @@ async function login(){
       plan=data.plan;
       localStorage.setItem('userId',userId);
       localStorage.setItem('plan',plan);
+      const buyBtn=document.querySelector('stripe-buy-button');
+      if(buyBtn)buyBtn.setAttribute('client-reference-id',userId);
       document.getElementById('prompt').style.display='block';
       document.getElementById('geminiPrompt').style.display='block';
       await refreshPlan();
@@ -134,19 +146,6 @@ async function sendGemini(){
   });
   const data=await res.json();
   document.getElementById('geminiPromptResponse').textContent=JSON.stringify(data);
-}
-async function subscribe(){
-  const res = await fetch(`${API_BASE}/subscribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId })
-  });
-  const data = await res.json();
-  if (data.url) {
-    window.location = data.url;
-  } else {
-    alert('Subscription failed: ' + (data.error || 'Unknown error'));
-  }
 }
 </script>
 </body>
