@@ -46,8 +46,7 @@ Follow these instructions to run the subscription demo without exposing your API
   ```
   The server prints `Server running on 3000` when ready.
 
-## 6. Use the Demo Page
-- In your browser, open `subscription.html` from the project root.
-- Sign up, log in, send prompts, and upgrade plans via Stripe.
+## 6. Subscribe
+- Open `subscription.html` from the project root to be redirected to the Stripe checkout for the unlimited plan.
 
 Your API keys stay on the server; users never see them. When you want to deploy, set the same environment variables on your hosting provider.

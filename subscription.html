@@ -1,67 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Subscription Demo</title>
+  <title>Redirecting...</title>
+  <meta http-equiv="refresh" content="0; url=https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00">
 </head>
 <body>
-  <h1>Subscription Demo</h1>
-  <section id="signup">
-    <h2>Sign Up</h2>
-    <input id="signupEmail" placeholder="Email">
-    <input id="signupPassword" placeholder="Password" type="password">
-    <button onclick="signup()">Sign Up</button>
-  </section>
-  <section id="login">
-    <h2>Login</h2>
-    <input id="loginEmail" placeholder="Email">
-    <input id="loginPassword" placeholder="Password" type="password">
-    <button onclick="login()">Login</button>
-    <p>Free accounts receive 5 prompts each month.</p>
-  </section>
-  <section id="prompt" style="display:none;">
-    <h2>Send Prompt</h2>
-    <textarea id="promptText"></textarea>
-    <button onclick="sendPrompt()">Send</button>
-    <pre id="promptResponse"></pre>
-  </section>
-  <section id="subscribe" style="display:none;">
-    <h2>Subscribe</h2>
-    <button onclick="subscribe()">Unlimited - $5/mo</button>
-  </section>
-<script>
-let userId=null;
-const API_BASE='http://localhost:3000';
-async function signup(){
-  const email=document.getElementById('signupEmail').value;
-  const password=document.getElementById('signupPassword').value;
-  const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  alert(JSON.stringify(data));
-}
-async function login(){
-  const email=document.getElementById('loginEmail').value;
-  const password=document.getElementById('loginPassword').value;
-  const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.id){
-    userId=data.id;
-    document.getElementById('prompt').style.display='block';
-    document.getElementById('subscribe').style.display='block';
-  }
-  alert(JSON.stringify(data));
-}
-async function sendPrompt(){
-  const prompt=document.getElementById('promptText').value;
-  const res=await fetch(`${API_BASE}/prompt`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId,prompt})});
-  const data=await res.json();
-  document.getElementById('promptResponse').textContent=JSON.stringify(data);
-}
-async function subscribe(){
-  const res=await fetch(`${API_BASE}/subscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})});
-  const data=await res.json();
-  if(data.url) window.location=data.url; else alert(JSON.stringify(data));
-}
-</script>
+  <p>Redirecting to secure checkout…</p>
+  <p><a href="https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00">Click here if you are not redirected.</a></p>
 </body>
 </html>

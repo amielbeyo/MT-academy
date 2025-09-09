@@ -60,7 +60,7 @@ node server.js
    ```
    The response includes a Checkout `url` for the user to complete payment.
 
-The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, while the paid plan is unlimited for $5 per month.
+The site now uses a Stripe payment link for subscriptions; visiting `subscription.html` redirects directly to the secure checkout for the $5/month unlimited plan.
 
 ## Notes
 - All API keys remain on the server; the frontend never sees them.
