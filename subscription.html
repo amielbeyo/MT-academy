@@ -58,9 +58,7 @@ async function sendPrompt(){
   document.getElementById('promptResponse').textContent=JSON.stringify(data);
 }
 async function subscribe(){
-  const res=await fetch(`${API_BASE}/subscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId})});
-  const data=await res.json();
-  if(data.url) window.location=data.url; else alert(JSON.stringify(data));
+  window.location='https://buy.stripe.com/bJeaEX3Pz0NOadYe6r2cg00';
 }
 </script>
 </body>
