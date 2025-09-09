@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const stripeSecret = process.env.STRIPE_SECRET;
@@ -14,6 +15,7 @@ try {
 }
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 // In-memory store for demonstration purposes.
