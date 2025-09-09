@@ -3,6 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const keyPath = path.join(__dirname, 'apikeys.js');
 fs.writeFileSync(keyPath, "module.exports = 'test';");
+const usersPath = path.join(__dirname, 'users.json');
+if (fs.existsSync(usersPath)) fs.unlinkSync(usersPath);
 const request = require('supertest');
 const app = require('./server');
 
@@ -24,4 +26,5 @@ const app = require('./server');
   }
   console.log('usage limit test passed');
   fs.unlinkSync(keyPath);
+  if (fs.existsSync(usersPath)) fs.unlinkSync(usersPath);
 })();
