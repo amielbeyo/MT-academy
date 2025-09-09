@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? require('stripe')(stripeSecret) : null;
+const nodemailer = require('nodemailer');
 
 // Load the OpenAI key from `apikeys.js` so it stays on the server.
 let OPENAI_API_KEY;
@@ -17,6 +18,23 @@ try {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configure email transport if environment variables are provided.
+let mailer = null;
+if (process.env.EMAIL_HOST) {
+  mailer = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST,
+    port: Number(process.env.EMAIL_PORT || 587),
+    secure: process.env.EMAIL_SECURE === 'true',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+} else if (process.env.NODE_ENV === 'test') {
+  // Use a mock transport during tests to avoid real emails.
+  mailer = nodemailer.createTransport({ jsonTransport: true });
+}
 
 // In-memory store for demonstration purposes.
 const users = new Map();
@@ -112,6 +130,18 @@ app.post('/subscribe', async (req, res) => {
       cancel_url: 'https://example.com/cancel',
       client_reference_id: userId
     });
+    if (mailer) {
+      try {
+        await mailer.sendMail({
+          to: user.email,
+          from: process.env.EMAIL_FROM || 'no-reply@example.com',
+          subject: 'Subscription Confirmed',
+          text: 'Thank you for subscribing to MT Academy!'
+        });
+      } catch (e) {
+        console.error('Email error:', e);
+      }
+    }
     res.json({ url: session.url });
   } catch (err) {
     res.status(500).json({ error: 'Stripe error', details: err.message });

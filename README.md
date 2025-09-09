@@ -18,6 +18,11 @@ This project provides a minimal Express backend and demo frontend for a subscrip
 3. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
    - `STRIPE_UNLIMITED_PRICE` – price ID for the $5/month unlimited plan
+   - `EMAIL_HOST` – SMTP server host used to send confirmations
+   - `EMAIL_PORT` – SMTP port (e.g., 587)
+   - `EMAIL_USER` – SMTP username
+   - `EMAIL_PASS` – SMTP password
+   - `EMAIL_FROM` – sender address for confirmation emails
 
 ## Installation
 Install dependencies and verify the tests:
