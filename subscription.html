@@ -36,13 +36,37 @@
     <button onclick="subscribe()">Unlimited - $5/mo</button>
   </section>
 <script>
-let userId=null;
+let userId=localStorage.getItem('userId');
+let plan=localStorage.getItem('plan');
 // Default to the local API when developing on localhost or from the file system.
 // Otherwise, talk to the same origin that served this page so hosted setups work
 // without hitting the user's machine (which causes "Failed to fetch" errors).
 const API_BASE=(location.hostname==='localhost'||location.hostname==='')
   ?'http://localhost:3000'
   :location.origin;
+
+if(userId){
+  document.getElementById('prompt').style.display='block';
+  document.getElementById('geminiPrompt').style.display='block';
+  refreshPlan();
+}
+
+async function refreshPlan(){
+  if(!userId)return;
+  try{
+    const res=await fetch(`${API_BASE}/plan/${userId}`);
+    const data=await res.json();
+    plan=data.plan;
+    localStorage.setItem('plan',plan);
+    if(plan==='unlimited'){
+      document.getElementById('subscribe').style.display='none';
+    }else{
+      document.getElementById('subscribe').style.display='block';
+    }
+  }catch(e){
+    // ignore
+  }
+}
 async function signup(){
   const email=document.getElementById('signupEmail').value;
   const password=document.getElementById('signupPassword').value;
@@ -65,17 +89,20 @@ async function login(){
   const email=document.getElementById('loginEmail').value;
   const password=document.getElementById('loginPassword').value;
   try{
-    const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const res=await fetch(`${API_BASE}/login`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email,password})
+    });
     const data=await res.json();
     if(res.ok&&data.id){
       userId=data.id;
+      plan=data.plan;
+      localStorage.setItem('userId',userId);
+      localStorage.setItem('plan',plan);
       document.getElementById('prompt').style.display='block';
       document.getElementById('geminiPrompt').style.display='block';
-      if(data.plan==='unlimited'){
-        document.getElementById('subscribe').style.display='none';
-      }else{
-        document.getElementById('subscribe').style.display='block';
-      }
+      await refreshPlan();
       alert(`Logged in as ${data.plan} user.`);
     }else{
       alert(data.error||'Login failed');
