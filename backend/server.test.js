@@ -13,6 +13,11 @@ const app = require('./server');
   const password = 'pass123';
   const signup = await request(app).post('/signup').send({ email, password });
   const userId = signup.body.id;
+  const login = await request(app).post('/login').send({ email, password });
+  if (login.body.plan !== 'free') {
+    throw new Error('login should report free plan');
+  }
+  console.log('login plan test passed');
 
   for (let i = 0; i < 5; i++) {
     const res = await request(app).post('/prompt').send({ userId, prompt: 'hi' });

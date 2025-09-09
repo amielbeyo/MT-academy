@@ -41,22 +41,43 @@ const API_BASE='http://localhost:3000';
 async function signup(){
   const email=document.getElementById('signupEmail').value;
   const password=document.getElementById('signupPassword').value;
-  const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  alert(JSON.stringify(data));
+  try{
+    const res=await fetch(`${API_BASE}/signup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(res.ok){
+      alert('Signup successful! Check your email for the payment link.');
+      if(data.paymentLink){
+        window.open(data.paymentLink,'_blank');
+      }
+    }else{
+      alert(data.error||'Signup failed');
+    }
+  }catch(e){
+    alert('Signup failed: '+e.message);
+  }
 }
 async function login(){
   const email=document.getElementById('loginEmail').value;
   const password=document.getElementById('loginPassword').value;
-  const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json();
-  if(data.id){
-    userId=data.id;
-    document.getElementById('prompt').style.display='block';
-    document.getElementById('geminiPrompt').style.display='block';
-    document.getElementById('subscribe').style.display='block';
+  try{
+    const res=await fetch(`${API_BASE}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+    const data=await res.json();
+    if(res.ok&&data.id){
+      userId=data.id;
+      document.getElementById('prompt').style.display='block';
+      document.getElementById('geminiPrompt').style.display='block';
+      if(data.plan==='unlimited'){
+        document.getElementById('subscribe').style.display='none';
+      }else{
+        document.getElementById('subscribe').style.display='block';
+      }
+      alert(`Logged in as ${data.plan} user.`);
+    }else{
+      alert(data.error||'Login failed');
+    }
+  }catch(e){
+    alert('Login failed: '+e.message);
   }
-  alert(JSON.stringify(data));
 }
 async function sendPrompt(){
   const prompt=document.getElementById('promptText').value;
