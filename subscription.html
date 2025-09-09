@@ -37,7 +37,12 @@
   </section>
 <script>
 let userId=null;
-const API_BASE='http://localhost:3000';
+// Default to the local API when developing on localhost or from the file system.
+// Otherwise, talk to the same origin that served this page so hosted setups work
+// without hitting the user's machine (which causes "Failed to fetch" errors).
+const API_BASE=(location.hostname==='localhost'||location.hostname==='')
+  ?'http://localhost:3000'
+  :location.origin;
 async function signup(){
   const email=document.getElementById('signupEmail').value;
   const password=document.getElementById('signupPassword').value;
