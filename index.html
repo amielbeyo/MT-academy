@@ -1009,6 +1009,11 @@ EngineState = {
   set geminiModel(v){ save('mtpl.geminiModel', v||'gemini-1.5-flash') }
 };
 
+if (EngineState.openaiKey && EngineState.mode !== 'chatgpt') {
+  EngineState.mode = 'chatgpt';
+}
+renderModeBadge();
+
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
   if(!b) return;
