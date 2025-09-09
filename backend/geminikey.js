@@ -1,1 +1,0 @@
-module.exports = AIzaSyBCSmpgyOV_dzYPLkQsaVSgx8DDzK1msOc
