@@ -1,0 +1,8 @@
+{
+  "name": "mt-academy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "cd backend && npm test"
+  }
+}
