@@ -14,7 +14,7 @@ This project provides a minimal Express backend and demo frontend for a subscrip
    cp .env.example .env
    # edit .env to include real Stripe values
    ```
-2. The OpenAI key is stored in `backend/apikeys.js`. Replace the placeholder with your real key; the server reads it so users never see the key.
+2. Copy `backend/apikeys.example.js` to `backend/apikeys.js` and replace the placeholder with your real key; the server reads this file so users never see the key.
 3. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
    - `STRIPE_UNLIMITED_PRICE` – price ID for the $5/month unlimited plan

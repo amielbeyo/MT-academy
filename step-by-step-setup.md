@@ -20,9 +20,9 @@ Follow these instructions to run the subscription demo without exposing your API
    ```bash
    cp .env.example .env
    ```
-3. Edit `apikeys.js` with your OpenAI key (it stays on the server):
+3. Copy `apikeys.example.js` to `apikeys.js` and edit it with your OpenAI key (it stays on the server):
    ```bash
-   # inside backend/
+   cp apikeys.example.js apikeys.js
    nano apikeys.js
    ```
 4. Open the new `.env` file in a text editor and replace the placeholders:
