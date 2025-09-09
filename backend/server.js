@@ -3,9 +3,36 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? require('stripe')(stripeSecret) : null;
 const nodemailer = require('nodemailer');
+
+// Persist user data to disk so subscriptions survive restarts.
+const USERS_FILE = path.join(__dirname, 'users.json');
+const users = new Map();
+
+function loadUsers() {
+  try {
+    const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    data.forEach(u => users.set(u.id, u));
+  } catch (e) {
+    if (e.code !== 'ENOENT') {
+      console.error('Failed to load users', e);
+    }
+  }
+}
+
+function saveUsers() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(Array.from(users.values())));
+  } catch (e) {
+    console.error('Failed to save users', e);
+  }
+}
+
+loadUsers();
 
 // Load the OpenAI key from `apikeys.js` so it stays on the server.
 let OPENAI_API_KEY;
@@ -25,6 +52,31 @@ try {
 
 const app = express();
 app.use(cors());
+
+// Stripe webhook must receive the raw body before JSON parsing
+app.post('/stripe-webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!stripe || !process.env.STRIPE_ENDPOINT_SECRET) {
+    return res.status(400).end();
+  }
+  const sig = req.headers['stripe-signature'];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_ENDPOINT_SECRET);
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const user = users.get(session.client_reference_id);
+    if (user) {
+      user.plan = 'unlimited';
+      user.stripeSubscriptionId = session.subscription;
+      saveUsers();
+    }
+  }
+  res.json({ received: true });
+});
+
 app.use(express.json());
 
 // Configure email transport if environment variables are provided.
@@ -44,9 +96,6 @@ if (process.env.EMAIL_HOST) {
   mailer = nodemailer.createTransport({ jsonTransport: true });
 }
 
-// In-memory store for demonstration purposes.
-const users = new Map();
-
 const FREE_MONTHLY_LIMIT = 5;
 
 // Reset monthly usage counts at the start of each new month.
@@ -56,6 +105,7 @@ setInterval(() => {
   if (now.getMonth() !== currentMonth) {
     users.forEach(u => { u.promptsUsedMonth = 0; });
     currentMonth = now.getMonth();
+    saveUsers();
   }
 }, 24 * 60 * 60 * 1000).unref();
 
@@ -72,6 +122,7 @@ app.post('/signup', async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
   const id = uuidv4();
   users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
+  saveUsers();
   res.json({ id });
 });
 
@@ -81,6 +132,17 @@ app.post('/login', async (req, res) => {
   if (!user) return res.status(401).json({ error: 'Invalid credentials.' });
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials.' });
+  if (user.plan === 'unlimited' && stripe && user.stripeSubscriptionId) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
+      if (sub.status !== 'active') {
+        user.plan = 'free';
+        saveUsers();
+      }
+    } catch (e) {
+      console.error('Stripe verification failed:', e);
+    }
+  }
   res.json({ id: user.id, plan: user.plan });
 });
 
@@ -119,6 +181,7 @@ app.post('/prompt', async (req, res) => {
     }
   }
   user.promptsUsedMonth += 1;
+  saveUsers();
   res.json({ reply });
 });
 
@@ -154,6 +217,7 @@ app.post('/gemini', async (req, res) => {
     }
   }
   user.promptsUsedMonth += 1;
+  saveUsers();
   res.json({ reply });
 });
 
