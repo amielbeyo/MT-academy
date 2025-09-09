@@ -18,7 +18,7 @@ This project provides a minimal Express backend and demo frontend for a subscrip
 3. The Gemini key is stored in `backend/geminikey.js`. Replace the placeholder with your real Gemini API key.
 4. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
-   - `STRIPE_UNLIMITED_PRICE` – price ID for the $5/month unlimited plan
+   - `STRIPE_ENDPOINT_SECRET` – webhook signing secret for checkout events
    - `EMAIL_HOST` – SMTP server host used to send confirmations
    - `EMAIL_PORT` – SMTP port (e.g., 587)
    - `EMAIL_USER` – SMTP username
@@ -46,6 +46,7 @@ node server.js
      -H "Content-Type: application/json" \
      -d '{"email":"test@example.com","password":"secret"}'
    ```
+   The server emails a Stripe payment link so new users can upgrade when ready.
 2. **Login** to retrieve the user ID and plan:
    ```bash
    curl -X POST http://localhost:3000/login \
@@ -64,13 +65,13 @@ node server.js
      -H "Content-Type: application/json" \
      -d '{"userId":"<ID from login>","prompt":"hello"}'
    ```
-5. **Upgrade plan** via Stripe Checkout:
+5. **Upgrade plan** via Stripe payment link:
    ```bash
    curl -X POST http://localhost:3000/subscribe \
      -H "Content-Type: application/json" \
      -d '{"userId":"<ID from login>"}'
    ```
-   The response includes a Checkout `url` for the user to complete payment.
+   The response contains a `url` field with the hosted Stripe Checkout page.
 
 The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, while the paid plan is unlimited for $5 per month.
 
