@@ -5,14 +5,12 @@ const { v4: uuidv4 } = require('uuid');
 const stripeSecret = process.env.STRIPE_SECRET;
 const stripe = stripeSecret ? require('stripe')(stripeSecret) : null;
 
-// Load the OpenAI key from either an environment variable or `apikey.js`.
-let OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-  try {
-    OPENAI_API_KEY = require('./apikey');
-  } catch (_) {
-    // `apikey.js` is optional; if missing, OPENAI_API_KEY stays undefined.
-  }
+// Load the OpenAI key from `apikeys.js` so it stays on the server.
+let OPENAI_API_KEY;
+try {
+  OPENAI_API_KEY = require('./apikeys');
+} catch (_) {
+  // `apikeys.js` is optional; if missing, OPENAI_API_KEY stays undefined.
 }
 
 const app = express();
@@ -34,7 +32,7 @@ setInterval(() => {
 }, 24 * 60 * 60 * 1000).unref();
 
 function checkAllowance(user) {
-  if (user.plan === 'premium') return true;
+  if (user.plan === 'unlimited') return true;
   return user.promptsUsedMonth < FREE_MONTHLY_LIMIT;
 }
 
@@ -103,7 +101,7 @@ app.post('/subscribe', async (req, res) => {
   if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
   try {
     // Create a Stripe Checkout session for the $5 unlimited plan.
-    const priceId = process.env.STRIPE_PREMIUM_PRICE;
+    const priceId = process.env.STRIPE_UNLIMITED_PRICE;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],

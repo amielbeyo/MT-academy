@@ -1,5 +1,8 @@
-process.env.OPENAI_API_KEY = 'test';
 process.env.NODE_ENV = 'test';
+const fs = require('fs');
+const path = require('path');
+const keyPath = path.join(__dirname, 'apikeys.js');
+fs.writeFileSync(keyPath, "module.exports = 'test';");
 const request = require('supertest');
 const app = require('./server');
 
@@ -20,4 +23,5 @@ const app = require('./server');
     throw new Error('usage limit should be enforced');
   }
   console.log('usage limit test passed');
+  fs.unlinkSync(keyPath);
 })();
