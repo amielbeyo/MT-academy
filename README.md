@@ -22,7 +22,8 @@ This project provides a minimal Express backend and demo frontend for a subscrip
    The server reads the key from this file so users never see it.
 3. Set these variables inside `backend/.env`:
    - `STRIPE_SECRET` – secret key from your Stripe dashboard
-   - `STRIPE_PREMIUM_PRICE` – price ID for the $5/month unlimited plan
+   - `STRIPE_BASIC_PRICE` – price ID for the $5/month basic plan (20/day)
+   - `STRIPE_PREMIUM_PRICE` – price ID for the $10/month premium plan (unlimited)
 
 ## Installation
 Install dependencies and verify the tests:
@@ -39,7 +40,7 @@ node server.js
 ```
 
 ## Using the API
-All requests require an account. When a user signs up with an email address they are placed on the free plan, which allows **five prompts per month**. After the quota is exhausted the server returns `403` until the next month or until the user upgrades to the unlimited plan.
+All requests require an account. When a user signs up with an email address they are placed on the free plan, which allows **five prompts per month**. After the quota is exhausted the server returns `403` until the next month or until the user upgrades to a paid plan.
 1. **Create an account**
    ```bash
    curl -X POST http://localhost:3000/signup \
@@ -62,11 +63,11 @@ All requests require an account. When a user signs up with an email address they
    ```bash
    curl -X POST http://localhost:3000/subscribe \
      -H "Content-Type: application/json" \
-     -d '{"userId":"<ID from login>"}'
+     -d '{"userId":"<ID from login>","plan":"basic"}'
    ```
-   The response includes a Checkout `url` for the user to complete payment.
+   Replace `basic` with `premium` for the $10/mo unlimited plan. The response includes a Checkout `url` for the user to complete payment. When Stripe isn't configured, the server switches the user to the requested plan immediately.
 
-The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, while the paid plan is unlimited for $5 per month.
+The frontend demo page `subscription.html` interacts with the same endpoints and notes that free accounts get five prompts per month, while the paid plans provide higher limits: Basic ($5/mo for 20/day) and Premium ($10/mo for unlimited).
 
 ## Notes
 - All API keys remain on the server; the frontend never sees them.

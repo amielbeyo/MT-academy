@@ -23,5 +23,22 @@ const app = require('./server');
   if (limitRes.status !== 403) {
     throw new Error('usage limit should be enforced');
   }
-  console.log('usage limit test passed');
+  console.log('free plan limit test passed');
+
+  // Basic plan daily limit
+  const email2 = `basic${Date.now()}@example.com`;
+  const signup2 = await request(app).post('/signup').send({ email: email2, password });
+  const userId2 = signup2.body.id;
+  await request(app).post('/subscribe').send({ userId: userId2, plan: 'basic' });
+  for (let i = 0; i < 20; i++) {
+    const res = await request(app).post('/prompt').send({ userId: userId2, prompt: 'hi' });
+    if (res.status !== 200) {
+      throw new Error('basic prompt should be allowed');
+    }
+  }
+  const basicLimit = await request(app).post('/prompt').send({ userId: userId2, prompt: 'hi again' });
+  if (basicLimit.status !== 403) {
+    throw new Error('basic plan limit not enforced');
+  }
+  console.log('basic plan limit test passed');
 })();

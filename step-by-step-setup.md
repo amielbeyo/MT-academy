@@ -6,7 +6,9 @@ Follow these instructions to run the subscription demo without exposing your API
 - [Install Node.js](https://nodejs.org/) version 18 or newer.
 - Create accounts and obtain keys for:
   - **OpenAI** – gives you an API key.
-  - **Stripe** – create one $5/month subscription product for unlimited prompts to get a price ID.
+  - **Stripe** – create two subscription products:
+    - **$5/month Basic** – 20 prompts per day
+    - **$10/month Premium** – unlimited prompts
 
 ## 2. Download the Project
 - Download or clone this repository and open a terminal in the project folder.
@@ -28,7 +30,8 @@ Follow these instructions to run the subscription demo without exposing your API
 4. Open the new `.env` file in a text editor and replace the placeholders:
    ```ini
    STRIPE_SECRET=PASTE_YOUR_STRIPE_SECRET_HERE
-   STRIPE_PREMIUM_PRICE=PASTE_PRICE_ID_HERE
+   STRIPE_BASIC_PRICE=PASTE_BASIC_PRICE_ID
+   STRIPE_PREMIUM_PRICE=PASTE_PREMIUM_PRICE_ID
    ```
    > **Important:** Keep `apikey.js` and `.env` private; never share or commit them.
 
@@ -49,6 +52,8 @@ Follow these instructions to run the subscription demo without exposing your API
 ## 6. Use the Demo Page
 - In your browser, open `subscription.html` from the project root.
 - Sign up with your email, log in, and send prompts. Free accounts can send **five prompts per month**.
-- Upgrade to the unlimited plan via Stripe if you need more prompts.
+- Upgrade to a paid plan via Stripe if you need more prompts:
+  - Basic: $5/mo for 20 prompts per day
+  - Premium: $10/mo for unlimited prompts
 
 Your API keys stay on the server; users never see them. When you want to deploy, set the same environment variables on your hosting provider.

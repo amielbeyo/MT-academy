@@ -22,11 +22,17 @@ app.use(express.json());
 const users = new Map();
 
 const FREE_MONTHLY_LIMIT = 5;
+const BASIC_DAILY_LIMIT = 20;
 
-// Reset monthly usage counts at the start of each new month.
+// Reset daily and monthly usage counts.
 let currentMonth = new Date().getMonth();
+let currentDay = new Date().getDate();
 setInterval(() => {
   const now = new Date();
+  if (now.getDate() !== currentDay) {
+    users.forEach(u => { u.promptsUsedDay = 0; });
+    currentDay = now.getDate();
+  }
   if (now.getMonth() !== currentMonth) {
     users.forEach(u => { u.promptsUsedMonth = 0; });
     currentMonth = now.getMonth();
@@ -35,6 +41,7 @@ setInterval(() => {
 
 function checkAllowance(user) {
   if (user.plan === 'premium') return true;
+  if (user.plan === 'basic') return user.promptsUsedDay < BASIC_DAILY_LIMIT;
   return user.promptsUsedMonth < FREE_MONTHLY_LIMIT;
 }
 
@@ -45,7 +52,7 @@ app.post('/signup', async (req, res) => {
   if (existing) return res.status(400).json({ error: 'Email already registered.' });
   const hash = await bcrypt.hash(password, 10);
   const id = uuidv4();
-  users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0 });
+  users.set(id, { id, email, passwordHash: hash, plan: 'free', promptsUsedMonth: 0, promptsUsedDay: 0 });
   res.json({ id });
 });
 
@@ -92,18 +99,29 @@ app.post('/prompt', async (req, res) => {
       // If the external API fails, fall back to the demo reply.
     }
   }
-  user.promptsUsedMonth += 1;
+  if (user.plan === 'basic') {
+    user.promptsUsedDay += 1;
+  } else if (user.plan === 'free') {
+    user.promptsUsedMonth += 1;
+  }
   res.json({ reply });
 });
 
 app.post('/subscribe', async (req, res) => {
-  const { userId } = req.body;
+  const { userId, plan } = req.body;
   const user = users.get(userId);
   if (!user) return res.status(401).json({ error: 'Invalid user.' });
-  if (!stripe) return res.status(500).json({ error: 'Stripe not configured' });
+  if (!['basic', 'premium'].includes(plan)) {
+    return res.status(400).json({ error: 'Invalid plan.' });
+  }
+  if (!stripe) {
+    user.plan = plan;
+    return res.json({ plan });
+  }
   try {
-    // Create a Stripe Checkout session for the $5 unlimited plan.
-    const priceId = process.env.STRIPE_PREMIUM_PRICE;
+    const priceId = plan === 'premium'
+      ? process.env.STRIPE_PREMIUM_PRICE
+      : process.env.STRIPE_BASIC_PRICE;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
