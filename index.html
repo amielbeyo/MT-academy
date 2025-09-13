@@ -136,6 +136,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <a class="tab" href="#writing">Writing</a>
     <a class="tab" href="#rules" id="rulesTab">AZ Rules</a>
     <a class="tab" href="#quiz">Rules Quiz</a>
+    <a class="tab" href="#keys">API Keys</a>
     <a class="tab" href="#howto">How To Use</a>
     <a class="tab" href="#contact">Contact</a>
   </nav>
@@ -332,26 +333,109 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div id="quizBody" style="margin-top:8px"></div>
     <div id="quizExplain" class="small" style="margin-top:8px"></div>
   </section>
+  <!-- API Keys -->
+  <section id="keys" class="card">
+    <h2>API Keys / Engine</h2>
+    <p class="small">Use your own API accounts for AI features. Keys are stored only in this browser.</p>
+    <div class="row">
+      <div class="choice">
+        <h3>ChatGPT Scoring</h3>
+        <ol class="small" style="margin-top:6px">
+          <li>Go to <strong>platform.openai.com</strong> &rarr; API keys &rarr; create a key.</li>
+          <li>Paste the key below and choose a model.</li>
+        </ol>
+        <label class="small">OpenAI API Key
+          <input id="keyPageOpenAI" class="input" type="password" placeholder="sk-...">
+        </label>
+        <div class="row" style="margin-top:8px">
+          <label class="small" style="flex:1">Model
+            <select id="keyPageOpenAIModel" class="input">
+              <option value="gpt-4o">gpt-4o</option>
+            </select>
+          </label>
+          <label class="small" style="flex:1">Max tokens
+            <input id="keyPageOpenAIMaxTokens" class="input" type="number" value="600" min="200" max="2000">
+          </label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="saveOpenAI" class="btn primary">Save ChatGPT Key</button>
+          <button id="removeOpenAI" class="btn secondary">Remove</button>
+        </div>
+      </div>
+      <div class="choice">
+        <h3>Movement Scoring</h3>
+        <ol class="small" style="margin-top:6px">
+          <li>Visit <strong>ai.google.dev</strong> &rarr; API keys &rarr; create a key.</li>
+          <li>Paste the key below and choose a model.</li>
+        </ol>
+        <label class="small">Gemini API Key
+          <input id="keyPageGemini" class="input" type="password" placeholder="AIza...">
+        </label>
+        <label class="small" style="margin-top:8px">Model
+          <select id="keyPageGeminiModel" class="input">
+            <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
+          </select>
+        </label>
+        <div class="row" style="margin-top:8px">
+          <button id="saveGemini" class="btn primary">Save Gemini Key</button>
+          <button id="removeGemini" class="btn secondary">Remove</button>
+        </div>
+      </div>
+    </div>
+  </section>
   <!-- How To -->
   <section id="howto" class="card">
     <h2>How to Use</h2>
     <p class="small">Open a tab for the tool you need and follow these steps.</p>
     <ul class="small">
-      <li><a href="objections.html" class="hidden-link"><strong>Objections:</strong></a> Pick a topic and difficulty, hit <em>New Drill</em>, then decide whether the judge should sustain or overrule. Click <em>Check</em> for the answer. <em>ChatGPT Argue</em> lets you debate the AI and <em>GPT Prompt</em> takes custom practice. Use <em>Reset Stats</em> to wipe your record.</li>
-      <li><a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a> Choose a speech, allow camera and mic, and record. When you stop, review <em>Metrics</em>. Add an OpenAI key under <em>API Key / Engine</em> for scoring and optionally a Gemini key to analyze movement. Use <em>Re-score</em> for another attempt or <em>Download</em> to save the session.</li>
-      <li><a href="writing.html" class="hidden-link"><strong>Writing:</strong></a> Select the document type, add your notes, and click <em>Ask ChatGPT to Draft</em>. Pick the model in <em>API Key / Engine</em> and edit the result as needed.</li>
-      <li><a href="rules.html" class="hidden-link"><strong>Rules:</strong></a> Search by number or topic to read the rule and its plain‑language explanation.</li>
-      <li><a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a> Choose practice or test mode, pick a rule set, set the question count and difficulty, then press <em>Start Quiz</em>. Use <em>Next</em> to move ahead; the top bar tracks your score and best.</li>
+      <li>
+        <a href="objections.html" class="hidden-link"><strong>Objections:</strong></a>
+        <ul class="small">
+          <li>Pick a topic and difficulty.</li>
+          <li><em>New Drill</em> gives a built‑in objection.</li>
+          <li><em>GPT Prompt</em> asks ChatGPT to craft a new one.</li>
+          <li>Choose sustain or overrule, then press <em>Check</em>.</li>
+          <li><em>ChatGPT Argue</em> debates your reasoning with ChatGPT.</li>
+          <li><em>Score</em> lets ChatGPT grade your argument.</li>
+        </ul>
+      </li>
+      <li>
+        <a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a>
+        <ul class="small">
+          <li>Select the speech type and click <em>Start Recording</em>.</li>
+          <li>Use <em>Stop</em> when done, then <em>Play</em> or <em>Download</em> to review.</li>
+          <li><em>Re-score</em> analyzes delivery; <em>Show Voice</em> displays the transcript.</li>
+          <li><em>Movement (Gemini)</em> checks gestures; <em>API Key / Engine</em> adds keys.</li>
+          <li><em>Test ChatGPT</em> confirms your key works.</li>
+        </ul>
+      </li>
+      <li>
+        <a href="writing.html" class="hidden-link"><strong>Writing:</strong></a>
+        <ul class="small">
+          <li>Choose a document type and add notes.</li>
+          <li>Press <em>Ask ChatGPT to Draft</em> for a sample.</li>
+          <li>Edit the output and save it however you like.</li>
+        </ul>
+      </li>
+      <li>
+        <a href="rules.html" class="hidden-link"><strong>Rules:</strong></a>
+        <ul class="small">
+          <li>Search by number or topic.</li>
+          <li>Use <em>Clear</em> to reset or open the <em>Official PDF</em>.</li>
+          <li>Click a rule to read the full text and explanation.</li>
+        </ul>
+      </li>
+      <li>
+        <a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a>
+        <ul class="small">
+          <li>Select mode, rules, question count, and difficulty.</li>
+          <li>Press <em>Start Quiz</em>, answer, then click <em>Next</em> for the following question.</li>
+          <li>Track your progress with the score display.</li>
+        </ul>
+      </li>
     </ul>
-    <h3>Save API Keys</h3>
-    <ol class="small" style="margin-top:6px">
-      <li>Create an OpenAI key at <strong>platform.openai.com</strong> and add a payment method. For movement analysis, make a Gemini key at <strong>ai.google.dev</strong>.</li>
-      <li>In MT academy, click “API Key” or “API Key / Engine”.</li>
-      <li>Paste the OpenAI key and choose a model for ChatGPT features. Paste the Gemini key to enable movement analysis in Video Coach.</li>
-      <li>Your keys stay only in this browser. Click “Remove” to forget them.</li>
-    </ol>
-    <h3>API Key Costs</h3>
-    <p class="small">You have to put money down for the ChatGPT API key; just put $5. For the Gemini API key, link it to a credit card; it's really cheap. If you can't afford it, then go get a job.</p>
+    <p class="small">Need help with API keys? Visit the <a href="#keys" class="inline">API Keys page</a> for step-by-step setup.</p>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -1080,6 +1164,56 @@ function attachVideoGateHandlers(){
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
+
+function initKeyPage(){
+  const openaiInput = $('keyPageOpenAI');
+  const openaiModel = $('keyPageOpenAIModel');
+  const openaiMax = $('keyPageOpenAIMaxTokens');
+  const geminiInput = $('keyPageGemini');
+  const geminiModel = $('keyPageGeminiModel');
+  if(!openaiInput || !openaiModel || !openaiMax || !geminiInput || !geminiModel) return;
+  openaiInput.value = EngineState.openaiKey || '';
+  openaiModel.value = EngineState.openaiModel;
+  openaiMax.value = EngineState.openaiMaxTokens;
+  geminiInput.value = EngineState.geminiKey || '';
+  geminiModel.value = EngineState.geminiModel;
+  $('saveOpenAI').addEventListener('click', ()=>{
+    const key = openaiInput.value.trim();
+    if(!/^sk-[A-Za-z0-9_-]{10,}$/.test(key)){
+      alert('Paste a valid OpenAI key (starts with "sk-").');
+      return;
+    }
+    EngineState.openaiKey = key;
+    EngineState.openaiModel = openaiModel.value;
+    EngineState.openaiMaxTokens = Number(openaiMax.value) || 600;
+    EngineState.mode = 'chatgpt';
+    renderModeBadge();
+    alert('OpenAI key saved.');
+  });
+  $('removeOpenAI').addEventListener('click', ()=>{
+    EngineState.openaiKey = '';
+    EngineState.mode = 'builtin';
+    openaiInput.value = '';
+    renderModeBadge();
+    alert('OpenAI key removed.');
+  });
+  $('saveGemini').addEventListener('click', ()=>{
+    const key = geminiInput.value.trim();
+    if(!key){
+      alert('Paste a Gemini key.');
+      return;
+    }
+    EngineState.geminiKey = key;
+    EngineState.geminiModel = geminiModel.value;
+    alert('Gemini key saved.');
+  });
+  $('removeGemini').addEventListener('click', ()=>{
+    EngineState.geminiKey = '';
+    geminiInput.value = '';
+    alert('Gemini key removed.');
+  });
+}
+document.addEventListener('DOMContentLoaded', initKeyPage);
 
 /* Env warnings + error surface */
 function envWarn(){
