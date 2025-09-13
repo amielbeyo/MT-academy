@@ -395,7 +395,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <li>Pick a topic and difficulty.</li>
           <li><em>New Drill</em> gives a built‑in objection.</li>
           <li><em>GPT Prompt</em> asks ChatGPT to craft a new one.</li>
-          <li>Choose sustain or overrule, then press <em>Check</em>.</li>
+          <li>Select the objection you would make, then press <em>Check</em>.</li>
           <li><em>ChatGPT Argue</em> debates your reasoning with ChatGPT.</li>
           <li><em>Score</em> lets ChatGPT grade your argument.</li>
         </ul>
@@ -435,7 +435,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </ul>
       </li>
     </ul>
-    <p class="small">Need help with API keys? Visit the <a href="#keys" class="inline">API Keys page</a> for step-by-step setup.</p>
+    <p class="small">Need help with API keys? Go to the API Keys page to upload your API key.</p>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -1630,10 +1630,11 @@ function appendJudgeDecision(res){
 }
 function populate(){const sel=$('objSelect');sel.innerHTML=OBJECTION_CHOICES.map(c=>`<option>${c}</option>`).join('')}
 function pool(){const f=$('objFilter').value||'all',d=$('objDiff').value||'both';return DB.filter(x=>(f==='all'||cat(x.ans)===f)&&passDiff(x.ans,d))}
+function norm(v){return (v||'').toString().trim().toLowerCase()}
 function newQ(){const p=pool();cur=p.length?p[Math.floor(Math.random()*(p.length))]:DB[Math.floor(Math.random()*DB.length)];$('objFact').textContent=cur.fact;$('objQ').textContent=cur.q;const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');$('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';$('objSelect').selectedIndex=0}
  function updStats(c,ok){stats[c]=stats[c]||{attempts:0,correct:0};stats[c].attempts++;if(ok)stats[c].correct++;save('mtpl.objStats',stats);renderStats()}
  function renderStats(){const cats=['Hearsay','611 Control','Foundation','Opinion/Experts','Character/404','Relevance/403','Policy Exclusions'];$('objStats').textContent=cats.map(k=>{const s=stats[k]||{attempts:0,correct:0};const pct=s.attempts?Math.round(100*s.correct/s.attempts):0;return `${k.split('/')[0]} ${pct}% (${s.correct}/${s.attempts})`}).join(' \u00b7 ')}
-function check(){if(!cur)return;const ok=$('objSelect').value===cur.ans;const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
+function check(){if(!cur)return;const ok=norm($('objSelect').value)===norm(cur.ans);const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
  async function gptNew(){
   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
@@ -1668,7 +1669,9 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     $('objQ').textContent=obj.q;
     const r=$('objResult');r.hidden=true;r.classList.remove('ok','bad');
     $('objRule').textContent='';$('objWhy').textContent='';$('objRuling').textContent='';
-    if(OBJECTION_CHOICES.includes(obj.ans)) $('objSelect').value=obj.ans;
+    const ans=OBJECTION_CHOICES.find(c=>norm(c)===norm(obj.ans));
+    cur.ans=ans||obj.ans;
+    $('objSelect').selectedIndex=0;
    } else {
     alert('Bad response from ChatGPT.');
    }
