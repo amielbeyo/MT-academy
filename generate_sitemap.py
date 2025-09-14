@@ -32,8 +32,13 @@ def build_urls(root: Path):
         loc = BASE_URL + "/" + path.relative_to(root).as_posix()
         if path.name == "index.html":
             loc = BASE_URL + "/"
+            priority = "1.0"
+            changefreq = "weekly"
+        else:
+            priority = "0.8"
+            changefreq = "monthly"
         mtime = lastmod_from_git(path)
-        urls.append((loc, mtime))
+        urls.append((loc, mtime, priority, changefreq))
     urls.sort(key=lambda x: x[0])
     return urls
 
@@ -42,10 +47,12 @@ def write_sitemap(urls, outfile: Path):
     with outfile.open("w", encoding="utf-8") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n')
-        for loc, mtime in urls:
+        for loc, mtime, priority, changefreq in urls:
             f.write("  <url>\n")
             f.write(f"    <loc>{loc}</loc>\n")
             f.write(f"    <lastmod>{mtime.date().isoformat()}</lastmod>\n")
+            f.write(f"    <changefreq>{changefreq}</changefreq>\n")
+            f.write(f"    <priority>{priority}</priority>\n")
             f.write("  </url>\n")
         f.write('</urlset>\n')
 
