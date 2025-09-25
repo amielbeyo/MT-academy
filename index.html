@@ -2528,6 +2528,28 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }catch(e){return null;}
   }
 
+  async function requestMicStream(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('Mic API unavailable');
+    const attempts=[
+      {audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}},
+      {audio:{noiseSuppression:true,echoCancellation:true}},
+      {audio:true}
+    ];
+    let err=null;
+    for(const constraints of attempts){
+      try{
+        const mic=await navigator.mediaDevices.getUserMedia(constraints);
+        if(mic && mic.getAudioTracks().length){
+          return mic;
+        }
+        mic?.getTracks?.().forEach(track=>track.stop());
+      }catch(e){
+        err=e;
+      }
+    }
+    throw err || new Error('Microphone unavailable');
+  }
+
   async function startCamera(){
     setStatus('Requesting camera/mic\u2026');
     updateRecordingIndicator(false);
@@ -2576,7 +2598,32 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(!stream){ if(flipBtn) flipBtn.disabled=false; setStatus('Camera/mic error: '+(lastErr?.message||'Unavailable'), true); return; }
     hasVideo=stream.getVideoTracks().length>0;
     hasAudio=stream.getAudioTracks().length>0;
-    if(hasVideo){ $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(_){}} else { $('videoPreview').srcObject=null; }
+
+    if(hasVideo && !hasAudio){
+      try{
+        const micStream=await requestMicStream();
+        const audioTracks=micStream.getAudioTracks();
+        if(audioTracks.length){
+          const combined=new MediaStream();
+          stream.getVideoTracks().forEach(track=>combined.addTrack(track));
+          audioTracks.forEach(track=>combined.addTrack(track));
+          stream=combined;
+          hasAudio=true;
+        }
+      }catch(e){
+        console.warn('VideoCoach: unable to attach microphone', e);
+        setStatus('Microphone unavailable; recording video only.', true);
+      }
+    }
+
+    if(hasAudio){
+      stream.getAudioTracks().forEach(track=>{ track.enabled=true; });
+    }
+    if(hasVideo){ $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(_){}}
+    else {
+      $('videoPreview').srcObject=hasAudio?stream:null;
+      $('videoPreview').muted=true;
+    }
     const types= hasVideo
        ? (hasAudio?['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4']
                   :['video/webm;codecs=vp9','video/webm;codecs=vp8','video/mp4'])
@@ -2593,11 +2640,30 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
     rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
     rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':type.includes('wav')?'wav':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download=(hasVideo?'speech.':'audio.')+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; };
+    let audioLossNotified=false;
+    const notifyAudioLoss=()=>{
+      if(audioLossNotified) return;
+      audioLossNotified=true;
+      hasAudio=false;
+      if(rec && rec.state==='recording'){
+        updateRecordingIndicator(true, stream.getVideoTracks().length>0, false);
+        setStatus('Microphone disconnected during capture. Audio will be missing.', true);
+      }
+    };
+    stream.getAudioTracks().forEach(track=>{
+      if(track.addEventListener){
+        track.addEventListener('ended', notifyAudioLoss, {once:false});
+        track.addEventListener('mute', notifyAudioLoss, {once:false});
+      }
+      track.onended=notifyAudioLoss;
+      track.onmute=notifyAudioLoss;
+    });
+
     rec.start();
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
     $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; $('btnAnalyzeMovement').disabled=!hasVideo;
     const recordingMsg=describeRecording(hasVideo,hasAudio);
-    setStatus(recordingMsg);
+    setStatus(recordingMsg, !hasAudio);
     updateRecordingIndicator(true,hasVideo,hasAudio);
     if(hasAudio){
       try{
