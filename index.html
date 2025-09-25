@@ -79,6 +79,9 @@ textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);bo
 .rule-item{border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px;margin:6px 0}
 .rule-title{font-weight:600;cursor:pointer}
 .badge{font-size:1em;padding:2px 6px;border-radius:999px;background:var(--accent);color:#fff}
+.recording-badge{display:none;align-items:center;gap:6px;background:#b91c1c;color:#fff;padding:4px 10px;border-radius:999px;font-weight:600;box-shadow:0 0 8px rgba(185,28,28,.4)}
+.recording-badge.active{display:inline-flex}
+.recording-badge .dot{width:10px;height:10px;border-radius:50%;background:#f87171;box-shadow:0 0 8px rgba(248,113,113,.8)}
 .quiz-q{font-weight:600;margin-bottom:6px}.quiz-opt{display:block;margin:6px 0;padding:6px 8px;border:1px solid rgba(0,0,0,.1);border-radius:6px;background:var(--secondary)}
 .quiz-correct{background:rgba(34,197,94,.15)}.quiz-wrong{background:rgba(239,68,68,.15)}
 .tag{display:inline-block;padding:2px 6px;border-radius:999px;border:1px solid rgba(0,0,0,.14);margin:0 4px 4px 0}
@@ -269,10 +272,18 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="controls small">
       <label>Type: <select id="videoType"><option value="opening">Opening</option><option value="closing">Closing</option><option value="direct">Direct</option><option value="cross">Cross</option></select></label>
       <button id="btnVideoStart" class="btn primary">Start Recording</button>
+      <button id="btnFlipCamera" class="btn secondary" title="Switch between front and rear camera">Flip Camera</button>
       <button id="btnStopRecording" class="btn secondary">Stop</button>
       <button id="btnPlayRecording" class="btn secondary">Play</button>
       <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
       <span>Timer: <span id="videoTimer">00:00</span></span>
+    </div>
+    <div class="row" style="align-items:center;gap:8px">
+      <span id="recordingBadge" class="recording-badge" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Recording</span>
+      </span>
+      <span id="mediaStatus" class="small" aria-live="polite"></span>
     </div>
     <div id="videoStatus" class="small" style="margin-top:4px;color:#9aa4b2"></div>
     <video id="videoPreview" autoplay playsinline muted style="width:100%;background:#000;border-radius:6px"></video>
@@ -1974,7 +1985,7 @@ function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnC
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
-      lastVideoBlob=null;
+      lastVideoBlob=null,currentFacingMode='user';
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Mr. Majeur and members of the jury, they set him up. The police let him down. Despite what Mr. Majeur just told you, this is not a case about a man with connections. This is a case about two people who staged a crime, and the police department that failed to do its job. Good evening, members of the jury. My name is Kapir Majeur, and I am proud to represent Hollis Trimble. Hollis is a lifelong hero. He did not shoot Lupe Cappos, and he walked into this courtroom today presumed innocent. Despite his constitutional right not to, he'll take the stand, look you in the eyes, and explain. This was a setup. Here's what you'll learn in trial. The supposed victim, Lupe Cappos, is no victim at all. Four days before his shooting, he met with a childhood friend in the dark corner of a dimly lit restaurant, where they planned to frame my client. You'll learn the supposed victim was a journalist seeking fame. And his friend? A felon with a vendetta against my client. They believed successfully framing Hollis Trimble was their ticket to fame and revenge. Cappos agreed that in exchange for $25,000, he would lure Mr. Trimble to his house, allow his felon friend to shoot at him, but claim to police that Mr. Trimble was the shooter. They execute this plan. Police arrest Mr. Trimble. But here's the worst part, members of the jury. Shortly after the arrest, the police receive an audio recording of this plan, and evidence of a $25,000 transfer. But they've already got their head. So they label the audio recording a fake. They don't investigate this plan meeting. They don't investigate the source of the $25,000. And they don't investigate whether the shooting was a set-up. And that's why we're here. Because they set him up. The police let him down. When the state of Arizona charged Mr. Trimble, it took on the burden to prove beyond a reasonable doubt that Mr. Trimble attempted to kill Jose Cappos with a premeditated attempt. That means the state must also prove beyond a reasonable doubt that Mr. Trimble was not set up. The state will fail to meet this burden because of three things. The meeting, the money, and the mistakes. So let's take those one at a time. First, the meeting. An eyewitness named T.J. Hakiko will confirm that four days before the shooting, he witnessed the meeting where the supposed victim and his fellow friend planned the setup. This eyewitness heard Lupe Cappos agree to take a bullet in exchange for $25,000. Which brings me to our second evidence, the money. The supposed victim's bank records will show that one day after the shooting, he received that exact same amount of money, $25,000. And finally, third, the mistakes. A Phoenix police detective was presented with an audio recording of this money and evidence of a $25,000 wire transfer. But she made absolutely no effort to investigate these events. Because she didn't. We didn't. The proof will show that the name of the company who delivered this $25,000 wire transfer is shockingly similar to that of the fellow friend. And the recording, dismissed as fake by the police, is in fact authentic according to an expert in AI-generated auditing. All of this is why, at the end of trial, my co-counsel, Mr. Kenneth Hoyt, will ask you to find Mr. Trimble not guilty. Because when you look at the meeting, the money, and the mistakes, it becomes clear. Stay charged with the wrong man. Because they set him up. The police let him down. Thank you.`,guide:`1. Theme & Story \u2013 Begin with a central theme and a brief, illustrative story.\n2. Position \u2013 Clearly state which side you represent.\n3. Burden of Proof \u2013 Explain the applicable standard and who carries it.\n4. Witnesses & Evidence \u2013 Preview the key witnesses and evidence.\n5. Desired Verdict \u2013 Conclude by emphasizing the verdict you are seeking.`},
@@ -2288,6 +2299,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
+  function describeRecording(hasVideo,hasAudio){
+    if(hasVideo&&hasAudio) return 'Recording video + audio…';
+    if(hasVideo) return 'Recording video (mic off)…';
+    if(hasAudio) return 'Recording audio only…';
+    return 'Recording…';
+  }
+  function describeMediaStatus(hasVideo,hasAudio){
+    if(hasVideo&&hasAudio) return 'Video + audio';
+    if(hasVideo) return 'Video only (no mic)';
+    if(hasAudio) return 'Audio only (no camera)';
+    return 'No media tracks';
+  }
+  function updateRecordingIndicator(isRecording,hasVideo=false,hasAudio=false){
+    const badge=$('recordingBadge');
+    const detail=$('mediaStatus');
+    if(badge){
+      badge.classList.toggle('active',!!isRecording);
+      badge.setAttribute('aria-hidden',isRecording?'false':'true');
+    }
+    if(detail){
+      if(isRecording){
+        detail.textContent=describeMediaStatus(hasVideo,hasAudio);
+        detail.style.color=hasVideo&&hasAudio?'#16a34a':'#ef4444';
+      }else{
+        detail.textContent='';
+        detail.style.color='var(--muted)';
+      }
+    }
+  }
   function tUpd(){ $('videoTimer').textContent=new Date(sec*1000).toISOString().substr(14,5)}
 
   function blobToBase64(blob){
@@ -2488,34 +2528,143 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }catch(e){return null;}
   }
 
+  async function requestMicStream(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('Mic API unavailable');
+    const attempts=[
+      {audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}},
+      {audio:{noiseSuppression:true,echoCancellation:true}},
+      {audio:true}
+    ];
+    let err=null;
+    for(const constraints of attempts){
+      try{
+        const mic=await navigator.mediaDevices.getUserMedia(constraints);
+        if(mic && mic.getAudioTracks().length){
+          return mic;
+        }
+        mic?.getTracks?.().forEach(track=>track.stop());
+      }catch(e){
+        err=e;
+      }
+    }
+    throw err || new Error('Microphone unavailable');
+  }
+
   async function startCamera(){
     setStatus('Requesting camera/mic\u2026');
+    updateRecordingIndicator(false);
     $('movementFeedback').innerHTML='';
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); return; }
+    const flipBtn=$('btnFlipCamera');
+    if(flipBtn) flipBtn.disabled=true;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ setStatus('Camera API not available in this environment.',true); if(flipBtn) flipBtn.disabled=false; return; }
     let hasAudio=true, hasVideo=true;
+    const preferredFacing=currentFacingMode?{facingMode:{exact:currentFacingMode}}:true;
+    const attemptConstraints=[
+      {video:preferredFacing,audio:true},
+      {video:currentFacingMode?{facingMode:currentFacingMode}:true,audio:true},
+      {video:currentFacingMode?{facingMode:{ideal:currentFacingMode}}:true,audio:true},
+      {video:true,audio:true}
+    ];
+    let lastErr=null;
+    stream=null;
+    for(const constraints of attemptConstraints){
+      try{
+        stream=await navigator.mediaDevices.getUserMedia(constraints);
+        break;
+      }catch(err){
+        lastErr=err;
+      }
+    }
     try{
-      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      if(!stream){
+        stream=await navigator.mediaDevices.getUserMedia({video:preferredFacing});
+        hasAudio=false;
+      }
     }catch(e){
+      lastErr=e;
+    }
+    if(!stream){
       try{
         stream=await navigator.mediaDevices.getUserMedia({video:true});
         hasAudio=false;
       }catch(e2){
+        lastErr=e2;
         try{
           stream=await navigator.mediaDevices.getUserMedia({audio:true});
           hasVideo=false; hasAudio=true;
-        }catch(e3){ setStatus('Camera/mic error: '+e3.message, true); return; }
+        }catch(e3){ if(flipBtn) flipBtn.disabled=false; setStatus('Camera/mic error: '+(e3?.message||lastErr?.message||'Unavailable'), true); return; }
       }
     }
-    if(hasVideo){ $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(_){}} else { $('videoPreview').srcObject=null; }
+    if(!stream){ if(flipBtn) flipBtn.disabled=false; setStatus('Camera/mic error: '+(lastErr?.message||'Unavailable'), true); return; }
+    hasVideo=stream.getVideoTracks().length>0;
+    hasAudio=stream.getAudioTracks().length>0;
+
+    if(hasVideo && !hasAudio){
+      try{
+        const micStream=await requestMicStream();
+        const audioTracks=micStream.getAudioTracks();
+        if(audioTracks.length){
+          const combined=new MediaStream();
+          stream.getVideoTracks().forEach(track=>combined.addTrack(track));
+          audioTracks.forEach(track=>combined.addTrack(track));
+          stream=combined;
+          hasAudio=true;
+        }
+      }catch(e){
+        console.warn('VideoCoach: unable to attach microphone', e);
+        setStatus('Microphone unavailable; recording video only.', true);
+      }
+    }
+
+    if(hasAudio){
+      stream.getAudioTracks().forEach(track=>{ track.enabled=true; });
+    }
+    if(hasVideo){ $('videoPreview').srcObject=stream; $('videoPreview').muted=true; try{ await $('videoPreview').play(); }catch(_){}}
+    else {
+      $('videoPreview').srcObject=hasAudio?stream:null;
+      $('videoPreview').muted=true;
+    }
     const types= hasVideo
        ? (hasAudio?['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/mp4;codecs=h264,aac','video/mp4']
                   :['video/webm;codecs=vp9','video/webm;codecs=vp8','video/mp4'])
        : ['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mpeg'];
     const mime=types.find(t=>MediaRecorder.isTypeSupported(t))||'';
     chunks=[]; try{ rec=new MediaRecorder(stream, mime?{mimeType:mime}:undefined); }catch(e){ setStatus('MediaRecorder not supported: '+e.message, true); rec=null; }
-    if(rec){ rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) }; rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':type.includes('wav')?'wav':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download=(hasVideo?'speech.':'audio.')+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; }; rec.start(); }
+    if(!rec){
+      updateRecordingIndicator(false);
+      if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){} stream=null; }
+      if(flipBtn) flipBtn.disabled=false;
+      $('btnVideoStart').disabled=false;
+      $('btnStopRecording').disabled=true;
+      return;
+    }
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
+    rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':type.includes('wav')?'wav':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download=(hasVideo?'speech.':'audio.')+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; };
+    let audioLossNotified=false;
+    const notifyAudioLoss=()=>{
+      if(audioLossNotified) return;
+      audioLossNotified=true;
+      hasAudio=false;
+      if(rec && rec.state==='recording'){
+        updateRecordingIndicator(true, stream.getVideoTracks().length>0, false);
+        setStatus('Microphone disconnected during capture. Audio will be missing.', true);
+      }
+    };
+    stream.getAudioTracks().forEach(track=>{
+      if(track.addEventListener){
+        track.addEventListener('ended', notifyAudioLoss, {once:false});
+        track.addEventListener('mute', notifyAudioLoss, {once:false});
+      }
+      track.onended=notifyAudioLoss;
+      track.onmute=notifyAudioLoss;
+    });
+
+    rec.start();
     sec=0; tUpd(); if(timer) clearInterval(timer); timer=setInterval(()=>{sec++;tUpd()},1000);
-    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; $('btnAnalyzeMovement').disabled=!hasVideo; setStatus(hasVideo?(hasAudio?'Recording\u2026':'Recording (no mic)\u2026'):'Recording (audio only)\u2026');
+    $('btnVideoStart').disabled=true; $('btnStopRecording').disabled=false; $('btnAnalyzeMovement').disabled=!hasVideo;
+    const recordingMsg=describeRecording(hasVideo,hasAudio);
+    setStatus(recordingMsg, !hasAudio);
+    updateRecordingIndicator(true,hasVideo,hasAudio);
     if(hasAudio){
       try{
         const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -2532,9 +2681,21 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(rec&&rec.state!=='inactive'){ rec.stop(); }
     if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} stream=null; }
     if(recog){ try{ recog.stop(); }catch(e){} recog=null; }
+    updateRecordingIndicator(false);
+    const flipBtn=$('btnFlipCamera'); if(flipBtn) flipBtn.disabled=false;
     $('btnVideoStart').disabled=false; $('btnStopRecording').disabled=true;
     setStatus('Stopped. You can Re-score after editing transcript.');
     setTimeout(scoreNow,250);
+  }
+
+  function flipCamera(){
+    if(rec&&rec.state==='recording'){
+      setStatus('Stop recording before flipping camera.', true);
+      return;
+    }
+    currentFacingMode=currentFacingMode==='user'?'environment':'user';
+    const label=currentFacingMode==='user'?'front':'rear';
+    setStatus(`Next recording will use the ${label} camera.`);
   }
 
   function buildChatGPTPrompt(type, transcript){
@@ -2865,6 +3026,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   function wire(){
     $('btnVideoStart').addEventListener('click',startCamera);
+    $('btnFlipCamera')?.addEventListener('click',flipCamera);
     $('btnStopRecording').addEventListener('click',stop);
     $('btnScoreVideo').addEventListener('click',scoreNow);
     $('btnAnalyzeMovement')?.addEventListener('click', analyzeMovement);
@@ -2881,9 +3043,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     $('writeType').addEventListener('change', updateWriteExemplar);
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $('btnFlipCamera')?.setAttribute('disabled','true'); }
     updateWriteExemplar();
     renderModeBadge();
     tUpd();
+    updateRecordingIndicator(false);
     setStatus('Tip: some browsers block camera in embedded previews.');
   }
 
