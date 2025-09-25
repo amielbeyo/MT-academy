@@ -2287,9 +2287,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         <div>Speed</div><div>${escHTML(a.speedRating)} (${a.wpm} WPM)</div>
       </div>`;
       voiceHTML+=`<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(a.tips)}</div>`;
-      if(a.points&&a.points.length){
-        voiceHTML+=`<div class="small"><strong>Notable Voice Moments:</strong> ${escHTML(a.points.join('; '))}</div>`;
-      }
     }
     html+=`<div id="voiceFeedback" style="display:none;margin-top:8px">${voiceHTML}</div>`;
     $('videoFeedback').innerHTML=html;
