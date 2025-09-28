@@ -1018,6 +1018,17 @@ function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
+function attachFollowupSender(id, handler){
+  const el=$(id);
+  if(!el||typeof handler!=='function') return;
+  el.addEventListener('keydown',ev=>{
+    if(ev.key!=='Enter') return;
+    if(ev.shiftKey||ev.altKey||ev.isComposing) return;
+    ev.preventDefault();
+    handler();
+  });
+}
+
 /* Robust JSON extraction (handles ```json fences) */
 function extractFirstJson(str){
   if(!str) return null;
@@ -1746,7 +1757,11 @@ async function sendJudgeFollowup(){
  const input=$('objJudgeFollowup');
  if(!input) return;
  const question=input.value.trim();
- if(!question||judgeFollowupSending) return;
+ if(judgeFollowupSending) return;
+ if(!question){
+  updateJudgeFollowupStatus('Type a follow-up question before sending.', true);
+  return;
+ }
  judgeFollowupSending=true;
  input.disabled=true;
  const chat=$('objGPTChat');
@@ -1768,7 +1783,8 @@ async function sendJudgeFollowup(){
  try{
   const model=EngineState.openaiModel||'gpt-4o';
   const maxTokens=Math.max(200,Math.min(2000,Number(EngineState.openaiMaxTokens)||600));
-  const reply=(await callOpenAIChat({messages:judgeFollowupChat,model,maxTokens,json:false})).trim();
+  const raw=await callOpenAIChat({messages:judgeFollowupChat,model,maxTokens,json:false});
+  const reply=(raw||'').trim();
   if(reply){
    judgeFollowupChat.push({role:'assistant',content:reply});
    appendChat('judge',reply);
@@ -2127,7 +2143,32 @@ Scoring rule:
       resetJudgeFollowup();
     }
   }
-function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);const judgeFollow=$('objJudgeFollowup');if(judgeFollow){judgeFollow.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendJudgeFollowup();}});}resetJudgeFollowup();updateGPTSend();newQ();renderStats()}
+function wire(){
+  populate();
+  $('btnNewObj').addEventListener('click',newQ);
+  $('btnCheckObj').addEventListener('click',check);
+  $('objFilter').addEventListener('change',newQ);
+  $('objDiff').addEventListener('change',newQ);
+  $('btnResetStats').addEventListener('click',()=>{
+    stats={};
+    save('mtpl.objStats',stats);
+    renderStats();
+    alert('Mastery stats cleared.');
+  });
+  $('btnGPTNew').addEventListener('click',gptNew);
+  $('btnGPTArgue').addEventListener('click',gptArgue);
+  $('btnGPTSend').addEventListener('click',gptSend);
+  $('btnGPTRecord').addEventListener('click',gptRecord);
+  $('btnGPTStopRecord').addEventListener('click',gptStopRecord);
+  $('btnGPTRule').addEventListener('click',gptRule);
+  $('objGPTInput').addEventListener('input',updateGPTSend);
+  $('btnObjChangeEngine').addEventListener('click',openVideoGate);
+  attachFollowupSender('objJudgeFollowup',sendJudgeFollowup);
+  resetJudgeFollowup();
+  updateGPTSend();
+  newQ();
+  renderStats();
+}
  return{wire}
 })();
 
@@ -3255,7 +3296,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const follow=$('gptWriteFollowup');
     if(!follow) return;
     const question=follow.value.trim();
-    if(!question||writeFollowupSending) return;
+    if(writeFollowupSending) return;
+    if(!question){
+      updateWriteStatus('Type a follow-up question before sending.', true);
+      return;
+    }
     const maxTokens=Math.max(200,Math.min(2000,Number(EngineState.openaiMaxTokens)||600));
 
     writeFollowupSending=true;
@@ -3404,7 +3449,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const input=$('videoFollowup');
     if(!input) return;
     const question=input.value.trim();
-    if(!question||videoFollowupSending) return;
+    if(videoFollowupSending) return;
+    if(!question){
+      updateVideoFollowupStatus('Type a follow-up question before sending.', true);
+      return;
+    }
     const maxTokens=Math.max(200,Math.min(2000,Number(EngineState.openaiMaxTokens)||600));
 
     videoFollowupSending=true;
@@ -3475,16 +3524,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     $('writeType').addEventListener('change', updateWriteExemplar);
-    const writeFollow=$('gptWriteFollowup');
-    if(writeFollow){
-      writeFollow.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); gptWriteFollowup(); } });
-      enableWriteFollowup(false);
-      updateWriteStatus('');
-    }
-    const videoFollow=$('videoFollowup');
-    if(videoFollow){
-      videoFollow.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendVideoFollowup(); } });
-    }
+    attachFollowupSender('gptWriteFollowup', gptWriteFollowup);
+    enableWriteFollowup(false);
+    updateWriteStatus('');
+    attachFollowupSender('videoFollowup', sendVideoFollowup);
     resetVideoFollowup();
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $('btnFlipCamera')?.setAttribute('disabled','true'); }
     updateWriteExemplar();
