@@ -2937,13 +2937,19 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         const tParsed = ChatGPTScoring.parseScoreResponse(raw);
         let avg = tParsed.scoreLow || 0;
         let rangeStr = '';
+        let scoreLowPct = null;
+        let scoreHighPct = null;
         if (typeof tParsed.scoreHigh === 'number') {
           avg = (tParsed.scoreLow + tParsed.scoreHigh) / 2;
-          rangeStr = `${Math.round(tParsed.scoreLow * 10)}-${Math.round(tParsed.scoreHigh * 10)}`;
+          scoreLowPct = Number((tParsed.scoreLow * 10).toFixed(1));
+          scoreHighPct = Number((tParsed.scoreHigh * 10).toFixed(1));
+          rangeStr = `${scoreLowPct.toFixed(1)}-${scoreHighPct.toFixed(1)}`;
         }
         payload = {
-          total: Math.round(avg * 10),
+          total: Number((avg * 10).toFixed(1)),
           range: rangeStr,
+          scoreLow: scoreLowPct,
+          scoreHigh: scoreHighPct,
           explanation: tParsed.explanation || "",
           notes: tParsed.improvement || "",
           categories: {},
@@ -2953,22 +2959,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }
 
       if (payload && !payload.range && typeof payload.total_low === 'number' && typeof payload.total_high === 'number') {
-        const avg = (payload.total_low + payload.total_high) / 2;
-        payload.range = `${Math.round(payload.total_low)}-${Math.round(payload.total_high)}`;
-        if (!Number.isFinite(Number(payload.total))) payload.total = avg;
+        const low = Number(payload.total_low);
+        const high = Number(payload.total_high);
+        if (Number.isFinite(low) && Number.isFinite(high)) {
+          payload.range = `${low.toFixed(1)}-${high.toFixed(1)}`;
+          payload.scoreLow = Number(low.toFixed(1));
+          payload.scoreHigh = Number(high.toFixed(1));
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = Number(((low + high) / 2).toFixed(1));
+          }
+        }
       }
       if (payload && payload.range) {
-        const parts = String(payload.range).split('-').map(Number);
+        const parts = String(payload.range).split('-').map(p=>Number(p.trim()));
         if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
           let [low, high] = parts;
-          if (!Number.isFinite(Number(payload.total))) {
-            payload.total = (low + high) / 2;
+          if (high < low) [low, high] = [high, low];
+          const unitScale = high <= 10 && low <= 10;
+          if (unitScale) {
+            low *= 10;
+            high *= 10;
           }
-          // Ensure range spread is exactly 10 points
-          const avg = Number.isFinite(Number(payload.total)) ? Number(payload.total) : (low + high) / 2;
-          low = Math.max(0, Math.round(avg - 5));
-          high = Math.min(100, low + 10);
-          payload.range = `${low}-${high}`;
+          const lowFixed = Number(low.toFixed(1));
+          const highFixed = Number(high.toFixed(1));
+          payload.scoreLow = lowFixed;
+          payload.scoreHigh = highFixed;
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = Number(((low + high) / 2).toFixed(1));
+          }
+          payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
         }
       }
 
@@ -2981,12 +3000,28 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         if (typeof payload?.comments?.[c.key] === "string") comments[c.key] = payload.comments[c.key];
       });
 
-      const total =
-        Number.isFinite(Number(payload.total))
-          ? Math.max(0, Math.min(100, Number(payload.total)))
-          : Math.round(conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0));
+      let total;
+      if (Number.isFinite(Number(payload.total))) {
+        const bounded = Math.max(0, Math.min(100, Number(payload.total)));
+        total = Number(bounded.toFixed(1));
+      } else {
+        const computed = conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0);
+        const bounded = Math.max(0, Math.min(100, computed));
+        total = Number(bounded.toFixed(1));
+      }
 
-      return { total, range: payload.range || '', explanation: payload.explanation || "", notes: payload.notes || "", categories: cats, comments, qa: Array.isArray(payload.qa) ? payload.qa : [], raw: rawText };
+      return {
+        total,
+        range: payload.range || '',
+        scoreLow: Number.isFinite(payload.scoreLow) ? payload.scoreLow : null,
+        scoreHigh: Number.isFinite(payload.scoreHigh) ? payload.scoreHigh : null,
+        explanation: payload.explanation || "",
+        notes: payload.notes || "",
+        categories: cats,
+        comments,
+        qa: Array.isArray(payload.qa) ? payload.qa : [],
+        raw: rawText
+      };
     } finally {
       clearTimeout(t);
     }
@@ -3103,13 +3138,19 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     audio,
     range: scoreData.range || ''
   };
+  if(Number.isFinite(scoreData.scoreLow)) result.scoreLow = Number(scoreData.scoreLow);
+  if(Number.isFinite(scoreData.scoreHigh)) result.scoreHigh = Number(scoreData.scoreHigh);
 
   // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
   let totalFromLLM = Number(scoreData.total);
   if(!isFinite(totalFromLLM)){
     totalFromLLM = conf.cats.reduce((sum,c)=> sum + clamp(result.cats[c.key],1,10)*(c.w*10), 0);
   }
-  result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
+  const boundedTotal = Math.max(0, Math.min(100, totalFromLLM));
+  result.total = Number(boundedTotal.toFixed(1));
+  if(scoreData.range){
+    result.range = scoreData.range;
+  }
 
   renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
