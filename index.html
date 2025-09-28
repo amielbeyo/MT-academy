@@ -1699,8 +1699,14 @@ function resetJudgeFollowup(){
  const wrap=$('judgeFollowup');
  if(wrap){
   wrap.hidden=true;
-  $('judgeFollowupInput')?.value='';
-  $('judgeFollowupChat')?.innerHTML='';
+ }
+ const input=$('judgeFollowupInput');
+ if(input){
+  input.value='';
+ }
+ const chat=$('judgeFollowupChat');
+ if(chat){
+  chat.innerHTML='';
  }
  judgeFollowupState=null;
 }
@@ -1714,7 +1720,10 @@ function clearJudgeFollowup(){
  if(chat){
   chat.innerHTML='';
  }
- $('judgeFollowupInput').value='';
+ const input=$('judgeFollowupInput');
+ if(input){
+  input.value='';
+ }
  judgeFollowupState.history=[];
  appendJudgeFollowup('judge','Ask follow-up questions or cite transcript lines if you believe the ruling should change.');
 }
