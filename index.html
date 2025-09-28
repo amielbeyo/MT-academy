@@ -849,7 +849,8 @@ PENALTIES / GUARDRAILS
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10 (high minus low exactly 1.0; respect the floors above).
+Score: a total on the 0–100 scale with one decimal place, calibrated to this transcript.
+Range: optional low-high on the same scale (≤4-point spread) or "n/a" if you are fully confident.
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -877,19 +878,21 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by exactly 1.0.\n`+
-`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
+`3. Assign a precise total score from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 10/100). Use one decimal place and calibrate it directly to this transcript rather than defaulting to a stock window.\n`+
+`4. If you include an uncertainty range, keep it within 4 points and center it on the score you chose.\n`+
+`5. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`7. Provide a brief explanation for why you chose that score, referring to \n`+
+`6. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
+`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`8. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`8. List specific improvement suggestions, quoting exact words or phrases \n`+
+`9. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`9. State any assumptions you made.\n\n`+
+`10. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.5-8.5). High minus low exactly 1.0>\n`+
+`Score: <total score on a 0-100 scale with one decimal place>\n`+
+`Range: <low-high with one decimal place (≤4-point spread) or "n/a">\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -904,26 +907,28 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high and low must differ by exactly 1.0.\n`+
-`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
+`3. Assign a precise total score from 0 to 100 using the rubric above (rate “I don't know” or non-answers as 10/100). Use one decimal place and calibrate it directly to this transcript rather than defaulting to a stock window.\n`+
+`4. If you include an uncertainty range, keep it within 4 points and center it on the score you chose.\n`+
+`5. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
-`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`7. Decide whether the objection should be sustained or overruled.\n`+
-`8. Provide a brief explanation for why you chose that score, referring to \n`+
+`6. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
+`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`8. Decide whether the objection should be sustained or overruled.\n`+
+`9. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`9. List specific improvement suggestions, quoting exact words or phrases \n`+
+`10. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`10. State any assumptions you made.\n\n`+
+`11. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.5-8.5). High minus low exactly 1.0>\n`+
+`Score: <total score on a 0-100 scale with one decimal place>\n`+
+`Range: <low-high with one decimal place (≤4-point spread) or "n/a">\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
+  const PROMPT_PREFIX = "Important: Apply the FLOORS exactly as written; do not reduce below them unless the transcript itself disproves the required condition(s). Scores should reflect what a competitor would receive at a high school regional tournament; if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Use the full 70–100 band for solid work and pick the precise decimal that fits this transcript instead of recycling the same 10-point window. Only drop below 7 for an extremely brief or bad performance (e.g., one or two sentences). Avoid round-number scores ending in zero; if your best estimate is a multiple of 10, nudge slightly (e.g., 41 instead of 40, 71 instead of 70). If the transcript is just scattered material or mindless arguments listing facts without a clear organization or line of reasoning, treat it as disorganized and reflect that in the score. Double-check all rule citations and facts for accuracy.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -945,21 +950,136 @@ const PROMPT_TEMPLATE_RULING =
 
   function parseScoreResponse(text){
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
-    const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore(?: Range)?:/i);
-    const scoreMatch = text.match(/Score(?: Range)?:\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
+    let summaryMatch = text.match(/Summary:\s*([\s\S]*?)(?:\n(?:Score Range|Score|Range):)/i);
+    if(!summaryMatch){
+      summaryMatch = text.match(/Summary:\s*([\s\S]*?)(?:\nExplanation:|\nAssumptions?:|\nImprovements?:|\n?$)/i);
+    }
+    const scoreLineMatch = text.match(/Score:\s*([^\n]+)/i);
+    const rangeLineMatch = text.match(/Range:\s*([^\n]+)/i);
+    const legacyScoreMatch = text.match(/Score Range:\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
     const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nAssumptions?:|\nImprovements?:|\n?$)/i);
     const assumptionsMatch = text.match(/Assumptions?:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
-    if(!scoreMatch || !explanationMatch){
+
+    if((!scoreLineMatch && !legacyScoreMatch) || !explanationMatch){
       throw new Error('Response did not match expected format');
     }
+
+    let displayScore = '';
+    let normalizedRange = '';
+    let scoreValue = Number.NaN;
+    let scoreLow;
+    let scoreHigh;
+
+    if(scoreLineMatch){
+      const rawScore = scoreLineMatch[1].trim();
+      displayScore = rawScore;
+      const numbers = [...rawScore.matchAll(/-?\d+(?:\.\d+)?/g)].map(m => Number(m[0]));
+      if(numbers.length){
+        let val = numbers[0];
+        const denomMatch = rawScore.match(/\/\s*(\d+(?:\.\d+)?)/);
+        const hasPercent = /%/.test(rawScore);
+        if(denomMatch){
+          const denom = Number(denomMatch[1]);
+          if(Number.isFinite(denom) && denom !== 0){
+            val = val / denom * 100;
+          }
+        }else if(val <= 10 && !hasPercent){
+          val *= 10;
+        }
+        scoreValue = Number(val.toFixed(1));
+      }
+    }
+
+    if(rangeLineMatch){
+      const rawRange = rangeLineMatch[1].trim();
+      if(rawRange && !/^n\/?a$/i.test(rawRange)){
+        const numbers = [...rawRange.matchAll(/-?\d+(?:\.\d+)?/g)].map(m => Number(m[0]));
+        if(numbers.length >= 2){
+          let low = numbers[0];
+          let high = numbers[1];
+          const denomMatch = rawRange.match(/\/\s*(\d+(?:\.\d+)?)/);
+          const hasPercent = /%/.test(rawRange);
+          if(denomMatch){
+            const denom = Number(denomMatch[1]);
+            if(Number.isFinite(denom) && denom !== 0){
+              low = low / denom * 100;
+              high = high / denom * 100;
+            }
+          }else if(low <= 10 && high <= 10 && !hasPercent){
+            low *= 10;
+            high *= 10;
+          }
+          if(high < low){
+            [low, high] = [high, low];
+          }
+          const lowPct = Number(low.toFixed(1));
+          const highPct = Number(high.toFixed(1));
+          scoreLow = Number((lowPct / 10).toFixed(1));
+          scoreHigh = Number((highPct / 10).toFixed(1));
+          normalizedRange = `${lowPct.toFixed(1)}-${highPct.toFixed(1)}`;
+        }else{
+          normalizedRange = rawRange;
+        }
+      }
+    }
+
+    if(!scoreLineMatch && legacyScoreMatch){
+      const lowRaw = Number(legacyScoreMatch[1]);
+      const highRaw = legacyScoreMatch[2] ? Number(legacyScoreMatch[2]) : undefined;
+      if(Number.isFinite(lowRaw)){
+        if(Number.isFinite(highRaw)){
+          let lowTen = lowRaw;
+          let highTen = highRaw;
+          if(lowTen > 10 || highTen > 10){
+            lowTen = lowRaw / 10;
+            highTen = highRaw / 10;
+          }
+          const lowPct = Number((lowTen * 10).toFixed(1));
+          const highPct = Number((highTen * 10).toFixed(1));
+          scoreLow = Number(lowTen.toFixed(1));
+          scoreHigh = Number(highTen.toFixed(1));
+          normalizedRange = `${lowPct.toFixed(1)}-${highPct.toFixed(1)}`;
+          scoreValue = Number(((lowPct + highPct) / 2).toFixed(1));
+          displayScore = scoreValue.toFixed(1);
+        }else{
+          let valTen = lowRaw;
+          if(valTen > 10){
+            scoreValue = Number(valTen.toFixed(1));
+            scoreLow = Number((scoreValue / 10).toFixed(1));
+          }else{
+            scoreLow = Number(valTen.toFixed(1));
+            scoreValue = Number((valTen * 10).toFixed(1));
+          }
+          displayScore = scoreValue.toFixed(1);
+        }
+      }
+    }
+
+    if(!Number.isFinite(scoreValue) && Number.isFinite(scoreLow) && Number.isFinite(scoreHigh)){
+      scoreValue = Number((((scoreLow + scoreHigh) / 2) * 10).toFixed(1));
+    }
+
+    if(!Number.isFinite(scoreValue)){
+      throw new Error('Response did not include a parsable score');
+    }
+
+    let combinedScore = displayScore || scoreValue.toFixed(1);
+    if(normalizedRange){
+      if(!combinedScore.toLowerCase().includes('range')){
+        combinedScore = `${combinedScore} (Range: ${normalizedRange})`;
+      }
+    }
+
     return {
       ruling: rulingMatch ? rulingMatch[1] : null,
       summary: summaryMatch ? summaryMatch[1].trim() : '',
-      score: scoreMatch[2] ? `${scoreMatch[1]}-${scoreMatch[2]}` : scoreMatch[1],
-      scoreLow: Number(scoreMatch[1]),
-      scoreHigh: scoreMatch[2] ? Number(scoreMatch[2]) : undefined,
-      explanation: explanationMatch[1].trim(),
+      score: combinedScore,
+      range: normalizedRange,
+      scoreLow,
+      scoreHigh,
+      scoreValue,
+      explanation: explanationMatch ? explanationMatch[1].trim() : '',
       assumptions: assumptionsMatch ? assumptionsMatch[1].trim() : '',
       improvement: improvementMatch ? improvementMatch[1].trim() : ''
     };
@@ -1647,8 +1767,9 @@ function appendJudgeDecision(res){
  label.textContent='Judge:';
  div.appendChild(label);
 
- const scoreLow=typeof res.scoreLow==='number'&&!Number.isNaN(res.scoreLow)?res.scoreLow:null;
- const scoreHigh=typeof res.scoreHigh==='number'&&!Number.isNaN(res.scoreHigh)?res.scoreHigh:null;
+ const hasScoreValue=typeof res.scoreValue==='number'&&!Number.isNaN(res.scoreValue);
+ const scoreLow=typeof res.scoreLow==='number'&&!Number.isNaN(res.scoreLow)?res.scoreLow:(hasScoreValue?Number((res.scoreValue/10).toFixed(1)):null);
+ const scoreHigh=typeof res.scoreHigh==='number'&&!Number.isNaN(res.scoreHigh)?res.scoreHigh:(hasScoreValue?Number((res.scoreValue/10).toFixed(1)):null);
  const outstanding=scoreLow!==null&&scoreLow>=9&&(scoreHigh===null||scoreHigh>=9);
  if(outstanding&&res.ruling){
   const short=document.createElement('span');
@@ -1669,7 +1790,15 @@ function appendJudgeDecision(res){
   div.appendChild(sum);
  }
  const score=document.createElement('div');
- score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
+ const scoreLabel=res?.range? 'Score & Range':'Score';
+ let scoreText=res?.score||'';
+ if(res?.range && (!scoreText || !scoreText.includes(res.range))){
+  scoreText=scoreText?`${scoreText} (Range: ${res.range})`:res.range;
+ }
+ if(!scoreText){
+  scoreText='n/a';
+ }
+ score.innerHTML=`<strong>${scoreLabel}:</strong> ${escHTML(scoreText)}`;
  div.appendChild(score);
  const explain=document.createElement('div');
  explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
@@ -1691,7 +1820,13 @@ function appendJudgeDecision(res){
 function buildJudgeSummaryText(res){
  const lines=[];
  if(res?.summary) lines.push(`Summary: ${res.summary}`);
- if(res?.score) lines.push(`Score Range: ${res.score}`);
+ if(res?.score || res?.range){
+  let scoreText=res?.score||'';
+  if(res?.range && (!scoreText || !scoreText.includes(res.range))){
+    scoreText=scoreText?`${scoreText} (Range: ${res.range})`:res.range;
+  }
+  lines.push(`Score: ${scoreText||'n/a'}`);
+ }
  if(res?.explanation) lines.push(`Explanation: ${res.explanation}`);
  if(res?.assumptions) lines.push(`Assumptions: ${res.assumptions}`);
  if(res?.improvement) lines.push(`Improvements: ${res.improvement}`);
@@ -2935,15 +3070,29 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       // If not JSON, parse your "Summary/Score/Explanation" text format
       if (!payload) {
         const tParsed = ChatGPTScoring.parseScoreResponse(raw);
-        let avg = tParsed.scoreLow || 0;
-        let rangeStr = '';
-        if (typeof tParsed.scoreHigh === 'number') {
-          avg = (tParsed.scoreLow + tParsed.scoreHigh) / 2;
-          rangeStr = `${Math.round(tParsed.scoreLow * 10)}-${Math.round(tParsed.scoreHigh * 10)}`;
+        let totalScore = Number.isFinite(tParsed.scoreValue) ? tParsed.scoreValue : Number.NaN;
+        let scoreLowPct = Number.isFinite(tParsed.scoreLow) ? Number((tParsed.scoreLow * 10).toFixed(1)) : null;
+        let scoreHighPct = Number.isFinite(tParsed.scoreHigh) ? Number((tParsed.scoreHigh * 10).toFixed(1)) : null;
+        let rangeStr = tParsed.range || '';
+        if (!rangeStr && scoreLowPct !== null && scoreHighPct !== null) {
+          rangeStr = `${scoreLowPct.toFixed(1)}-${scoreHighPct.toFixed(1)}`;
         }
+        if (!Number.isFinite(totalScore)) {
+          if (scoreLowPct !== null && scoreHighPct !== null) {
+            totalScore = Number(((scoreLowPct + scoreHighPct) / 2).toFixed(1));
+          } else if (scoreLowPct !== null) {
+            totalScore = scoreLowPct;
+          }
+        }
+        if (!Number.isFinite(totalScore)) {
+          totalScore = 0;
+        }
+        const boundedTotal = Math.max(0, Math.min(100, totalScore));
         payload = {
-          total: Math.round(avg * 10),
+          total: Number(boundedTotal.toFixed(1)),
           range: rangeStr,
+          scoreLow: scoreLowPct,
+          scoreHigh: scoreHighPct,
           explanation: tParsed.explanation || "",
           notes: tParsed.improvement || "",
           categories: {},
@@ -2953,22 +3102,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }
 
       if (payload && !payload.range && typeof payload.total_low === 'number' && typeof payload.total_high === 'number') {
-        const avg = (payload.total_low + payload.total_high) / 2;
-        payload.range = `${Math.round(payload.total_low)}-${Math.round(payload.total_high)}`;
-        if (!Number.isFinite(Number(payload.total))) payload.total = avg;
+        const low = Number(payload.total_low);
+        const high = Number(payload.total_high);
+        if (Number.isFinite(low) && Number.isFinite(high)) {
+          payload.range = `${low.toFixed(1)}-${high.toFixed(1)}`;
+          payload.scoreLow = Number(low.toFixed(1));
+          payload.scoreHigh = Number(high.toFixed(1));
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = Number(((low + high) / 2).toFixed(1));
+          }
+        }
       }
       if (payload && payload.range) {
-        const parts = String(payload.range).split('-').map(Number);
+        const parts = String(payload.range).split('-').map(p=>Number(p.trim()));
         if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
           let [low, high] = parts;
-          if (!Number.isFinite(Number(payload.total))) {
-            payload.total = (low + high) / 2;
+          if (high < low) [low, high] = [high, low];
+          const unitScale = high <= 10 && low <= 10;
+          if (unitScale) {
+            low *= 10;
+            high *= 10;
           }
-          // Ensure range spread is exactly 10 points
-          const avg = Number.isFinite(Number(payload.total)) ? Number(payload.total) : (low + high) / 2;
-          low = Math.max(0, Math.round(avg - 5));
-          high = Math.min(100, low + 10);
-          payload.range = `${low}-${high}`;
+          const lowFixed = Number(low.toFixed(1));
+          const highFixed = Number(high.toFixed(1));
+          payload.scoreLow = lowFixed;
+          payload.scoreHigh = highFixed;
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = Number(((low + high) / 2).toFixed(1));
+          }
+          payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
         }
       }
 
@@ -2981,12 +3143,28 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         if (typeof payload?.comments?.[c.key] === "string") comments[c.key] = payload.comments[c.key];
       });
 
-      const total =
-        Number.isFinite(Number(payload.total))
-          ? Math.max(0, Math.min(100, Number(payload.total)))
-          : Math.round(conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0));
+      let total;
+      if (Number.isFinite(Number(payload.total))) {
+        const bounded = Math.max(0, Math.min(100, Number(payload.total)));
+        total = Number(bounded.toFixed(1));
+      } else {
+        const computed = conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0);
+        const bounded = Math.max(0, Math.min(100, computed));
+        total = Number(bounded.toFixed(1));
+      }
 
-      return { total, range: payload.range || '', explanation: payload.explanation || "", notes: payload.notes || "", categories: cats, comments, qa: Array.isArray(payload.qa) ? payload.qa : [], raw: rawText };
+      return {
+        total,
+        range: payload.range || '',
+        scoreLow: Number.isFinite(payload.scoreLow) ? payload.scoreLow : null,
+        scoreHigh: Number.isFinite(payload.scoreHigh) ? payload.scoreHigh : null,
+        explanation: payload.explanation || "",
+        notes: payload.notes || "",
+        categories: cats,
+        comments,
+        qa: Array.isArray(payload.qa) ? payload.qa : [],
+        raw: rawText
+      };
     } finally {
       clearTimeout(t);
     }
@@ -3103,13 +3281,19 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     audio,
     range: scoreData.range || ''
   };
+  if(Number.isFinite(scoreData.scoreLow)) result.scoreLow = Number(scoreData.scoreLow);
+  if(Number.isFinite(scoreData.scoreHigh)) result.scoreHigh = Number(scoreData.scoreHigh);
 
   // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
   let totalFromLLM = Number(scoreData.total);
   if(!isFinite(totalFromLLM)){
     totalFromLLM = conf.cats.reduce((sum,c)=> sum + clamp(result.cats[c.key],1,10)*(c.w*10), 0);
   }
-  result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
+  const boundedTotal = Math.max(0, Math.min(100, totalFromLLM));
+  result.total = Number(boundedTotal.toFixed(1));
+  if(scoreData.range){
+    result.range = scoreData.range;
+  }
 
   renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
