@@ -258,6 +258,15 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnGPTSend" class="btn secondary">Send</button>
       <button id="btnGPTRule" class="btn secondary" hidden>Rule on Argument</button>
     </div>
+    <div id="judgeFollowup" class="small" hidden style="margin-top:8px">
+      <div><strong>Ask the judge about this ruling</strong></div>
+      <textarea id="judgeFollowupInput" placeholder="Point to transcript lines or explain why the ruling should change"></textarea>
+      <div class="controls" style="margin-top:6px">
+        <button id="btnJudgeFollowupSend" class="btn secondary">Ask Judge</button>
+        <button id="btnJudgeFollowupReset" class="btn secondary">Clear</button>
+      </div>
+      <div id="judgeFollowupChat" class="small" style="margin-top:6px;white-space:pre-wrap"></div>
+    </div>
       <div id="objResult" class="result" hidden style="margin-top:8px">
       <div><strong>Ruling:</strong> <span id="objRuling"></span></div>
       <div><strong>Rule:</strong> <span id="objRule"></span></div>
@@ -296,6 +305,15 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
     <div id="videoFeedback" class="small"></div>
+    <div id="videoFollowup" class="small" hidden style="margin-top:8px">
+      <div><strong>Ask about this score</strong></div>
+      <textarea id="videoFollowupInput" placeholder="Ask for clarifications or argue for a score change"></textarea>
+      <div class="controls" style="margin-top:6px">
+        <button id="btnVideoFollowupSend" class="btn secondary">Send Follow-up</button>
+        <button id="btnVideoFollowupReset" class="btn secondary">Reset</button>
+      </div>
+      <div id="videoFollowupChat" class="small" style="margin-top:6px;white-space:pre-wrap"></div>
+    </div>
     <div id="movementFeedback" class="small" style="margin-top:8px"></div>
   </section>
 
@@ -319,6 +337,15 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnWriteChangeEngine" class="btn secondary" title="Add or change API key">API Key / Engine</button>
     </div>
     <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
+    <div id="writingFollowup" class="small" hidden style="margin-top:8px">
+      <div><strong>Ask for revisions</strong></div>
+      <textarea id="writingFollowupInput" placeholder="Clarify goals or request edits to this draft"></textarea>
+      <div class="controls" style="margin-top:6px">
+        <button id="btnWritingFollowupSend" class="btn secondary">Send Revision Request</button>
+        <button id="btnWritingFollowupReset" class="btn secondary">Reset</button>
+      </div>
+      <div id="writingFollowupChat" class="small" style="margin-top:6px;white-space:pre-wrap"></div>
+    </div>
     <div id="writeExemplar" class="small" style="margin-top:8px"></div>
   </section>
 
@@ -1599,7 +1626,7 @@ const Objections=(function(){
  const ADV=new Set(["Hearsay within Hearsay","Misstates Evidence","Assumes Facts Not in Evidence","Narrative","Cumulative","Improper Character","Improper Opinion","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"]);
  function cat(a){if(a.includes('Hearsay'))return'Hearsay';if(["Leading","Argumentative","Asked & Answered","Beyond Scope","Vague/Ambiguous","Nonresponsive","Compound","Assumes Facts Not in Evidence","Narrative","Misstates Evidence"].includes(a))return'611 Control';if(["Lack of Foundation","Lack of Personal Knowledge"].includes(a))return'Foundation';if(a==="Improper Opinion")return'Opinion/Experts';if(a==="Improper Character")return'Character/404';if(["Relevance","Cumulative"].includes(a))return'Relevance/403';if(["Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"].includes(a))return'Policy Exclusions';return'Other'}
 function passDiff(ans,d){if(d==='both')return true;const isCore=CORE.has(ans);return d==='core'?isCore:ADV.has(ans)||!isCore}
-let cur=null, stats=load('mtpl.objStats',{}), gptChat=[], gptRecog=null, gptRecStream=null, gptSendLocked=false;
+let cur=null, stats=load('mtpl.objStats',{}), gptChat=[], gptRecog=null, gptRecStream=null, gptSendLocked=false, judgeFollowupState=null;
 function updateGPTSend(){
  $('btnGPTSend').disabled=gptSendLocked || !$('objGPTInput').value.trim();
 }
@@ -1621,6 +1648,11 @@ function appendJudgeDecision(res){
  const label=document.createElement('strong');
  label.textContent='Judge:';
  div.appendChild(label);
+ if(res.response){
+  const resp=document.createElement('div');
+  resp.innerHTML=`<strong>Response:</strong> ${escHTML(res.response)}`;
+  div.appendChild(resp);
+ }
 
  const scoreLow=typeof res.scoreLow==='number'&&!Number.isNaN(res.scoreLow)?res.scoreLow:null;
  const scoreHigh=typeof res.scoreHigh==='number'&&!Number.isNaN(res.scoreHigh)?res.scoreHigh:null;
@@ -1661,6 +1693,155 @@ function appendJudgeDecision(res){
  }
  out.appendChild(div);
  out.scrollTop=out.scrollHeight;
+}
+
+function resetJudgeFollowup(){
+ const wrap=$('judgeFollowup');
+ if(wrap){
+  wrap.hidden=true;
+ }
+ const input=$('judgeFollowupInput');
+ if(input){
+  input.value='';
+ }
+ const chat=$('judgeFollowupChat');
+ if(chat){
+  chat.innerHTML='';
+ }
+ judgeFollowupState=null;
+}
+
+function clearJudgeFollowup(){
+ if(!judgeFollowupState){
+  resetJudgeFollowup();
+  return;
+ }
+ const chat=$('judgeFollowupChat');
+ if(chat){
+  chat.innerHTML='';
+ }
+ const input=$('judgeFollowupInput');
+ if(input){
+  input.value='';
+ }
+ judgeFollowupState.history=[];
+ appendJudgeFollowup('judge','Ask follow-up questions or cite transcript lines if you believe the ruling should change.');
+}
+
+function appendJudgeFollowup(role,text){
+ const chat=$('judgeFollowupChat');
+ if(!chat) return;
+ const div=document.createElement('div');
+ div.className=`chat-entry ${role==='judge'?'judge':'user'}`;
+ const strong=document.createElement('strong');
+ strong.textContent=role==='judge'?'Judge:':'You:';
+ div.appendChild(strong);
+ div.appendChild(document.createTextNode(' '+text));
+ chat.appendChild(div);
+ chat.scrollTop=chat.scrollHeight;
+}
+
+function prepareJudgeFollowup(transcript, decisionText){
+ const wrap=$('judgeFollowup');
+ if(wrap){
+  wrap.hidden=false;
+ }
+ $('judgeFollowupInput').value='';
+ const chat=$('judgeFollowupChat');
+ if(chat){
+  chat.innerHTML='';
+ }
+ judgeFollowupState={
+  transcript,
+  decisionText,
+  history:[]
+ };
+ appendJudgeFollowup('judge','Ask follow-up questions or cite transcript lines if you believe the ruling should change.');
+}
+
+async function sendJudgeFollowup(){
+ if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+  alert('ChatGPT mode not enabled or API key missing.');
+  return;
+ }
+ if(!judgeFollowupState){
+  alert('Request a ChatGPT ruling first.');
+  return;
+ }
+ const inp=$('judgeFollowupInput');
+ const txt=(inp.value||'').trim();
+ if(!txt) return;
+ inp.value='';
+ appendJudgeFollowup('user',txt);
+ judgeFollowupState.history.push({role:'user',text:txt});
+ const btn=$('btnJudgeFollowupSend');
+ if(btn) btn.disabled=true;
+ try{
+  const model=EngineState.openaiModel||'gpt-4o';
+  const historyText=judgeFollowupState.history.map(h=>`${h.role==='judge'?'Judge':'User'}: ${h.text}`).join('\n')||'(none)';
+  const prompt=
+`Transcript (verbatim):
+${judgeFollowupState.transcript}
+
+Your last decision:
+${judgeFollowupState.decisionText}
+
+Follow-up discussion so far:
+${historyText}
+
+Competitor request:
+${txt}
+
+Instructions:
+- Re-read the transcript sections cited.
+- If the competitor is correct, adjust the ruling or score range accordingly.
+- Keep scores on the 1-10 scale (high minus low = 1.0) and respond with strict JSON.`;
+  const systemMsg={
+   role:'system',
+   content:'You are the same neutral mock trial judge who issued the last ruling. Answer follow-up questions without inventing new facts. Only rely on the transcript provided. Return JSON with fields response (1-3 sentences), ruling ("Sustained" or "Overruled"), summary, score_low (number), score_high (number), explanation, assumptions, improvements. If you keep the same score, explain why. Ensure score_high - score_low = 1.0.'
+  };
+  const reply=await callOpenAIChat({messages:[systemMsg,{role:'user',content:prompt}],model,maxTokens:400,json:false});
+  const obj=extractFirstJson(reply);
+  if(!obj){
+   appendJudgeFollowup('judge',reply.trim()||'Judge had no additional comment.');
+   judgeFollowupState.history.push({role:'judge',text:reply.trim()});
+   return;
+  }
+  const low=Number(obj.score_low);
+  const high=Number(obj.score_high);
+  const formattedLow=Number.isFinite(low)?low:judgeFollowupState.lastLow;
+  const formattedHigh=Number.isFinite(high)?high:(Number.isFinite(low)?low+1:judgeFollowupState.lastHigh);
+  const scoreDisplay=(Number.isFinite(formattedLow)&&Number.isFinite(formattedHigh))?`${formattedLow.toFixed(1)}-${formattedHigh.toFixed(1)}`:'';
+  const responseText=(obj.response||'Decision updated.').trim();
+  appendJudgeFollowup('judge',responseText);
+  judgeFollowupState.history.push({role:'judge',text:responseText});
+  const decisionSummary=
+`Ruling: ${obj.ruling||''}
+Summary: ${(obj.summary||'').trim()}
+Score Range: ${scoreDisplay}
+Explanation: ${(obj.explanation||'').trim()}
+Assumptions: ${(obj.assumptions||'').trim()}
+Improvements: ${(obj.improvements||'').trim()}`;
+  judgeFollowupState.decisionText=decisionSummary;
+  judgeFollowupState.lastLow=Number.isFinite(formattedLow)?formattedLow:undefined;
+  judgeFollowupState.lastHigh=Number.isFinite(formattedHigh)?formattedHigh:undefined;
+  appendJudgeDecision({
+   response:responseText,
+   ruling:obj.ruling||'',
+   summary:(obj.summary||'').trim(),
+   score:scoreDisplay||'N/A',
+   scoreLow:Number.isFinite(formattedLow)?formattedLow:undefined,
+   scoreHigh:Number.isFinite(formattedHigh)?formattedHigh:undefined,
+   explanation:(obj.explanation||'').trim(),
+   assumptions:(obj.assumptions||'').trim(),
+   improvement:(obj.improvements||'').trim()
+  });
+ }catch(e){
+  const detail=e?.message||'error';
+  appendJudgeFollowup('judge',`ChatGPT error: ${detail}`);
+ }finally{
+  if(btn) btn.disabled=false;
+ }
 }
 function populate(){const sel=$('objSelect');sel.innerHTML=OBJECTION_CHOICES.map(c=>`<option>${c}</option>`).join('')}
 function pool(){const f=$('objFilter').value||'all',d=$('objDiff').value||'both';return DB.filter(x=>(f==='all'||cat(x.ans)===f)&&passDiff(x.ans,d))}
@@ -1716,10 +1897,11 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
  }
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
-   return;
-  }
+ if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+  alert('ChatGPT mode not enabled or API key missing.');
+  return;
+ }
+ resetJudgeFollowup();
  const role = $('objGPTRole').value || 'chatgpt';
 
  // Stronger system guardrails: NO NEW FACTS, NO HYPOTHETICALS
@@ -1978,6 +2160,9 @@ Scoring rule:
       try{
         const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
         appendJudgeDecision(parsed);                            // unchanged UI
+        prepareJudgeFollowup(transcript, text);
+        judgeFollowupState.lastLow = parsed.scoreLow;
+        judgeFollowupState.lastHigh = parsed.scoreHigh;
       }catch{
         // If the model didn't use the expected format, show raw text so you see what happened
         appendChat('judge', text);
@@ -1993,14 +2178,34 @@ Scoring rule:
       appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
     }
   }
-function wire(){populate();$('btnNewObj').addEventListener('click',newQ);$('btnCheckObj').addEventListener('click',check);$('objFilter').addEventListener('change',newQ);$('objDiff').addEventListener('change',newQ);$('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});$('btnGPTNew').addEventListener('click',gptNew);$('btnGPTArgue').addEventListener('click',gptArgue);$('btnGPTSend').addEventListener('click',gptSend);$('btnGPTRecord').addEventListener('click',gptRecord);$('btnGPTStopRecord').addEventListener('click',gptStopRecord);$('btnGPTRule').addEventListener('click',gptRule);$('objGPTInput').addEventListener('input',updateGPTSend);$('btnObjChangeEngine').addEventListener('click',openVideoGate);updateGPTSend();newQ();renderStats()}
+function wire(){
+ populate();
+ $('btnNewObj').addEventListener('click',newQ);
+ $('btnCheckObj').addEventListener('click',check);
+ $('objFilter').addEventListener('change',newQ);
+ $('objDiff').addEventListener('change',newQ);
+ $('btnResetStats').addEventListener('click',()=>{stats={};save('mtpl.objStats',stats);renderStats();alert('Mastery stats cleared.')});
+ $('btnGPTNew').addEventListener('click',gptNew);
+ $('btnGPTArgue').addEventListener('click',gptArgue);
+ $('btnGPTSend').addEventListener('click',gptSend);
+ $('btnGPTRecord').addEventListener('click',gptRecord);
+ $('btnGPTStopRecord').addEventListener('click',gptStopRecord);
+ $('btnGPTRule').addEventListener('click',gptRule);
+ $('objGPTInput').addEventListener('input',updateGPTSend);
+ $('btnObjChangeEngine').addEventListener('click',openVideoGate);
+ $('btnJudgeFollowupSend')?.addEventListener('click',sendJudgeFollowup);
+ $('btnJudgeFollowupReset')?.addEventListener('click',clearJudgeFollowup);
+ updateGPTSend();
+ newQ();
+ renderStats();
+}
  return{wire}
 })();
 
 /* Video Coach (ChatGPT integration + fallback) */
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
-      lastVideoBlob=null,currentFacingMode='user';
+      lastVideoBlob=null,currentFacingMode='user',videoFollowupState=null,writingFollowupState=null;
 
   const EXEMPLARS={
     opening:{title:"Opening Exemplar",text:`Mr. Majeur and members of the jury, they set him up. The police let him down. Despite what Mr. Majeur just told you, this is not a case about a man with connections. This is a case about two people who staged a crime, and the police department that failed to do its job. Good evening, members of the jury. My name is Kapir Majeur, and I am proud to represent Hollis Trimble. Hollis is a lifelong hero. He did not shoot Lupe Cappos, and he walked into this courtroom today presumed innocent. Despite his constitutional right not to, he'll take the stand, look you in the eyes, and explain. This was a setup. Here's what you'll learn in trial. The supposed victim, Lupe Cappos, is no victim at all. Four days before his shooting, he met with a childhood friend in the dark corner of a dimly lit restaurant, where they planned to frame my client. You'll learn the supposed victim was a journalist seeking fame. And his friend? A felon with a vendetta against my client. They believed successfully framing Hollis Trimble was their ticket to fame and revenge. Cappos agreed that in exchange for $25,000, he would lure Mr. Trimble to his house, allow his felon friend to shoot at him, but claim to police that Mr. Trimble was the shooter. They execute this plan. Police arrest Mr. Trimble. But here's the worst part, members of the jury. Shortly after the arrest, the police receive an audio recording of this plan, and evidence of a $25,000 transfer. But they've already got their head. So they label the audio recording a fake. They don't investigate this plan meeting. They don't investigate the source of the $25,000. And they don't investigate whether the shooting was a set-up. And that's why we're here. Because they set him up. The police let him down. When the state of Arizona charged Mr. Trimble, it took on the burden to prove beyond a reasonable doubt that Mr. Trimble attempted to kill Jose Cappos with a premeditated attempt. That means the state must also prove beyond a reasonable doubt that Mr. Trimble was not set up. The state will fail to meet this burden because of three things. The meeting, the money, and the mistakes. So let's take those one at a time. First, the meeting. An eyewitness named T.J. Hakiko will confirm that four days before the shooting, he witnessed the meeting where the supposed victim and his fellow friend planned the setup. This eyewitness heard Lupe Cappos agree to take a bullet in exchange for $25,000. Which brings me to our second evidence, the money. The supposed victim's bank records will show that one day after the shooting, he received that exact same amount of money, $25,000. And finally, third, the mistakes. A Phoenix police detective was presented with an audio recording of this money and evidence of a $25,000 wire transfer. But she made absolutely no effort to investigate these events. Because she didn't. We didn't. The proof will show that the name of the company who delivered this $25,000 wire transfer is shockingly similar to that of the fellow friend. And the recording, dismissed as fake by the police, is in fact authentic according to an expert in AI-generated auditing. All of this is why, at the end of trial, my co-counsel, Mr. Kenneth Hoyt, will ask you to find Mr. Trimble not guilty. Because when you look at the meeting, the money, and the mistakes, it becomes clear. Stay charged with the wrong man. Because they set him up. The police let him down. Thank you.`,guide:`1. Theme & Story \u2013 Begin with a central theme and a brief, illustrative story.\n2. Position \u2013 Clearly state which side you represent.\n3. Burden of Proof \u2013 Explain the applicable standard and who carries it.\n4. Witnesses & Evidence \u2013 Preview the key witnesses and evidence.\n5. Desired Verdict \u2013 Conclude by emphasizing the verdict you are seeking.`},
@@ -2308,6 +2513,315 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('videoFeedback').style.display='block';
     const btn=$('btnShowVoice');
     if(btn) btn.textContent='Show Voice';
+  }
+
+  function resetVideoFollowup(){
+    const wrap=$('videoFollowup');
+    if(wrap){
+      wrap.hidden=true;
+    }
+    const chat=$('videoFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    const input=$('videoFollowupInput');
+    if(input){
+      input.value='';
+    }
+    videoFollowupState=null;
+  }
+
+  function clearVideoFollowup(){
+    if(!videoFollowupState){
+      resetVideoFollowup();
+      return;
+    }
+    const chat=$('videoFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    $('videoFollowupInput').value='';
+    videoFollowupState.history=[];
+    appendVideoFollowup('judge','Ask follow-up questions or cite rubric points if you believe the score should change.');
+  }
+
+  function appendVideoFollowup(role,text){
+    const chat=$('videoFollowupChat');
+    if(!chat) return;
+    const div=document.createElement('div');
+    div.className=`chat-entry ${role==='judge'?'judge':'user'}`;
+    const strong=document.createElement('strong');
+    strong.textContent=role==='judge'?'Judge:':'You:';
+    div.appendChild(strong);
+    div.appendChild(document.createTextNode(' '+text));
+    chat.appendChild(div);
+    chat.scrollTop=chat.scrollHeight;
+  }
+
+  function prepareVideoFollowup(type, transcript, result){
+    const wrap=$('videoFollowup');
+    if(wrap){
+      wrap.hidden=false;
+    }
+    $('videoFollowupInput').value='';
+    const chat=$('videoFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    videoFollowupState={
+      type,
+      transcript,
+      result:{...result, comments: result.comments || {}},
+      history:[]
+    };
+    appendVideoFollowup('judge','Ask follow-up questions or cite rubric points if you believe the score should change.');
+  }
+
+  function videoScoreSummary(){
+    if(!videoFollowupState) return {};
+    return {
+      total: videoFollowupState.result.total,
+      range: videoFollowupState.result.range,
+      categories: videoFollowupState.result.cats,
+      comments: videoFollowupState.result.comments,
+      explanation: videoFollowupState.result.explanation,
+      notes: videoFollowupState.result.notes
+    };
+  }
+
+  async function sendVideoFollowup(){
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('ChatGPT mode not enabled or API key missing.');
+      return;
+    }
+    if(!videoFollowupState){
+      alert('Score with ChatGPT first.');
+      return;
+    }
+    const input=$('videoFollowupInput');
+    const txt=(input.value||'').trim();
+    if(!txt) return;
+    input.value='';
+    appendVideoFollowup('user',txt);
+    videoFollowupState.history.push({role:'user',text:txt});
+    const btn=$('btnVideoFollowupSend');
+    if(btn) btn.disabled=true;
+    try{
+      const model=EngineState.openaiModel||'gpt-4o';
+      const historyText=videoFollowupState.history.map(h=>`${h.role==='judge'?'Judge':'User'}: ${h.text}`).join('\n')||'(none)';
+      const summaryJson=JSON.stringify(videoScoreSummary(),null,2);
+      const prompt=
+`Transcript (verbatim):
+${videoFollowupState.transcript}
+
+Latest scoring summary:
+${summaryJson}
+
+Follow-up discussion:
+${historyText}
+
+Competitor request:
+${txt}
+
+Instructions:
+- Reference rubric expectations for ${videoFollowupState.type} arguments.
+- Adjust category scores (1-10) and total (0-100) only if warranted by the transcript.
+- Respond with strict JSON.`;
+      const systemMsg={
+        role:'system',
+        content:'You are the same mock trial judge who issued the last rubric score. Base all decisions only on the transcript provided. Return JSON with fields total, range, explanation, notes, categories (object), comments (object), and chat_reply (1-3 sentences explaining your decision). Keep category scores between 1 and 10 and totals between 0 and 100.'
+      };
+      const reply=await callOpenAIChat({messages:[systemMsg,{role:'user',content:prompt}],model,maxTokens:400,json:false});
+      const obj=extractFirstJson(reply);
+      if(!obj){
+        appendVideoFollowup('judge',reply.trim()||'No change.');
+        videoFollowupState.history.push({role:'judge',text:reply.trim()});
+        return;
+      }
+      const conf=RUBRICS[videoFollowupState.type];
+      const cats={...videoFollowupState.result.cats};
+      conf.cats.forEach(c=>{
+        const val=Number(obj?.categories?.[c.key]);
+        if(Number.isFinite(val)) cats[c.key]=clamp(Math.round(val),1,10);
+      });
+      const comments={...videoFollowupState.result.comments};
+      if(obj.comments){
+        conf.cats.forEach(c=>{
+          const comment=obj.comments[c.key];
+          if(typeof comment==='string') comments[c.key]=comment;
+        });
+      }
+      let total=Number(obj.total);
+      if(!Number.isFinite(total)){
+        const low=Number(obj.total_low);
+        const high=Number(obj.total_high);
+        if(Number.isFinite(low)&&Number.isFinite(high)){
+          total=(low+high)/2;
+        }
+      }
+      if(Number.isFinite(total)){
+        total=clamp(Math.round(total),0,100);
+      }else{
+        total=videoFollowupState.result.total;
+      }
+      let range=typeof obj.range==='string'?obj.range.trim():'';
+      if(!range && Number.isFinite(obj.total_low) && Number.isFinite(obj.total_high)){
+        range=`${Math.round(obj.total_low)}-${Math.round(obj.total_high)}`;
+      }
+      const explanation=typeof obj.explanation==='string'?obj.explanation.trim():videoFollowupState.result.explanation;
+      const notes=typeof obj.notes==='string'?obj.notes.trim():videoFollowupState.result.notes;
+      const chatReply=typeof obj.chat_reply==='string'?obj.chat_reply.trim():'Score updated.';
+      appendVideoFollowup('judge',chatReply);
+      videoFollowupState.history.push({role:'judge',text:chatReply});
+      const updated={
+        ...videoFollowupState.result,
+        cats,
+        comments,
+        total,
+        range: range || videoFollowupState.result.range,
+        explanation,
+        notes
+      };
+      videoFollowupState.result=updated;
+      renderReport(videoFollowupState.type, updated);
+    }catch(e){
+      const detail=e?.message||'error';
+      appendVideoFollowup('judge',`ChatGPT error: ${detail}`);
+    }finally{
+      if(btn) btn.disabled=false;
+    }
+  }
+
+  function resetWritingFollowup(){
+    const wrap=$('writingFollowup');
+    if(wrap){
+      wrap.hidden=true;
+    }
+    const chat=$('writingFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    const input=$('writingFollowupInput');
+    if(input){
+      input.value='';
+    }
+    writingFollowupState=null;
+  }
+
+  function appendWritingFollowup(role,text){
+    const chat=$('writingFollowupChat');
+    if(!chat) return;
+    const div=document.createElement('div');
+    div.className=`chat-entry ${role==='coach'?'chatgpt':'user'}`;
+    const strong=document.createElement('strong');
+    strong.textContent=role==='coach'?'Coach:':'You:';
+    div.appendChild(strong);
+    div.appendChild(document.createTextNode(' '+text));
+    chat.appendChild(div);
+    chat.scrollTop=chat.scrollHeight;
+  }
+
+  function clearWritingFollowup(){
+    if(!writingFollowupState){
+      resetWritingFollowup();
+      return;
+    }
+    const chat=$('writingFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    $('writingFollowupInput').value='';
+    writingFollowupState.history=[];
+    appendWritingFollowup('coach','Explain how you want the draft to change and I will revise it.');
+  }
+
+  function prepareWritingFollowup(type, notes, goal, draft){
+    const wrap=$('writingFollowup');
+    if(wrap){
+      wrap.hidden=false;
+    }
+    $('writingFollowupInput').value='';
+    const chat=$('writingFollowupChat');
+    if(chat){
+      chat.innerHTML='';
+    }
+    writingFollowupState={
+      type,
+      notes,
+      goal,
+      draft,
+      history:[]
+    };
+    appendWritingFollowup('coach','Explain how you want the draft to change and I will revise it.');
+  }
+
+  async function sendWritingFollowup(){
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('ChatGPT mode not enabled or API key missing.');
+      return;
+    }
+    if(!writingFollowupState){
+      alert('Generate a draft with ChatGPT first.');
+      return;
+    }
+    const input=$('writingFollowupInput');
+    const txt=(input.value||'').trim();
+    if(!txt) return;
+    input.value='';
+    appendWritingFollowup('user',txt);
+    writingFollowupState.history.push({role:'user',text:txt});
+    const btn=$('btnWritingFollowupSend');
+    if(btn) btn.disabled=true;
+    try{
+      const model=EngineState.openaiModel||'gpt-4o';
+      const historyText=writingFollowupState.history.map(h=>`${h.role==='coach'?'Coach':'User'}: ${h.text}`).join('\n')||'(none)';
+      const prompt=
+`Material type: ${writingFollowupState.type}
+
+Notes provided:
+${writingFollowupState.notes || '(none)'}
+
+Goal:
+${writingFollowupState.goal || '(none)'}
+
+Most recent draft:
+${writingFollowupState.draft}
+
+Conversation so far:
+${historyText}
+
+Newest request:
+${txt}
+
+Instructions:
+- Revise the draft to satisfy the request while staying within mock trial norms.
+- Return strict JSON with fields draft (string containing the full revised draft) and coach_note (1-3 sentences explaining the revision).`;
+      const systemMsg={
+        role:'system',
+        content:'You are an expert high school mock trial coach. Improve the draft based only on the provided notes, goal, transcript, and follow-up discussion. Do not add facts beyond that context. Respond with JSON containing keys "draft" and "coach_note".'
+      };
+      const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
+      const reply=await callOpenAIChat({messages:[systemMsg,{role:'user',content:prompt}],model,maxTokens,json:false});
+      const obj=extractFirstJson(reply);
+      if(!obj){
+        appendWritingFollowup('coach',reply.trim()||'Unable to revise.');
+        writingFollowupState.history.push({role:'coach',text:reply.trim()});
+        return;
+      }
+      const draft=typeof obj.draft==='string'?obj.draft.trim():'';
+      if(draft){
+        $('gptWriteOutput').value=draft;
+        writingFollowupState.draft=draft;
+      }
+      const note=typeof obj.coach_note==='string'?obj.coach_note.trim():'Draft updated.';
+      appendWritingFollowup('coach',note);
+      writingFollowupState.history.push({role:'coach',text:note});
+    }catch(e){
+      const detail=e?.message||'error';
+      appendWritingFollowup('coach',`ChatGPT error: ${detail}`);
+    }finally{
+      if(btn) btn.disabled=false;
+    }
   }
 
   function setStatus(msg,isErr=false){const s=$('videoStatus');s.textContent=msg||'';s.style.color=isErr?'#ef9a9a':'#9aa4b2'}
@@ -2849,6 +3363,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     let audio=null;
     if(lastVideoBlob){ try{ audio=await analyzeVoice(lastVideoBlob); }catch(_){} }
 
+    resetVideoFollowup();
+
     const eff = effectiveWordCount(transcript);
     if(eff < 5){
       $('videoStatus').textContent='Transcript too short to score.';
@@ -2901,6 +3417,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   result.total = Math.round(Math.max(0, Math.min(100, totalFromLLM)));
 
   renderReport(type, result);
+  prepareVideoFollowup(type, transcript, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   showProvenance('LLM-only rubric scoring (no local blend).');
 }).catch(err => {
@@ -3002,6 +3519,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
+    resetWritingFollowup();
     const type=$('writeType').value;
     const notes=$('gptWriteInput').value.trim();
     const goal=$('gptWriteGoal').value.trim();
@@ -3023,9 +3541,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const data=await resp.json();
       const text=data?.choices?.[0]?.message?.content?.trim()||'';
       out.value=text;
+      prepareWritingFollowup(type, notes, goal, text);
     }catch(e){
       console.error('[GPT Write]',e);
       out.value='ChatGPT error.';
+      resetWritingFollowup();
     }
   }
 
@@ -3054,6 +3574,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnTestChatGPT').addEventListener('click', testChatGPT);
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
+    $('btnVideoFollowupSend')?.addEventListener('click', sendVideoFollowup);
+    $('btnVideoFollowupReset')?.addEventListener('click', clearVideoFollowup);
+    $('btnWritingFollowupSend')?.addEventListener('click', sendWritingFollowup);
+    $('btnWritingFollowupReset')?.addEventListener('click', clearWritingFollowup);
     $('writeType').addEventListener('change', updateWriteExemplar);
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $('btnFlipCamera')?.setAttribute('disabled','true'); }
     updateWriteExemplar();
@@ -3061,6 +3585,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     tUpd();
     updateRecordingIndicator(false);
     setStatus('Tip: some browsers block camera in embedded previews.');
+    resetVideoFollowup();
+    resetWritingFollowup();
   }
 
   return{wire}
