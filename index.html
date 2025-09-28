@@ -792,16 +792,16 @@ const ChatGPTScoring = (() => {
     /^idk$/i,
   ];
 
-  const RATING_RUBRIC = `1 — Irrelevant, incorrect, or admits lack of knowledge.\n`
-    + `2 — Mostly incorrect or vague, providing little value.\n`
-    + `3 — Shows minimal understanding but has major gaps.\n`
-    + `4 — Somewhat helpful but still misses key points.\n`
-    + `5 — Partially correct but incomplete or unclear.\n`
-    + `6 — Mostly correct with moderate detail.\n`
-    + `7 — Useful, with only minor issues or omissions.\n`
-    + `8 — Very good, mostly thorough and accurate.\n`
-    + `9 — Excellent, highly informative with minor nitpicks.\n`
-    + `10 — Exceptional, fully accurate, comprehensive, and highly helpful.`;
+  const RATING_RUBRIC = `1 — Off task, inaccurate, or admits no answer; offers no meaningful value.\n`
+    + `2 — Attempts a response but remains largely incorrect, confused, or unsupported.\n`
+    + `3 — Shows partial understanding yet misses most core ideas or misstates key facts.\n`
+    + `4 — Spots at least one relevant point but leaves major gaps, contradictions, or rule errors.\n`
+    + `5 — Addresses the prompt but is thin, unfocused, or omits several checklist items.\n`
+    + `6 — Solid core with generally correct info, yet multiple rubric items lack depth or citation.\n`
+    + `7 — Strong foundation but at least one significant checklist box is unchecked or weakly supported.\n`
+    + `8 — High performing: satisfies nearly every rubric expectation with persuasive structure and only minor polish fixes.\n`
+    + `9 — Finalist level: meets every checklist item, ties arguments to the record/law, anticipates counters, and stays precise.\n`
+    + `10 — Championship caliber: complete, strategic, and polished throughout; nothing material to improve.`;
 
   const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
 
@@ -927,7 +927,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score realistically as a high school regional judge. Use the entire 1-10 scale and give the score the transcript truly earns. Keep overall scores typically above 7 only when the work merits it; award 9s and 10s only for genuinely standout performances, and reserve 6s or lower for performances that are very weak or contain major flaws. Always provide a concrete score that reflects the transcript and include a low-high range whose spread mirrors your confidence (usually 0.4–1.5 apart, wider only when the performance is uneven). When performances are weak, do not hesitate to assign scores in the 1-5 range. Avoid defaulting to the same range over and over; vary the score to match the transcript's strengths and weaknesses. Provide precise decimals when helpful (e.g., 7.3, 8.1) but do not alter a score just to dodge a round number. If the transcript is disorganized, inaccurate, or lacks key elements from the rubric, lower the score accordingly. Double-check all rule citations and facts for accuracy.";
+  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. When the transcript convincingly satisfies every item with persuasive control, award a 9.3–10.0 range. If it hits almost everything with only light polish fixes, keep it around 8.5–9.2. Reserve 7s for clearly identified gaps, 6s for uneven or incomplete showings, and 5 or below only when major requirements are missing. Do not anchor to midrange habits—calibrate to what an actual judge would write on the ballot. Always provide a concrete score with a confidence-based low/high range (usually 0.4–1.5 apart, wider only when the performance is inconsistent). Vary the range rather than repeating the same numbers. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -937,11 +937,11 @@ const PROMPT_TEMPLATE_RULING =
     }
     const wordCount = (lowered.match(/\b\w+\b/g) || []).length;
     if (wordCount < 15) {
-      cleaned += '\n\n[Note: The response is very brief and may lack substantive reasoning; according to the rubric this should likely receive a low score.]';
+      cleaned += '\n\n[Note: The response is very brief. Only award a high score if the brevity still covers the rubric items with concrete support; otherwise explain the deduction.]';
     }
     const sentenceCount = (cleaned.match(/[.!?](?:\s|$)/g) || []).length;
-    if (sentenceCount < 10) {
-      cleaned += '\n\n[Note: Fewer than 10 sentences; overall score must be below 3/10 (30/100).]';
+    if (sentenceCount < 8) {
+      cleaned += '\n\n[Note: This transcript is quite brief. If you lower the score, tie the deduction to specific unchecked checklist items rather than the length alone.]';
     }
     const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
     return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
@@ -1064,6 +1064,12 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Discussed the burden of proof
   \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
   \u25a1 Spoke naturally and clearly
+  Scoring guidance (total out of 100):
+  - Championship caliber: Every checklist box is satisfied with specific facts, a cohesive theme, explicit burden language, and a confident ask; finalist-level polish.
+  - Tournament ready: Core boxes covered but one element lacks depth (e.g., thin witness preview or muted storytelling); still strong and persuasive.
+  - Developing: Noticeable omissions, unclear roadmap, or weak theme reduce clarity; improvement needed before competition-ready.
+  - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
+  Reward concise, story-driven openings that clearly state the verdict and burden. Do not keep accurate, checklist-complete work in the mid-80s.
   Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "74.0-80.5") with a spread that mirrors confidence—typically 6-12 points apart, wider only if performance quality varies greatly. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
@@ -1083,6 +1089,12 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Use of notes was minimal, effective, and purposeful
   \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
   \u25a1 Spoke naturally and clearly
+  Scoring guidance (total out of 100):
+  - Championship caliber: All checklist items satisfied with sharp law-to-fact weaving, targeted rebuttals, and a compelling final ask; ready for trophies.
+  - Tournament ready: Persuasive and well-structured with only minor lapses (e.g., light rebuttal coverage or slight delivery dip).
+  - Developing: Several elements present but law application, roadmap, or rebuttal is underdeveloped.
+  - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
+  Reward closings that explicitly contrast both sides and press for the verdict; avoid defaulting strong transcripts to the high-80s.
   Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "72.5-80.0") with a confidence-based spread of roughly 6-12 points, varying as needed. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
@@ -1101,6 +1113,12 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
+  Scoring guidance (total out of 100):
+  - Championship caliber: Organized chapters, non-leading storytelling, complete foundations, and responsive follow-ups; ready for elimination rounds.
+  - Tournament ready: Strong chapters with one area light (e.g., sparse follow-ups or missing one exhibit detail) but overall persuasive.
+  - Developing: Multiple checklist items thin—overly leading, weak foundations, or inconsistent listening.
+  - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
+  Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with a confidence-based spread (roughly 6-12 points unless the performance justifies more). Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
@@ -1121,6 +1139,12 @@ function makeRubricMap(stateName, abbr){
   \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
   \u25a1 Handled physical evidence appropriately and effectively
   \u25a1 Spoke confidently and clearly
+  Scoring guidance (total out of 100):
+  - Championship caliber: Tight chapters with relentless leading control, clean impeachment anchors, and purposeful brevity; elite cross.
+  - Tournament ready: Persuasive control with slight softness (e.g., one missed follow-up or lighter impeachment tie-in).
+  - Developing: Core skills present but inconsistent control, unclear damage theory, or thin impeachment use.
+  - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
+  Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with a spread that reflects confidence (roughly 6-12 points by default). Total must equal weighted sum (rounded).`
   };
 }
