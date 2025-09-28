@@ -140,7 +140,6 @@ a.inline{color:var(--accent);text-decoration:underline}
     <a class="tab" href="#writing">Writing</a>
     <a class="tab" href="#rules" id="rulesTab">AZ Rules</a>
     <a class="tab" href="#quiz">Rules Quiz</a>
-    <a class="tab" href="#keys">API Keys</a>
     <a class="tab" href="#howto">How To Use</a>
     <a class="tab" href="#contact">Contact</a>
   </nav>
@@ -149,21 +148,12 @@ a.inline{color:var(--accent);text-decoration:underline}
   <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
     <div class="modal">
       <h2 id="videoGateTitle">Choose how to score your performance</h2>
-      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring or continue with the built-in scorer.</div>
+      <div class="note">MT academy now routes AI requests through a secure proxy. Pick whether to use our managed models or stay with the built-in heuristic scorer.</div>
       <div class="row">
         <div class="choice">
-          <h3>Option A — Use my ChatGPT account (recommended)</h3>
-          <ol class="small" style="margin-top:6px">
-            <li>Visit <strong>platform.openai.com</strong> and sign in.</li>
-            <li>Open <strong>Billing</strong> → <strong>Add payment method</strong> and deposit funds.</li>
-            <li>Go to <strong>API keys</strong> → <strong>Create new secret key</strong>.</li>
-            <li>Paste the key below. It is stored only in your browser (LocalStorage).</li>
-            <li>Select a model. “gpt-4o” is recommended.</li>
-          </ol>
-          <div class="ok" style="margin:8px 0">We never ask for your password. API key stays on this device.</div>
-          <label class="small">OpenAI API Key
-            <input id="openaiKey" class="input" type="password" placeholder="sk-...">
-          </label>
+          <h3>Option A — MT academy AI (recommended)</h3>
+          <p class="small">Uses managed OpenAI access through MT academy&rsquo;s backend. No personal setup required.</p>
+          <div class="ok" style="margin:8px 0">Private credentials stay on the server and nothing is stored locally.</div>
           <div class="row" style="margin-top:8px">
             <label class="small" style="flex:1">Model
               <select id="openaiModel" class="input">
@@ -175,8 +165,7 @@ a.inline{color:var(--accent);text-decoration:underline}
             </label>
           </div>
           <div class="row" style="margin-top:8px">
-            <button id="btnUseChatGPT" class="btn primary">Use ChatGPT Scoring</button>
-            <button id="btnForgetKey" class="btn secondary" title="Delete saved key">Remove saved key</button>
+            <button id="btnUseAcademy" class="btn primary">Use MT academy AI</button>
           </div>
         </div>
         <div class="choice">
@@ -187,15 +176,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </div>
         <div class="choice">
           <h3>Movement Scoring</h3>
-          <ol class="small" style="margin-top:6px">
-            <li>Visit <strong>ai.google.dev</strong> and sign in.</li>
-            <li>Create or select a project, then link a billing account with a credit card.</li>
-            <li>Go to <strong>API keys</strong> → <strong>Create API key</strong>.</li>
-            <li>Paste the key below. Stored only in your browser.</li>
-          </ol>
-          <label class="small">Gemini API Key
-            <input id="geminiKey" class="input" type="password" placeholder="AIza...">
-          </label>
+          <p class="small">Gemini gesture analysis also runs through the secure proxy. Choose your preferred model.</p>
           <label class="small" style="margin-top:8px">Model
             <select id="geminiModel" class="input">
               <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
@@ -203,8 +184,7 @@ a.inline{color:var(--accent);text-decoration:underline}
             </select>
           </label>
           <div class="row" style="margin-top:8px">
-            <button id="btnSaveGeminiKey" class="btn primary">Save Gemini Key</button>
-            <button id="btnForgetGeminiKey" class="btn secondary" title="Delete saved key">Remove</button>
+            <button id="btnSaveGeminiModel" class="btn primary">Save Movement Model</button>
           </div>
         </div>
       </div>
@@ -246,7 +226,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </select>
       </label>
       <button id="btnGPTNew" class="btn primary">GPT Prompt</button>
-      <button id="btnObjChangeEngine" class="btn secondary" title="Add or change API key">API Key</button>
+      <button id="btnObjChangeEngine" class="btn secondary" title="Choose MT academy or built-in engine">Choose AI Engine</button>
     </div>
     <div class="small" style="margin-top:8px">Press <strong>ChatGPT Argue</strong> to show argument actions.</div>
     <button id="btnGPTArgue" class="btn primary" style="width:100%;margin-top:4px">ChatGPT Argue</button>
@@ -292,7 +272,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowVoice" class="btn secondary">Show Voice</button>
       <button id="btnAnalyzeMovement" class="btn secondary">Movement (Gemini)</button>
-      <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
+      <button id="btnChangeEngine" class="btn secondary" title="Choose MT academy or built-in engine">Choose AI Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
     <div id="videoFeedback" class="small"></div>
@@ -316,7 +296,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <textarea id="gptWriteGoal" placeholder="Describe what you're trying to write or improve"></textarea>
     <div class="controls">
       <button id="btnGPTWrite" class="btn secondary">Ask ChatGPT to Draft</button>
-      <button id="btnWriteChangeEngine" class="btn secondary" title="Add or change API key">API Key / Engine</button>
+      <button id="btnWriteChangeEngine" class="btn secondary" title="Choose MT academy or built-in engine">Choose AI Engine</button>
     </div>
     <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
     <div id="writeExemplar" class="small" style="margin-top:8px"></div>
@@ -349,60 +329,16 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div id="quizBody" style="margin-top:8px"></div>
     <div id="quizExplain" class="small" style="margin-top:8px"></div>
   </section>
-  <!-- API Keys -->
+  <!-- Engine Info -->
   <section id="keys" class="card">
-    <h2>API Keys / Engine</h2>
-    <p class="small">Use your own API accounts for AI features. Keys are stored only in this browser.</p>
-    <div class="row">
-      <div class="choice">
-        <h3>ChatGPT Scoring</h3>
-        <ol class="small" style="margin-top:6px">
-          <li>Visit <strong>platform.openai.com</strong> and sign in.</li>
-          <li>Open <strong>Billing</strong> → <strong>Add payment method</strong> and deposit funds.</li>
-          <li>Go to <strong>API keys</strong> → <strong>Create new secret key</strong>.</li>
-          <li>Paste the key below and choose a model.</li>
-        </ol>
-        <label class="small">OpenAI API Key
-          <input id="keyPageOpenAI" class="input" type="password" placeholder="sk-...">
-        </label>
-        <div class="row" style="margin-top:8px">
-          <label class="small" style="flex:1">Model
-            <select id="keyPageOpenAIModel" class="input">
-              <option value="gpt-4o">gpt-4o</option>
-            </select>
-          </label>
-          <label class="small" style="flex:1">Max tokens
-            <input id="keyPageOpenAIMaxTokens" class="input" type="number" value="600" min="200" max="2000">
-          </label>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button id="saveOpenAI" class="btn primary">Save ChatGPT Key</button>
-          <button id="removeOpenAI" class="btn secondary">Remove</button>
-        </div>
-      </div>
-      <div class="choice">
-        <h3>Movement Scoring</h3>
-        <ol class="small" style="margin-top:6px">
-          <li>Visit <strong>ai.google.dev</strong> and sign in.</li>
-          <li>Create or select a project, then link a billing account with a credit card.</li>
-          <li>Go to <strong>API keys</strong> → <strong>Create API key</strong>.</li>
-          <li>Paste the key below and choose a model.</li>
-        </ol>
-        <label class="small">Gemini API Key
-          <input id="keyPageGemini" class="input" type="password" placeholder="AIza...">
-        </label>
-        <label class="small" style="margin-top:8px">Model
-          <select id="keyPageGeminiModel" class="input">
-            <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
-            <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
-          </select>
-        </label>
-        <div class="row" style="margin-top:8px">
-          <button id="saveGemini" class="btn primary">Save Gemini Key</button>
-          <button id="removeGemini" class="btn secondary">Remove</button>
-        </div>
-      </div>
-    </div>
+    <h2>MT academy AI Access</h2>
+    <p class="small">All AI-powered features run through MT academy&rsquo;s secure proxy, so everything works automatically.</p>
+    <ul class="small">
+      <li>Requests travel through our backend before reaching OpenAI or Gemini.</li>
+      <li>The browser only ever sees the responses, and nothing sensitive is stored on the device.</li>
+      <li>You can still switch to the offline heuristic engine at any time from the scoring modal.</li>
+    </ul>
+    <button class="btn secondary" onclick="openVideoGate()">Choose AI engine</button>
   </section>
   <!-- How To -->
   <section id="howto" class="card">
@@ -426,8 +362,8 @@ a.inline{color:var(--accent);text-decoration:underline}
           <li>Select the speech type and click <em>Start Recording</em>.</li>
           <li>Use <em>Stop</em> when done, then <em>Play</em> or <em>Download</em> to review.</li>
           <li><em>Re-score</em> analyzes delivery; <em>Show Voice</em> displays the transcript.</li>
-          <li><em>Movement (Gemini)</em> checks gestures; <em>API Key / Engine</em> adds keys.</li>
-          <li><em>Test ChatGPT</em> confirms your key works.</li>
+          <li><em>Movement</em> checks gestures; <em>Choose AI Engine</em> lets you switch between MT academy AI and the built-in scorer.</li>
+          <li><em>Test ChatGPT</em> makes sure the MT academy AI connection is ready.</li>
         </ul>
       </li>
       <li>
@@ -455,7 +391,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </ul>
       </li>
     </ul>
-    <p class="small">To use ChatGPT or Gemini features, create your own API keys. OpenAI keys require prepaid funds, and Gemini keys need a linked credit card. See the API Keys page for step-by-step setup.</p>
+    <p class="small">MT academy handles the AI connection behind the scenes. Use <em>Choose AI Engine</em> anywhere in the app if you want to switch back to the built-in heuristic scorer.</p>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -985,7 +921,7 @@ var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
+var EngineState = { mode: 'academy', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiModel: 'gemini-1.5-flash' };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -1099,35 +1035,44 @@ function makeRubricMap(stateName, abbr){
 
 /* Global engine state */
 EngineState = {
-  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
-  set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
-  get openaiKey(){ return load('mtpl.openaiKey','') },
-  set openaiKey(v){ save('mtpl.openaiKey', v||'') },
+  get mode(){
+    const raw = load('mtpl.engineMode','academy');
+    return raw === 'chatgpt' ? 'academy' : raw;
+  },           // 'builtin' | 'academy'
+  set mode(v){
+    const normalized = v === 'builtin' ? 'builtin' : 'academy';
+    save('mtpl.engineMode', normalized);
+    renderModeBadge();
+  },
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
   set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o') },
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
-  get geminiKey(){ return load('mtpl.geminiKey','') },
-  set geminiKey(v){ save('mtpl.geminiKey', v||'') },
   get geminiModel(){ return load('mtpl.geminiModel','gemini-1.5-flash') },
   set geminiModel(v){ save('mtpl.geminiModel', v||'gemini-1.5-flash') }
 };
 
-if (EngineState.openaiKey && EngineState.mode !== 'chatgpt') {
-  EngineState.mode = 'chatgpt';
-}
+try {
+  localStorage.removeItem('mtpl.openaiKey');
+  localStorage.removeItem('mtpl.geminiKey');
+} catch (_) {}
+
 renderModeBadge();
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
   if(!b) return;
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
-    b.textContent='Mode: ChatGPT (OpenAI API)';
-    if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
+  if(EngineState.mode==='academy'){
+    b.textContent='Mode: MT academy AI (OpenAI)';
+    if(banner) banner.innerHTML = 'Scoring via <strong>MT academy AI</strong>.';
   } else {
     b.textContent='Mode: Built-in (less accurate)';
     if(banner) banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong>.';
   }
+}
+
+function isAcademyMode(){
+  return EngineState.mode === 'academy';
 }
 
 /* Navigation menu links */
@@ -1143,97 +1088,40 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* Gateway wiring */
-function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; $('geminiKey').value=EngineState.geminiKey||''; $('geminiModel').value=EngineState.geminiModel; }
+function openVideoGate(){
+  $('videoGate').style.display='flex';
+  const openaiModel=$('openaiModel');
+  const openaiMax=$('openaiMaxTokens');
+  const gemModel=$('geminiModel');
+  if(openaiModel) openaiModel.value=EngineState.openaiModel;
+  if(openaiMax) openaiMax.value=EngineState.openaiMaxTokens;
+  if(gemModel) gemModel.value=EngineState.geminiModel;
+}
 function closeVideoGate(){ $('videoGate').style.display='none' }
-function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
+function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); if(!seen){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
 function attachVideoGateHandlers(){
   $('btnCloseGate').addEventListener('click', closeVideoGate);
   $('btnUseBuiltin').addEventListener('click', ()=>{
     EngineState.mode='builtin'; closeVideoGate(); renderModeBadge();
     $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
   });
-  $('btnUseChatGPT').addEventListener('click', ()=>{
-    const key = $('openaiKey').value.trim();
-    const model = $('openaiModel').value;
-    const maxt = Number($('openaiMaxTokens').value) || 600;
-    // Accept sk- and sk-proj- and other future variants that start with sk-
-    const isValidKey = /^sk-[A-Za-z0-9_-]{10,}$/.test(key);
-    if (!isValidKey) {
-      alert('Paste a valid OpenAI API key (starts with \u201csk-\u201d).');
-      return;
-    }
-    EngineState.openaiKey=key; EngineState.openaiModel=model; EngineState.openaiMaxTokens=maxt; EngineState.mode='chatgpt';
+  $('btnUseAcademy').addEventListener('click', ()=>{
+    const model=$('openaiModel').value;
+    const maxt=Number($('openaiMaxTokens').value)||600;
+    EngineState.openaiModel=model;
+    EngineState.openaiMaxTokens=maxt;
+    EngineState.mode='academy';
     closeVideoGate(); renderModeBadge();
-    $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
+    $('videoStatus').textContent='MT academy AI enabled. Paste or record a transcript, then click Re-score.';
   });
-  $('btnForgetKey').addEventListener('click', ()=>{
-    EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
-    alert('Removed saved API key. Falling back to built-in scoring.');
-  });
-  $('btnSaveGeminiKey')?.addEventListener('click', ()=>{
-    const key=$('geminiKey').value.trim();
+  $('btnSaveGeminiModel')?.addEventListener('click', ()=>{
     const model=$('geminiModel').value;
-    if(!key){ alert('Paste a Gemini API key.'); return; }
-    EngineState.geminiKey=key; EngineState.geminiModel=model;
+    EngineState.geminiModel=model;
     closeVideoGate();
-    const s=$('videoStatus'); if(s) s.textContent='Gemini key saved. Use Movement for analysis.';
-  });
-  $('btnForgetGeminiKey')?.addEventListener('click', ()=>{
-    EngineState.geminiKey='';
-    const s=$('videoStatus'); if(s) s.textContent='Removed Gemini key.';
+    const s=$('videoStatus'); if(s) s.textContent=`Gemini movement model saved (${model}).`;
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
-
-function initKeyPage(){
-  const openaiInput = $('keyPageOpenAI');
-  const openaiModel = $('keyPageOpenAIModel');
-  const openaiMax = $('keyPageOpenAIMaxTokens');
-  const geminiInput = $('keyPageGemini');
-  const geminiModel = $('keyPageGeminiModel');
-  if(!openaiInput || !openaiModel || !openaiMax || !geminiInput || !geminiModel) return;
-  openaiInput.value = EngineState.openaiKey || '';
-  openaiModel.value = EngineState.openaiModel;
-  openaiMax.value = EngineState.openaiMaxTokens;
-  geminiInput.value = EngineState.geminiKey || '';
-  geminiModel.value = EngineState.geminiModel;
-  $('saveOpenAI').addEventListener('click', ()=>{
-    const key = openaiInput.value.trim();
-    if(!/^sk-[A-Za-z0-9_-]{10,}$/.test(key)){
-      alert('Paste a valid OpenAI key (starts with "sk-").');
-      return;
-    }
-    EngineState.openaiKey = key;
-    EngineState.openaiModel = openaiModel.value;
-    EngineState.openaiMaxTokens = Number(openaiMax.value) || 600;
-    EngineState.mode = 'chatgpt';
-    renderModeBadge();
-    alert('OpenAI key saved.');
-  });
-  $('removeOpenAI').addEventListener('click', ()=>{
-    EngineState.openaiKey = '';
-    EngineState.mode = 'builtin';
-    openaiInput.value = '';
-    renderModeBadge();
-    alert('OpenAI key removed.');
-  });
-  $('saveGemini').addEventListener('click', ()=>{
-    const key = geminiInput.value.trim();
-    if(!key){
-      alert('Paste a Gemini key.');
-      return;
-    }
-    EngineState.geminiKey = key;
-    EngineState.geminiModel = geminiModel.value;
-    alert('Gemini key saved.');
-  });
-  $('removeGemini').addEventListener('click', ()=>{
-    EngineState.geminiKey = '';
-    geminiInput.value = '';
-    alert('Gemini key removed.');
-  });
-}
-document.addEventListener('DOMContentLoaded', initKeyPage);
 
 /* Env warnings + error surface */
 function envWarn(){
@@ -1294,26 +1182,28 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 
   // Transcribe with OpenAI (tries multiple models, graceful fallback)
   root.transcribeFile = async function transcribeFile(file, filenameHint){
-    const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
-    if(!key) return "";
+    if(!isAcademyMode()) return \"\";
 
-    const tryModels = ["whisper-1", "gpt-4o-transcribe"];
+    const tryModels = [\"whisper-1\", \"gpt-4o-transcribe\"];
     const mkForm = (f, name) => {
       const form = new FormData();
-      form.append("file", f, name || "audio.wav");
-      form.append("temperature", "0");
+      form.append(\"file\", f, name || \"audio.wav\");
+      form.append(\"temperature\", \"0\");
       return form;
     };
 
     for (const m of tryModels) {
       try {
-        const form = mkForm(file, filenameHint || "audio.wav");
-        form.append("model", m);
-        const resp = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${key}` },
+        const form = mkForm(file, filenameHint || \"audio.wav\");
+        form.append(\"model\", m);
+        const resp = await fetch(\"/api/openai/transcriptions\", {
+          method: \"POST\",
           body: form
         });
+        if(!resp.ok){
+          const errText = await resp.text();
+          throw new Error(errText || 'Transcription request failed');
+        }
         const data = await resp.json();
         if (data?.text) return data.text.trim();
         if (data?.error?.message) throw new Error(data.error.message);
@@ -1321,12 +1211,11 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
         // try the next model
       }
     }
-    return "";
+    return \"\";
   };
 
   root.transcribeFileDetailed = async function transcribeFileDetailed(file, filenameHint){
-    const key = (typeof EngineState!=="undefined") ? EngineState.openaiKey : "";
-    if(!key) return { text:"", words:[] };
+    if(!isAcademyMode()) return { text:"", words:[] };
     const tryModels=["whisper-1","gpt-4o-transcribe"];
     const mkForm=(f,name)=>{
       const form=new FormData();
@@ -1340,11 +1229,14 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
       try{
         const form=mkForm(file,filenameHint||"audio.wav");
         form.append("model",m);
-        const resp=await fetch("https://api.openai.com/v1/audio/transcriptions",{
+        const resp=await fetch("/api/openai/transcriptions",{
           method:"POST",
-          headers:{"Authorization":`Bearer ${key}`},
           body:form
         });
+        if(!resp.ok){
+          const errText = await resp.text();
+          throw new Error(errText || 'Transcription request failed');
+        }
         const data=await resp.json();
         if(data?.text){
           const words=[];
@@ -1370,43 +1262,17 @@ function evaluateRubric(){ return {org:4,delivery:5,content:4,presence:6,words:0
 </script>
 <script>
 // --- REPLACE callOpenAIChat with this hardened version ---
-async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, signal }) {
-  if (!EngineState.openaiKey || !/^sk-[A-Za-z0-9_-]{10,}/.test(EngineState.openaiKey)) {
-    const err = new Error('Missing or malformed OpenAI API key.');
+async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, signal, temperature = 0 }) {
+  if (!isAcademyMode()) {
+    const err = new Error('MT academy AI is disabled.');
     err.type = 'config';
     throw err;
   }
 
-  // 1) Quick ping to fail fast on invalid key/quota
-  async function ping() {
-    try {
-      const r = await fetch('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${EngineState.openaiKey}` },
-        cache: 'no-store',
-        keepalive: true,
-      });
-      if (!r.ok) {
-        const t = await r.text().catch(()=> '');
-        let msg = 'OpenAI auth/models check failed';
-        try { const j = JSON.parse(t); msg = j?.error?.message || msg; } catch {}
-        const e = new Error(msg);
-        e.status = r.status;
-        throw e;
-      }
-    } catch (e) {
-      // Don’t block if ping fails due to adblockers; only throw on clear auth errors
-      if (e?.status === 401 || e?.status === 429 || e?.status === 403) throw e;
-    }
-  }
-
-  // 2) Try the ping, but ignore network-only failures
-  try { await ping(); } catch (e) { /* surface later if main call fails */ }
-
   const baseBody = {
     model,
     messages,
-    temperature: 0,
+    temperature: Number.isFinite(temperature) ? temperature : 0,
     max_tokens: Math.max(50, Math.min(8192, Number(maxTokens) || 600)),
   };
 
@@ -1415,11 +1281,10 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
       ? { ...baseBody, response_format: { type: 'json_object' } }
       : baseBody;
 
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    const resp = await fetch('/api/openai/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${EngineState.openaiKey}`,
       },
       body: JSON.stringify(body),
       signal,
@@ -1427,7 +1292,6 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
       keepalive: true,
     });
 
-    // Read text first to preserve error detail
     const rawText = await resp.text();
     let data = null;
     try { data = JSON.parse(rawText); } catch {}
@@ -1435,7 +1299,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     if (!resp.ok) {
       const e = new Error(
         data?.error?.message ||
-        `OpenAI HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0, 200)}` : ''}`
+        `OpenAI proxy HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0, 200)}` : ''}`
       );
       e.status = resp.status;
       e.code = data?.error?.code;
@@ -1450,14 +1314,12 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     return String(content || '');
   }
 
-  // 3) Try JSON first, gracefully fall back to text
   try {
     return await attempt(json);
   } catch (e) {
     const msg = String(e?.message || '').toLowerCase();
     const isSchemaish = msg.includes('response_format') || msg.includes('json');
     if (json && (e.status === 400 || isSchemaish)) {
-      // Retry in plain text mode
       return await attempt(false);
     }
     if (e.status === 429) e.code = e.code || 'rate_limit';
@@ -1671,8 +1533,8 @@ function newQ(){const p=pool();cur=p.length?p[Math.floor(Math.random()*(p.length
 function check(){if(!cur)return;const ok=norm($('objSelect').value)===norm(cur.ans);const r=$('objResult');r.hidden=false;r.classList.toggle('ok',ok);r.classList.toggle('bad',!ok);$('objRuling').textContent=ok?'Sustained.':'Overruled.';$('objRule').textContent=cur.rule;$('objWhy').textContent=cur.why;updStats(cat(cur.ans),ok)}
 function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuling').textContent='Model Answer';$('objRule').textContent=cur.rule;$('objWhy').textContent=`${cur.why} (Correct: ${cur.ans})`}
  async function gptNew(){
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
+  if(!isAcademyMode()){
+   alert('MT academy AI mode is disabled. Use “Choose AI Engine” to enable it.');
    return;
   }
   const diff=$('objGPTDiff').value||'easy';
@@ -1689,13 +1551,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
    ];
    const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,250);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-    body:JSON.stringify({model,messages,response_format:{type:'json_object'},...tokenParam})
-   });
-   const data=await resp.json();
-   const raw=data?.choices?.[0]?.message?.content||'';
+   const raw=await callOpenAIChat({ messages, model, maxTokens: tokenParam.max_tokens, json: true });
    const obj=extractFirstJson(raw);
    if(obj&&obj.fact&&obj.q&&obj.ans){
     cur=obj;
@@ -1716,8 +1572,8 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
  }
  async function gptArgue(){
   if(!cur){alert('Get a prompt first.');return;}
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-   alert('ChatGPT mode not enabled or API key missing.');
+  if(!isAcademyMode()){
+   alert('MT academy AI mode is disabled. Use “Choose AI Engine” to enable it.');
    return;
   }
  const role = $('objGPTRole').value || 'chatgpt';
@@ -1782,15 +1638,9 @@ Task:
    try{
     const model=EngineState.openaiModel||'gpt-4o';
     const tokenParam=chatTokenParam(model,150);
-    const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const text=data?.choices?.[0]?.message?.content?.trim()||'';
-   gptChat.push({role:'assistant',content:text});
-   appendChat('chatgpt',text);
+    const text=(await callOpenAIChat({ messages: gptChat, model, maxTokens: tokenParam.max_tokens, temperature: 0.7 })).trim();
+    gptChat.push({role:'assistant',content:text});
+    appendChat('chatgpt',text);
   }catch(e){
    console.error('[GPT Argue]',e);
    const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
@@ -1798,7 +1648,7 @@ Task:
   }
   }
   async function gptSend(){
-   if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
+   if(!isAcademyMode()){alert('MT academy AI mode is disabled. Use “Choose AI Engine” to enable it.');return;}
    const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
    updateGPTSend();
   gptChat.push({role:'user',content:txt});
@@ -1806,13 +1656,7 @@ Task:
   try{
    const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,150);
-   const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-     method:'POST',
-     headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-     body:JSON.stringify({model,messages:gptChat,temperature:0.7,...tokenParam})
-    });
-   const data=await resp.json();
-   const reply=data?.choices?.[0]?.message?.content?.trim()||'';
+   const reply=(await callOpenAIChat({ messages: gptChat, model, maxTokens: tokenParam.max_tokens, temperature: 0.7 })).trim();
    gptChat.push({role:'assistant',content:reply});
    appendChat('chatgpt',reply);
   }catch(e){
@@ -1822,12 +1666,12 @@ Task:
   }
   }
 function gptRecord(){
-  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
+  if(!isAcademyMode()){alert('MT academy AI mode is disabled. Use “Choose AI Engine” to enable it.');return;}
   $('objGPTInput').value='';
   updateGPTSend();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  // Prefer OpenAI transcription when an API key is available
-  if(EngineState.openaiKey && navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+  // Prefer MT academy transcription when the managed AI is enabled
+  if(isAcademyMode() && navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
    const getMicStream = async () => {
      try {
        return await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,noiseSuppression:true,echoCancellation:true}});
@@ -1866,7 +1710,7 @@ function gptRecord(){
      }
    }).catch(err=>alert('Mic error: '+err.message));
   } else if(SR){
-   // Fallback to browser speech recognition when no API key is available
+   // Fallback to browser speech recognition when MT academy AI is disabled
    gptRecog=new SR();
    let txt='';
    gptRecog.lang='en-US';
@@ -1906,8 +1750,8 @@ function gptStopRecord(){
   }
 }
   async function gptRule(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing.');
+    if(!isAcademyMode()){
+      alert('MT academy AI mode is disabled. Use “Choose AI Engine” to enable it.');
       return;
     }
 
@@ -1962,18 +1806,7 @@ Scoring rule:
     try{
       const model = EngineState.openaiModel || 'gpt-4o';
       const tokenParam = chatTokenParam(model,400);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body: JSON.stringify({
-          model,
-          messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
-          ...tokenParam
-        })
-      });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || '';
+      const text = (await callOpenAIChat({ messages:[{role:'user', content: prompt}], model, maxTokens: tokenParam.max_tokens, temperature: 0.7 } )).trim();
 
       try{
         const parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
@@ -2446,7 +2279,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }
 
       let words=[], transcript="";
-      if(typeof EngineState!=="undefined" && EngineState.openaiKey){
+      if(typeof EngineState!=="undefined" && isAcademyMode()){
         try{
           const wav=await blobToWav(blob);
           const t=await transcribeFileDetailed(wav,'audio.wav');
@@ -2729,7 +2562,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
-    if(!EngineState.openaiKey) throw new Error("no_key");
+    if(!isAcademyMode()) throw new Error("no_key");
     const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
 
@@ -2857,7 +2690,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return;
     }
 
-    if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
+    if(isAcademyMode()){
       $('videoStatus').textContent='Scoring via ChatGPT\u2026';
       scoreViaChatGPT(type, transcript).then(parsed=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
@@ -2905,14 +2738,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   showProvenance('LLM-only rubric scoring (no local blend).');
 }).catch(err => {
   // Surface precise error info
-  let msg = 'ChatGPT scoring unavailable \u2014 using built-in for this run.';
-  if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
-  else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'Rate limit on your OpenAI account (429). Try again or switch model.';
-  else if (err?.status === 403) msg = 'OpenAI request forbidden (403). Check org/project access for this key.';
-  else if (err?.code === 'insufficient_quota') msg = 'OpenAI quota exhausted. Add billing or change organization.';
+  let msg = 'ChatGPT scoring unavailable — using built-in for this run.';
+  if (err?.status === 401) msg = 'MT academy AI request returned 401. Please contact the site administrator.';
+  else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'MT academy AI hit a rate limit (429). Try again shortly.';
+  else if (err?.status === 403) msg = 'MT academy AI request forbidden (403). Please notify the site administrator.';
+  else if (err?.code === 'insufficient_quota') msg = 'Managed OpenAI quota is exhausted. Try again later.';
   else if ((err?.message || '').toLowerCase().includes('network'))
-    msg = 'Network error reaching OpenAI. Check ad blockers / CORS / HTTPS.';
-  else if (err?.message) msg = `OpenAI error: ${err.message}`;
+    msg = 'Network error reaching the MT academy AI proxy. Check ad blockers / CORS / HTTPS.';
+  else if (err?.message) msg = `MT academy AI error: ${err.message}`;
 
   const detail = err?.raw ? (typeof err.raw === 'string' ? err.raw.slice(0, 300) : JSON.stringify(err.raw).slice(0, 300)) : '';
   $('videoStatus').innerHTML = `<strong>${escHTML(msg)}</strong>${detail ? `<div class="small">${escHTML(detail)}</div>` : ''}`;
@@ -2920,7 +2753,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   // Do NOT flip engine mode; just fall back this run
   scoreWithBuiltin(type, raw, audio);
-  showProvenance('Built-in score used (OpenAI error).', true);
+  showProvenance('Built-in score used (MT academy AI error).', true);
 
   const badge = $('modeBadge');
   if (badge && /ChatGPT/i.test(badge.textContent)) {
@@ -2934,8 +2767,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   async function testChatGPT(){
-    if (!(EngineState.mode==='chatgpt' && EngineState.openaiKey)) {
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+    if (!isAcademyMode()) {
+      alert('MT academy AI mode is disabled. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
     showProvenance('Testing ChatGPT\u2026');
@@ -2959,10 +2792,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   async function analyzeMovement(){
-    if(!EngineState.geminiKey){
-      alert('Add a Gemini API key in “API Key / Engine”.');
-      return;
-    }
     if(!lastVideoBlob || !lastVideoBlob.type.startsWith('video/')){
       alert('Record a video first.');
       return;
@@ -2976,14 +2805,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     try{
       const b64 = await blobToBase64(lastVideoBlob);
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
       const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
-      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:512}};
-      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const payload = { model, prompt, transcript, video: { mimeType: mime, data: b64 } };
+      const resp=await fetch('/api/gemini/movement',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(!resp.ok){
         const errTxt = await resp.text();
-        let msg = 'Gemini API error';
+        let msg = 'Gemini proxy error';
         try{ msg = JSON.parse(errTxt).error?.message || msg; }catch(_){ if(errTxt) msg = errTxt; }
         throw new Error(msg);
       }
@@ -2998,8 +2826,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   async function gptWrite(){
-    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
-      alert('ChatGPT mode not enabled or API key missing. Click \u201cAPI Key / Engine\u201d.');
+    if(!isAcademyMode()){
+      alert('MT academy AI mode is disabled. Click \u201cAPI Key / Engine\u201d.');
       return;
     }
     const type=$('writeType').value;
@@ -3015,13 +2843,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     try{
       const model=EngineState.openaiModel||'gpt-4o';
       const tokenParam=chatTokenParam(model,maxTokens);
-      const resp=await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body:JSON.stringify({model,messages,temperature:0.7,...tokenParam})
-      });
-      const data=await resp.json();
-      const text=data?.choices?.[0]?.message?.content?.trim()||'';
+      const text=(await callOpenAIChat({ messages, model, maxTokens: tokenParam.max_tokens, temperature: 0.7 })).trim();
       out.value=text;
     }catch(e){
       console.error('[GPT Write]',e);
