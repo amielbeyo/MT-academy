@@ -74,6 +74,7 @@ section.card{display:none}
 .controls select{font-size:1em;padding:4px 8px}
 .controls label{font-size:1em;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 textarea{width:100%;min-height:120px;background:var(--card);color:var(--text);border-radius:6px;padding:8px;border:1px solid rgba(0,0,0,.1);resize:vertical}
+textarea.disabled{opacity:.6;cursor:not-allowed}
 .fact{background:var(--secondary);padding:10px;border-radius:6px;margin:8px 0}
 .result.ok{border-left:4px solid #16a34a;padding:8px}.result.bad{border-left:4px solid #ef4444;padding:8px}
 .rule-item{border:1px solid rgba(0,0,0,.1);border-radius:8px;padding:10px;margin:6px 0}
@@ -3128,6 +3129,24 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       console.error(e);
       setStatus('Gemini analysis failed: '+(e?.message||'error'), true);
     }
+  }
+
+  function updateWriteStatus(message, isError = false){
+    const status = $('gptWriteStatus');
+    if(!status) return;
+    status.textContent = message || '';
+    status.style.color = isError ? '#ef4444' : 'inherit';
+    if(!status.hasAttribute('aria-live')){
+      status.setAttribute('aria-live','polite');
+    }
+  }
+
+  function enableWriteFollowup(enabled){
+    const follow = $('gptWriteFollowup');
+    if(!follow) return;
+    follow.disabled = !enabled;
+    follow.setAttribute('aria-disabled', (!enabled).toString());
+    follow.classList.toggle('disabled', !enabled);
   }
 
   async function gptWrite(){
