@@ -1716,14 +1716,23 @@ function resetJudgeFollowup(){
     if(rawText && rawText!==summaryText){
      judgeFollowupChat.push({role:'assistant',content:rawText});
     }
- const chat=$('objGPTChat');
- if(chat) chat.hidden=false;
- const wrap=$('objJudgeFollowupWrap');
- const input=$('objJudgeFollowup');
- if(wrap) wrap.hidden=false;
- if(input){ input.disabled=false; input.value=''; input.focus(); }
- updateJudgeFollowupStatus('Follow-up ready. Ask the judge for clarification or guidance.');
-}
+    const chat=$('objGPTChat');
+    if(chat) chat.hidden=false;
+    const wrap=$('objJudgeFollowupWrap');
+    const input=$('objJudgeFollowup');
+    const ready=EngineState.mode==='chatgpt' && !!EngineState.openaiKey;
+    if(wrap) wrap.hidden=false;
+    if(input){
+      input.value='';
+      input.disabled=!ready;
+      if(ready) input.focus();
+    }
+    updateJudgeFollowupStatus(ready?
+      'Follow-up ready. Ask the judge for clarification or guidance.' :
+      'Enter a ChatGPT API key and enable ChatGPT mode to send follow-up questions.',
+      !ready
+    );
+  }
 
 async function sendJudgeFollowup(){
  if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
@@ -2971,6 +2980,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     result.range=`${low}-${high}`;
     renderReport(type,result);
     $('videoStatus').textContent='Scored.';
+
+    const summaryText=summarizeVideoResult(type,result);
+    const rawLines=[
+      'Built-in scoring summary (local heuristics).',
+      `Total Score: ${result.total}`,
+      `Range: ${result.range}`,
+      'Category breakdown:',
+      ...Object.entries(result.cats||{}).map(([k,v])=>`- ${k}: ${v}`)
+    ];
+    if(result.explanation) rawLines.push(`Explanation: ${result.explanation}`);
+    if(result.notes) rawLines.push(`Notes: ${result.notes}`);
+    if(result.qa && result.qa.length){
+      rawLines.push('Question/Answer Highlights:');
+      result.qa.slice(0,3).forEach((qa,i)=>{
+        rawLines.push(`Q${i+1}: ${qa.q||''} | ${qa.qScore??''} - ${qa.qReason||''}`);
+        rawLines.push(`A${i+1}: ${qa.a||''} | ${qa.aScore??''} - ${qa.aReason||''}`);
+      });
+    }
+    if(result.audio){
+      const a=result.audio;
+      const voice=[];
+      if(a.volRating) voice.push(`Volume ${a.volRating}${Number.isFinite(a.avgVolume)?` (${a.avgVolume} dB)`:''}`);
+      if(a.toneRating) voice.push(`Tone ${a.toneRating}${Number.isFinite(a.pitchVar)?` (${a.pitchVar} Hz)`:''}`);
+      if(a.clarityRating) voice.push(`Clarity ${a.clarityRating}`);
+      if(a.speedRating) voice.push(`Speed ${a.speedRating}${Number.isFinite(a.wpm)?` (${a.wpm} WPM)`:''}`);
+      if(voice.length) rawLines.push(`Voice Metrics: ${voice.join('; ')}`);
+      if(a.tips) rawLines.push(`Voice Tips: ${a.tips}`);
+    }
+    prepareVideoFollowup({transcript,type,summaryText,rawText:rawLines.join('\n')});
   }
   async function scoreNow(){
     const type=$('videoType').value||'opening';
@@ -3339,10 +3377,19 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const wrap=$('videoFollowupWrap');
     const input=$('videoFollowup');
     const replies=$('videoFollowupReplies');
+    const ready=EngineState.mode==='chatgpt' && !!EngineState.openaiKey;
     if(wrap) wrap.style.display='flex';
     if(replies) replies.textContent='';
-    if(input){ input.disabled=false; input.value=''; input.focus(); }
-    updateVideoFollowupStatus('Follow-up ready. Ask the judge for clarification or coaching tips.');
+    if(input){
+      input.value='';
+      input.disabled=!ready;
+      if(ready) input.focus();
+    }
+    updateVideoFollowupStatus(ready?
+      'Follow-up ready. Ask the judge for clarification or coaching tips.' :
+      'Enter a ChatGPT API key and enable ChatGPT mode to send follow-up questions.',
+      !ready
+    );
   }
 
   async function sendVideoFollowup(){
