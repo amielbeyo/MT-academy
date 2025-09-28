@@ -1621,6 +1621,20 @@ function appendJudgeDecision(res){
  const label=document.createElement('strong');
  label.textContent='Judge:';
  div.appendChild(label);
+
+ const scoreLow=typeof res.scoreLow==='number'&&!Number.isNaN(res.scoreLow)?res.scoreLow:null;
+ const scoreHigh=typeof res.scoreHigh==='number'&&!Number.isNaN(res.scoreHigh)?res.scoreHigh:null;
+ const outstanding=scoreLow!==null&&scoreLow>=9&&(scoreHigh===null||scoreHigh>=9);
+ if(outstanding&&res.ruling){
+  const short=document.createElement('span');
+  const rulingText=res.ruling.toLowerCase()==='sustained'?'Objection sustained.':'Objection overruled.';
+  short.textContent=` ${rulingText} Judge sides with you.`;
+  div.appendChild(short);
+  out.appendChild(div);
+  out.scrollTop=out.scrollHeight;
+  return;
+ }
+
  const ruling=document.createElement('div');
  ruling.innerHTML=`<strong>Ruling:</strong> ${escHTML(res.ruling||'')}`;
  div.appendChild(ruling);
@@ -1629,22 +1643,22 @@ function appendJudgeDecision(res){
   sum.innerHTML=`<strong>Summary:</strong> ${escHTML(res.summary)}`;
   div.appendChild(sum);
  }
-  const score=document.createElement('div');
-  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
-  div.appendChild(score);
-  const explain=document.createElement('div');
-  explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
-  div.appendChild(explain);
-  if(res.assumptions){
-   const as=document.createElement('div');
-   as.innerHTML=`<strong>Assumptions:</strong> ${escHTML(res.assumptions)}`;
-   div.appendChild(as);
-  }
-  if(res.improvement){
+ const score=document.createElement('div');
+ score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
+ div.appendChild(score);
+ const explain=document.createElement('div');
+ explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
+ div.appendChild(explain);
+ if(res.assumptions){
+  const as=document.createElement('div');
+  as.innerHTML=`<strong>Assumptions:</strong> ${escHTML(res.assumptions)}`;
+  div.appendChild(as);
+ }
+ if(res.improvement){
   const improv=document.createElement('div');
   improv.innerHTML=`<strong>Improvements:</strong> ${escHTML(res.improvement)}`;
   div.appendChild(improv);
-  }
+ }
  out.appendChild(div);
  out.scrollTop=out.scrollHeight;
 }
