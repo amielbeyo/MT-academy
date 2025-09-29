@@ -3392,9 +3392,12 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     let safetyRetried=false;
     const key = EngineState.geminiKey.trim();
     const safeModel = encodeURIComponent(model);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent?key=${encodeURIComponent(key)}`;
+    const apiVersions = ['v1beta','v1'];
+    let versionIndex = 0;
     for(let i=0;i<=attempts;i++){
       try{
+        const apiVersion = apiVersions[Math.min(versionIndex, apiVersions.length-1)];
+        const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${safeModel}:generateContent?key=${encodeURIComponent(key)}`;
         const resp=await fetch(endpoint,{
           method:'POST',
           headers:{'Content-Type':'application/json'},
@@ -3428,13 +3431,19 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         throw new Error('Gemini returned no content.');
       }catch(err){
         lastError=err;
+        const status=err?.status;
+        const notFound = status===404 || /model( [^ ]+)? not found/i.test(err?.message||'') || /call list models/i.test(err?.message||'');
+        if(notFound && versionIndex < apiVersions.length-1){
+          versionIndex+=1;
+          i-=1;
+          continue;
+        }
         if(!safetyRetried && resolvedSafety!==false && /invalid value at .*safety/i.test(err?.message||'')){
           safetyRetried=true;
           payload={...basePayload};
           i-=1;
           continue;
         }
-        const status=err?.status;
         const retriable=i<attempts && (status===429 || (status>=500 && status<600) || /temporar|timeout|rate/i.test(err?.message||''));
         if(retriable){
           await new Promise(resolve=>setTimeout(resolve,400*(i+1)));
