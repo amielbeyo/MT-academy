@@ -3328,7 +3328,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
       const text = await callGemini({
         model,
-        contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}}]}],
+        contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],
         generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
         retries:2
       });
