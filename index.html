@@ -807,7 +807,7 @@ const ChatGPTScoring = (() => {
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
 Remember that “argumentative” is a Rule 611(a) objection about questions that argue with or harass the witness; do not confuse it with the everyday notion of someone sounding combative.
-If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and assign sub-7 scores whenever unchecked rubric items or serious mistakes truly warrant them. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above all, prioritize accurate scoring.
+If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and assign sub-7 scores whenever unchecked rubric items or serious mistakes truly warrant them. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above the rubric and every other guideline, prioritize delivering the same final score a real competition judge would give.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -920,7 +920,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Above all, prioritize giving an accurate score. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short.";
+  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1063,7 +1063,7 @@ function makeRubricMap(stateName, abbr){
   - Developing: Noticeable omissions, unclear roadmap, or weak theme reduce clarity; improvement needed before competition-ready.
   - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
   Reward concise, story-driven openings that clearly state the verdict and burden.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "74.0-80.5") and should mirror your confidence in the evaluation. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
@@ -1089,7 +1089,7 @@ function makeRubricMap(stateName, abbr){
   - Developing: Several elements present but law application, roadmap, or rebuttal is underdeveloped.
   - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
   Reward closings that explicitly contrast both sides and press for the verdict.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "72.5-80.0") and should reflect your confidence in the score. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
@@ -1114,7 +1114,7 @@ function makeRubricMap(stateName, abbr){
   - Developing: Multiple checklist items thin—overly leading, weak foundations, or inconsistent listening.
   - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" and should reflect your confidence in the evaluation. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
@@ -1141,7 +1141,7 @@ function makeRubricMap(stateName, abbr){
   - Developing: Core skills present but inconsistent control, unclear damage theory, or thin impeachment use.
   - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
   Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" and should reflect your confidence in the evaluation. Total must equal weighted sum (rounded).`
   };
 }
