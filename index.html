@@ -2932,6 +2932,71 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     return obj;
   }
 
+  function enforceTenPointRange(payload){
+    if(!payload) return;
+    const WIDTH=10;
+    const clampScore=v=>Math.max(0,Math.min(100,v));
+    const toOneDecimal=v=>Number(clampScore(v).toFixed(1));
+    const totalVal=Number(payload.total);
+    const hasTotal=Number.isFinite(totalVal);
+    let lowVal=Number(payload.scoreLow);
+    let highVal=Number(payload.scoreHigh);
+    if(!Number.isFinite(lowVal)) lowVal=null;
+    if(!Number.isFinite(highVal)) highVal=null;
+
+    const applyFromCenter=center=>{
+      center=clampScore(center);
+      let low=toOneDecimal(center-WIDTH/2);
+      let high=toOneDecimal(center+WIDTH/2);
+      if(Number((high-low).toFixed(1))!==WIDTH){
+        if(high>=100){
+          high=100.0;
+          low=toOneDecimal(high-WIDTH);
+        }else if(low<=0){
+          low=0.0;
+          high=toOneDecimal(low+WIDTH);
+        }else{
+          high=toOneDecimal(low+WIDTH);
+        }
+      }
+      payload.scoreLow=low;
+      payload.scoreHigh=high;
+      payload.range=`${low.toFixed(1)}-${high.toFixed(1)}`;
+      if(!hasTotal){
+        payload.total=Number(((low+high)/2).toFixed(1));
+      }
+    };
+
+    if(lowVal!==null && highVal!==null){
+      lowVal=toOneDecimal(lowVal);
+      highVal=toOneDecimal(highVal);
+      if(Number((highVal-lowVal).toFixed(1))===WIDTH){
+        payload.scoreLow=lowVal;
+        payload.scoreHigh=highVal;
+        payload.range=`${lowVal.toFixed(1)}-${highVal.toFixed(1)}`;
+        if(!hasTotal){
+          payload.total=Number(((lowVal+highVal)/2).toFixed(1));
+        }
+        return;
+      }
+    }
+
+    let center;
+    if(hasTotal){
+      center=totalVal;
+    }else if(lowVal!==null && highVal!==null){
+      center=(lowVal+highVal)/2;
+    }else if(lowVal!==null){
+      center=lowVal+WIDTH/2;
+    }else if(highVal!==null){
+      center=highVal-WIDTH/2;
+    }else{
+      center=75;
+    }
+
+    applyFromCenter(center);
+  }
+
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey) throw new Error("no_key");
@@ -3040,6 +3105,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           }
           payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
         }
+      }
+
+      if(payload){
+        enforceTenPointRange(payload);
       }
 
       const conf = RUBRICS[type] || { cats: [] };
