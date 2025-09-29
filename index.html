@@ -1026,15 +1026,12 @@ function normalizeGeminiModel(value){
   if(!v) return fallback;
   if(v.startsWith('models/')) v=v.slice(7);
   const map={
-    'gemini-1.5-flash': 'gemini-1.5-flash-latest',
-    'gemini-1.5-pro': 'gemini-1.5-pro-latest',
-    'gemini-pro': 'gemini-1.5-pro-latest',
-    'gemini-pro-latest': 'gemini-1.5-pro-latest',
-    'gemini-pro-vision': 'gemini-1.5-pro-latest',
-    'gemini-pro-vision-latest': 'gemini-1.5-pro-latest',
-    'gemini-1.0-pro': 'gemini-1.5-pro-latest',
-    'gemini-1.0-pro-vision': 'gemini-1.5-pro-latest',
-    'gemini-1.0-pro-vision-latest': 'gemini-1.5-pro-latest'
+    'gemini-pro':'gemini-1.5-pro-latest',
+    'gemini-pro-vision':'gemini-1.5-pro-latest',
+    'gemini-1.0-pro':'gemini-1.5-pro-latest',
+    'gemini-1.0-pro-vision':'gemini-1.5-pro-latest',
+    'gemini-1.5-pro':'gemini-1.5-pro-latest',
+    'gemini-1.5-flash':'gemini-1.5-flash-latest'
   };
   return map[v]||v;
 }
@@ -3407,31 +3404,53 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       throw err;
     }
 
-    // Map camelCase -> snake_case for REST
+    // 1) Normalize model names we’ve seen in the wild
+    function normalizeModelName(m) {
+      if (!m) return 'gemini-1.5-flash-latest';
+      let v = String(m).trim();
+      if (v.startsWith('models/')) v = v.slice(7);
+      // Map a few legacy/alias names to stable ones
+      const map = {
+        'gemini-pro': 'gemini-1.5-pro-latest',
+        'gemini-pro-vision': 'gemini-1.5-pro-latest',
+        'gemini-1.0-pro': 'gemini-1.5-pro-latest',
+        'gemini-1.0-pro-vision': 'gemini-1.5-pro-latest',
+        'gemini-1.5-pro': 'gemini-1.5-pro-latest',
+        'gemini-1.5-flash': 'gemini-1.5-flash-latest'
+      };
+      return map[v] || v;
+    }
+    const normModel = normalizeModelName(model);
+
+    // 2) Choose API version based on model family.
+    // As of now, gemini-1.5-* should prefer v1; older/legacy prefer v1beta.
+    function preferredApiVersionFor(modelName) {
+      return /^gemini-1\.5[-]/i.test(modelName) ? 'v1' : 'v1beta';
+    }
+
+    // 3) Convert generation config to REST snake_case (v1/v1beta both accept this)
     function toSnakeGenCfg(cfg) {
       const out = {};
-      if (cfg == null || typeof cfg !== 'object') return out;
+      if (!cfg || typeof cfg !== 'object') return out;
       if (cfg.maxOutputTokens != null) out.max_output_tokens = cfg.maxOutputTokens;
-      if (cfg.max_output_tokens != null) out.max_output_tokens = cfg.max_output_tokens; // allow already-correct
+      if (cfg.max_output_tokens != null) out.max_output_tokens = cfg.max_output_tokens; // already snake ok
       if (cfg.temperature != null) out.temperature = cfg.temperature;
       if (cfg.topP != null) out.top_p = cfg.topP;
-      if (cfg.top_p != null) out.top_p = cfg.top_p; // allow already-correct
+      if (cfg.top_p != null) out.top_p = cfg.top_p; // already snake ok
       if (cfg.topK != null) out.top_k = cfg.topK;
-      if (cfg.top_k != null) out.top_k = cfg.top_k; // allow already-correct
+      if (cfg.top_k != null) out.top_k = cfg.top_k; // already snake ok
       return out;
     }
 
-    // Use explicit Gemini default safety thresholds (schema matches REST)
-    const GEMINI_DEFAULT_SAFETY = Object.freeze([
-      { category: 'HARM_CATEGORY_HARASSMENT',          threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH',         threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SEXUAL',              threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT',   threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SELF_HARM',           threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-      // (If your key was created long ago, CIVIC_INTEGRITY may not be accepted; omit it in REST.)
+    // 4) Safety defaults (omit CIVIC to avoid old-key rejections)
+    const DEFAULT_SAFETY = Object.freeze([
+      { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_SEXUAL',            threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      { category: 'HARM_CATEGORY_SELF_HARM',         threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
     ]);
 
-    // Build base payload with correct snake_case keys
     const basePayload = {
       contents,
       generationConfig: {
@@ -3442,91 +3461,102 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }
     };
 
-    // safetySettings: false -> omit; array -> pass through; otherwise use defaults
     const resolvedSafety =
       safetySettings === false ? false
         : Array.isArray(safetySettings) ? safetySettings
-        : GEMINI_DEFAULT_SAFETY.map(s => ({ ...s }));
+        : DEFAULT_SAFETY.map(s => ({ ...s }));
 
     let payload = resolvedSafety === false ? { ...basePayload } : { ...basePayload, safetySettings: resolvedSafety };
 
     const key = EngineState.geminiKey.trim();
-    const safeModel = encodeURIComponent(model);
-    const apiVersions = ['v1beta', 'v1']; // try v1beta first for 1.5 models
-    let versionIndex = 0;
+    const encodedModel = encodeURIComponent(normModel);
+
+    // 5) Try preferred version first; on model-not-found or “use other version” hint, flip.
+    const tryOrder = [ preferredApiVersionFor(normModel), (preferredApiVersionFor(normModel) === 'v1' ? 'v1beta' : 'v1') ];
+
     let lastError = null;
     let safetyRetried = false;
 
     for (let attempt = 0; attempt <= Math.max(0, retries); attempt++) {
-      try {
-        const apiVersion = apiVersions[Math.min(versionIndex, apiVersions.length - 1)];
-        const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${safeModel}:generateContent?key=${encodeURIComponent(key)}`;
-        const resp = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal
-        });
+      for (let vi = 0; vi < tryOrder.length; vi++) {
+        const apiVersion = tryOrder[vi];
+        const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodedModel}:generateContent?key=${encodeURIComponent(key)}`;
+        try {
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal
+          });
+          const rawText = await resp.text();
+          let data = null;
+          try { data = rawText ? JSON.parse(rawText) : null; } catch (_) {}
 
-        const rawText = await resp.text();
-        let data = null;
-        try { data = rawText ? JSON.parse(rawText) : null; } catch (_) {}
+          if (!resp.ok) {
+            const msg = data?.error?.message || `Gemini HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0,160)}` : ''}`;
+            const err = new Error(msg);
+            err.status = resp.status;
+            err.raw = data || rawText;
 
-        if (!resp.ok) {
-          const msg = data?.error?.message || `Gemini HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0, 160)}` : ''}`;
-          const err = new Error(msg);
-          err.status = resp.status;
-          err.raw = data || rawText;
-          throw err;
+            // If Google tells us to use a different surface, flip version once.
+            const m = msg.toLowerCase();
+            const hintOtherSurface =
+              m.includes('use v1') || m.includes('use v1beta') ||
+              m.includes('not found') || m.includes('model') && m.includes('not') && m.includes('found');
+            if (hintOtherSurface && vi === 0) {
+              // Try the other version immediately
+              continue;
+            }
+            throw err;
+          }
+
+          const block = data?.promptFeedback?.blockReason;
+          if (block && block !== 'BLOCK_REASON_UNSPECIFIED') {
+            const err = new Error(`Gemini blocked the request (${String(block).replace(/_/g,' ').toLowerCase()}).`);
+            err.type = 'blocked';
+            err.blockReason = block;
+            throw err;
+          }
+
+          const text =
+            (data?.candidates || [])
+              .flatMap(c => c?.content?.parts || [])
+              .map(p => p?.text || '')
+              .join('\n')
+              .trim();
+
+          if (text) return text;
+          throw new Error('Gemini returned no content.');
+        } catch (err) {
+          lastError = err;
+
+          // Safety schema/key toggles: retry once without safetySettings
+          if (!safetyRetried && resolvedSafety !== false && /invalid value at .*safety/i.test((err?.message || '').toLowerCase())) {
+            safetyRetried = true;
+            payload = { ...basePayload }; // drop safetySettings
+            // Restart inner loop from preferred version
+            vi = -1;
+            continue;
+          }
+
+          // If we failed on the first version, try the second; otherwise bubble to outer retry
+          if (vi === 0) {
+            continue; // try other version
+          }
         }
-
-        const block = data?.promptFeedback?.blockReason;
-        if (block && block !== 'BLOCK_REASON_UNSPECIFIED') {
-          const err = new Error(`Gemini blocked the request (${String(block).replace(/_/g, ' ').toLowerCase()}).`);
-          err.type = 'blocked';
-          err.blockReason = block;
-          throw err;
-        }
-
-        const text =
-          (data?.candidates || [])
-            .flatMap(c => c?.content?.parts || [])
-            .map(p => p?.text || '')
-            .join('\n')
-            .trim();
-
-        if (text) return text;
-        throw new Error('Gemini returned no content.');
-      } catch (err) {
-        lastError = err;
-
-        // Try the other API version if model-not-found
-        const status = err?.status;
-        const notFound = status === 404 || /model( [^ ]+)? not found/i.test(err?.message || '');
-        if (notFound && versionIndex < apiVersions.length - 1) {
-          versionIndex += 1;
-          attempt -= 1;
-          continue;
-        }
-
-        // If safety schema error (common when keys were toggled in AI Studio), retry with NO safetySettings
-        if (!safetyRetried && resolvedSafety !== false && /invalid value at .*safety/i.test(err?.message || '')) {
-          safetyRetried = true;
-          payload = { ...basePayload }; // drop safetySettings
-          attempt -= 1;
-          continue;
-        }
-
-        // Retry on 429/5xx/timeout-ish
-        const retriable = attempt < retries && (status === 429 || (status >= 500 && status < 600) || /temporar|timeout|rate/i.test(err?.message || ''));
-        if (retriable) {
-          await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
-          continue;
-        }
-        throw err;
       }
+
+      // Retry on 429/5xx/temporary
+      const status = lastError?.status;
+      const transient = status === 429 || (status >= 500 && status < 600) || /temporar|timeout|rate/i.test((lastError?.message || '').toLowerCase());
+      if (attempt < retries && transient) {
+        await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+        continue;
+      }
+      break;
     }
 
+    // Bubble the best error we saw
     throw lastError || new Error('Gemini request failed.');
   }
 
@@ -3626,6 +3656,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const extra = /invalid value at .*safety/i.test(message)
         ? ' Gemini rejected the key because of custom safety settings. Reset the key in Google AI Studio or create a new one with default safety controls.'
         : '';
+      const low = (message||'').toLowerCase();
+      if(/use v1beta|use v1|not found|wrong surface|switch (api|version)/.test(low)){
+        $('videoStatus').innerHTML += '<div class="small">Hint: We now auto-detect v1/v1beta based on the model. If this persists, pick “gemini-1.5-*-latest” in the keys page.</div>';
+      }
       setStatus('Gemini analysis failed: '+message+extra, true);
     }
   }
