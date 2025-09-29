@@ -190,26 +190,10 @@ a.inline{color:var(--accent);text-decoration:underline}
           <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
         </div>
         <div class="choice">
-          <h3>Movement Scoring</h3>
-          <ol class="small" style="margin-top:6px">
-            <li>Visit <strong>ai.google.dev</strong> and sign in.</li>
-            <li>Create or select a project, then link a billing account with a credit card.</li>
-            <li>Go to <strong>API keys</strong> → <strong>Create API key</strong>.</li>
-            <li>Paste the key below. Stored only in your browser.</li>
-          </ol>
-          <label class="small">Gemini API Key
-            <input id="geminiKey" class="input" type="password" placeholder="AIza...">
-          </label>
-          <label class="small" style="margin-top:8px">Model
-            <select id="geminiModel" class="input">
-              <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest (fast)</option>
-              <option value="gemini-1.5-pro-latest">gemini-1.5-pro-latest (accurate)</option>
-            </select>
-          </label>
-          <div class="row" style="margin-top:8px">
-            <button id="btnSaveGeminiKey" class="btn primary">Save Gemini Key</button>
-            <button id="btnForgetGeminiKey" class="btn secondary" title="Delete saved key">Remove</button>
-          </div>
+          <h3>Movement Analysis</h3>
+          <p class="small">Use the same ChatGPT key to unlock video-based movement coaching. No extra setup needed.</p>
+          <p class="small">ChatGPT’s multimodal models review your recording plus the transcript to highlight gesture, stance, and eye contact adjustments.</p>
+          <div class="ok" style="margin:8px 0">Requires the ChatGPT key from Option A.</div>
         </div>
       </div>
       <hr class="sep">
@@ -298,7 +282,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="controls">
       <button id="btnScoreVideo" class="btn secondary">Re-score</button>
       <button id="btnShowVoice" class="btn secondary">Show Voice</button>
-      <button id="btnAnalyzeMovement" class="btn secondary">Movement (Gemini)</button>
+      <button id="btnAnalyzeMovement" class="btn secondary">Movement (ChatGPT)</button>
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
@@ -396,26 +380,9 @@ a.inline{color:var(--accent);text-decoration:underline}
         </div>
       </div>
       <div class="choice">
-        <h3>Movement Scoring</h3>
-        <ol class="small" style="margin-top:6px">
-          <li>Visit <strong>ai.google.dev</strong> and sign in.</li>
-          <li>Create or select a project, then link a billing account with a credit card.</li>
-          <li>Go to <strong>API keys</strong> → <strong>Create API key</strong>.</li>
-          <li>Paste the key below and choose a model.</li>
-        </ol>
-        <label class="small">Gemini API Key
-          <input id="keyPageGemini" class="input" type="password" placeholder="AIza...">
-        </label>
-        <label class="small" style="margin-top:8px">Model
-          <select id="keyPageGeminiModel" class="input">
-            <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest (fast)</option>
-            <option value="gemini-1.5-pro-latest">gemini-1.5-pro-latest (accurate)</option>
-          </select>
-        </label>
-        <div class="row" style="margin-top:8px">
-          <button id="saveGemini" class="btn primary">Save Gemini Key</button>
-          <button id="removeGemini" class="btn secondary">Remove</button>
-        </div>
+        <h3>Movement Analysis (ChatGPT)</h3>
+        <p class="small">No extra key needed. The same OpenAI key powers transcript scoring and the new video-based movement feedback.</p>
+        <p class="small">For best results keep recordings under an hour and ensure the camera captures full-body posture.</p>
       </div>
     </div>
   </section>
@@ -441,8 +408,8 @@ a.inline{color:var(--accent);text-decoration:underline}
           <li>Select the speech type and click <em>Start Recording</em>.</li>
           <li>Use <em>Stop</em> when done, then <em>Play</em> or <em>Download</em> to review.</li>
           <li><em>Re-score</em> analyzes delivery; <em>Show Voice</em> displays the transcript.</li>
-          <li><em>Movement (Gemini)</em> checks gestures; <em>API Key / Engine</em> adds keys.</li>
-          <li>If Gemini says “Invalid value at … safetySettings”, delete that key in Google AI Studio and make a new API key without changing the safety toggles.</li>
+          <li><em>Movement (ChatGPT)</em> reviews posture and gestures; <em>API Key / Engine</em> adds keys.</li>
+          <li>If the movement request is too large or unsupported, the tool automatically falls back to transcript-only guidance.</li>
           <li><em>Test ChatGPT</em> confirms your key works.</li>
         </ul>
       </li>
@@ -471,7 +438,7 @@ a.inline{color:var(--accent);text-decoration:underline}
         </ul>
       </li>
     </ul>
-    <p class="small">To use ChatGPT or Gemini features, create your own API keys. OpenAI keys require prepaid funds, and Gemini keys need a linked credit card. See the API Keys page for step-by-step setup.</p>
+    <p class="small">To use ChatGPT features—including transcript scoring, video-based movement coaching, and drafting tools—create your own OpenAI API key and add funds to your account. See the API Keys page for step-by-step setup.</p>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -997,9 +964,8 @@ var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation
 var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
-const GEMINI_DEFAULT_MODEL='gemini-1.5-flash-latest';
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: GEMINI_DEFAULT_MODEL };
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600 };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -1018,23 +984,6 @@ function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
-
-function normalizeGeminiModel(value){
-  const fallback=GEMINI_DEFAULT_MODEL;
-  if(!value) return fallback;
-  let v=String(value).trim();
-  if(!v) return fallback;
-  if(v.startsWith('models/')) v=v.slice(7);
-  const map={
-    'gemini-pro':'gemini-1.5-pro-latest',
-    'gemini-pro-vision':'gemini-1.5-pro-latest',
-    'gemini-1.0-pro':'gemini-1.5-pro-latest',
-    'gemini-1.0-pro-vision':'gemini-1.5-pro-latest',
-    'gemini-1.5-pro':'gemini-1.5-pro-latest',
-    'gemini-1.5-flash':'gemini-1.5-flash-latest'
-  };
-  return map[v]||v;
-}
 
 function attachFollowupSender(id, handler){
   const el=$(id);
@@ -1176,19 +1125,7 @@ EngineState = {
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
   set openaiModel(v){ save('mtpl.openaiModel', v||'gpt-4o') },
   get openaiMaxTokens(){ return load('mtpl.openaiMaxTokens',600) },
-  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
-  get geminiKey(){ return load('mtpl.geminiKey','') },
-  set geminiKey(v){ save('mtpl.geminiKey', v||'') },
-  get geminiModel(){
-    const raw = load('mtpl.geminiModel',GEMINI_DEFAULT_MODEL);
-    const normalized = normalizeGeminiModel(raw);
-    if(normalized !== raw){ save('mtpl.geminiModel', normalized); }
-    return normalized;
-  },
-  set geminiModel(v){
-    const normalized = normalizeGeminiModel(v);
-    save('mtpl.geminiModel', normalized || GEMINI_DEFAULT_MODEL);
-  }
+  set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) }
 };
 
 if (EngineState.openaiKey && EngineState.mode !== 'chatgpt') {
@@ -1221,7 +1158,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 /* Gateway wiring */
-function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; $('geminiKey').value=EngineState.geminiKey||''; $('geminiModel').value=EngineState.geminiModel; }
+function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
 function closeVideoGate(){ $('videoGate').style.display='none' }
 function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
 function attachVideoGateHandlers(){
@@ -1248,18 +1185,6 @@ function attachVideoGateHandlers(){
     EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
     alert('Removed saved API key. Falling back to built-in scoring.');
   });
-  $('btnSaveGeminiKey')?.addEventListener('click', ()=>{
-    const key=$('geminiKey').value.trim();
-    const model=$('geminiModel').value;
-    if(!key){ alert('Paste a Gemini API key.'); return; }
-    EngineState.geminiKey=key; EngineState.geminiModel=model;
-    closeVideoGate();
-    const s=$('videoStatus'); if(s) s.textContent='Gemini key saved. Use Movement for analysis.';
-  });
-  $('btnForgetGeminiKey')?.addEventListener('click', ()=>{
-    EngineState.geminiKey='';
-    const s=$('videoStatus'); if(s) s.textContent='Removed Gemini key.';
-  });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
 
@@ -1267,14 +1192,10 @@ function initKeyPage(){
   const openaiInput = $('keyPageOpenAI');
   const openaiModel = $('keyPageOpenAIModel');
   const openaiMax = $('keyPageOpenAIMaxTokens');
-  const geminiInput = $('keyPageGemini');
-  const geminiModel = $('keyPageGeminiModel');
-  if(!openaiInput || !openaiModel || !openaiMax || !geminiInput || !geminiModel) return;
+  if(!openaiInput || !openaiModel || !openaiMax) return;
   openaiInput.value = EngineState.openaiKey || '';
   openaiModel.value = EngineState.openaiModel;
   openaiMax.value = EngineState.openaiMaxTokens;
-  geminiInput.value = EngineState.geminiKey || '';
-  geminiModel.value = EngineState.geminiModel;
   $('saveOpenAI').addEventListener('click', ()=>{
     const key = openaiInput.value.trim();
     if(!/^sk-[A-Za-z0-9_-]{10,}$/.test(key)){
@@ -1294,21 +1215,6 @@ function initKeyPage(){
     openaiInput.value = '';
     renderModeBadge();
     alert('OpenAI key removed.');
-  });
-  $('saveGemini').addEventListener('click', ()=>{
-    const key = geminiInput.value.trim();
-    if(!key){
-      alert('Paste a Gemini key.');
-      return;
-    }
-    EngineState.geminiKey = key;
-    EngineState.geminiModel = geminiModel.value;
-    alert('Gemini key saved.');
-  });
-  $('removeGemini').addEventListener('click', ()=>{
-    EngineState.geminiKey = '';
-    geminiInput.value = '';
-    alert('Gemini key removed.');
   });
 }
 document.addEventListener('DOMContentLoaded', initKeyPage);
@@ -3397,178 +3303,68 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
   }
 
-  async function callGemini({ model, contents, generationConfig = {}, safetySettings, retries = 1, signal }) {
-    if (!EngineState.geminiKey) {
-      const err = new Error('Gemini key missing.');
+  async function callOpenAIResponse({ model, input, maxOutputTokens = 600, temperature = 0.2, signal }) {
+    if (!EngineState.openaiKey || !/^sk-[A-Za-z0-9_-]{10,}/.test(EngineState.openaiKey)) {
+      const err = new Error('Missing or malformed OpenAI API key.');
       err.type = 'config';
       throw err;
     }
-
-    // 1) Normalize model names we’ve seen in the wild
-    function normalizeModelName(m) {
-      if (!m) return 'gemini-1.5-flash-latest';
-      let v = String(m).trim();
-      if (v.startsWith('models/')) v = v.slice(7);
-      // Map a few legacy/alias names to stable ones
-      const map = {
-        'gemini-pro': 'gemini-1.5-pro-latest',
-        'gemini-pro-vision': 'gemini-1.5-pro-latest',
-        'gemini-1.0-pro': 'gemini-1.5-pro-latest',
-        'gemini-1.0-pro-vision': 'gemini-1.5-pro-latest',
-        'gemini-1.5-pro': 'gemini-1.5-pro-latest',
-        'gemini-1.5-flash': 'gemini-1.5-flash-latest'
-      };
-      return map[v] || v;
+    const body = {
+      model,
+      input,
+      temperature,
+      max_output_tokens: Math.max(50, Math.min(4096, Number(maxOutputTokens) || 600))
+    };
+    const resp = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${EngineState.openaiKey}`
+      },
+      body: JSON.stringify(body),
+      signal,
+      cache: 'no-store',
+      keepalive: true
+    });
+    const rawText = await resp.text();
+    let data = null;
+    try { data = JSON.parse(rawText); } catch {}
+    if (!resp.ok) {
+      const e = new Error(
+        data?.error?.message ||
+        `OpenAI HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0, 160)}` : ''}`
+      );
+      e.status = resp.status;
+      e.code = data?.error?.code;
+      e.type = data?.error?.type;
+      e.raw = data || rawText;
+      throw e;
     }
-    const normModel = normalizeModelName(model);
-
-    // 2) Choose API version based on model family.
-    // As of now, gemini-1.5-* should prefer v1; older/legacy prefer v1beta.
-    function preferredApiVersionFor(modelName) {
-      return /^gemini-1\.5[-]/i.test(modelName) ? 'v1' : 'v1beta';
-    }
-
-    // 3) Normalize generation config to the camelCase schema that Gemini expects
-    function toCamelGenCfg(cfg) {
-      const out = {};
-      if (!cfg || typeof cfg !== 'object') return out;
-      const read = (primary, fallback) => {
-        if (cfg[primary] != null) return cfg[primary];
-        if (fallback && cfg[fallback] != null) return cfg[fallback];
-        return undefined;
-      };
-      const maxTokens = read('maxOutputTokens', 'max_output_tokens');
-      if (maxTokens != null) out.maxOutputTokens = maxTokens;
-      const temperature = read('temperature');
-      if (temperature != null) out.temperature = temperature;
-      const topP = read('topP', 'top_p');
-      if (topP != null) out.topP = topP;
-      const topK = read('topK', 'top_k');
-      if (topK != null) out.topK = topK;
-      return out;
-    }
-
-    // 4) Safety defaults (omit CIVIC to avoid old-key rejections)
-    const DEFAULT_SAFETY = Object.freeze([
-      { category: 'HARM_CATEGORY_HARASSMENT',        threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_HATE_SPEECH',       threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SEXUAL',            threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-      { category: 'HARM_CATEGORY_SELF_HARM',         threshold: 'BLOCK_MEDIUM_AND_ABOVE' }
-    ]);
-
-    const basePayload = {
-      contents,
-      generationConfig: {
-        maxOutputTokens: 512,
-        temperature: 0.2,
-        topP: 0.9,
-        ...toCamelGenCfg(generationConfig)
+    const segments = [];
+    const pushContent = (value) => {
+      if (!value) return;
+      if (Array.isArray(value)) { value.forEach(pushContent); return; }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) segments.push(trimmed);
+        return;
+      }
+      if (typeof value?.text === 'string') {
+        const trimmed = value.text.trim();
+        if (trimmed) segments.push(trimmed);
       }
     };
-
-    const resolvedSafety =
-      safetySettings === false ? false
-        : Array.isArray(safetySettings) ? safetySettings
-        : DEFAULT_SAFETY.map(s => ({ ...s }));
-
-    let payload = resolvedSafety === false ? { ...basePayload } : { ...basePayload, safetySettings: resolvedSafety };
-
-    const key = EngineState.geminiKey.trim();
-    const encodedModel = encodeURIComponent(normModel);
-
-    // 5) Try preferred version first; on model-not-found or “use other version” hint, flip.
-    const tryOrder = [ preferredApiVersionFor(normModel), (preferredApiVersionFor(normModel) === 'v1' ? 'v1beta' : 'v1') ];
-
-    let lastError = null;
-    let safetyRetried = false;
-
-    for (let attempt = 0; attempt <= Math.max(0, retries); attempt++) {
-      for (let vi = 0; vi < tryOrder.length; vi++) {
-        const apiVersion = tryOrder[vi];
-        const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodedModel}:generateContent?key=${encodeURIComponent(key)}`;
-        try {
-          const resp = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal
-          });
-          const rawText = await resp.text();
-          let data = null;
-          try { data = rawText ? JSON.parse(rawText) : null; } catch (_) {}
-
-          if (!resp.ok) {
-            const msg = data?.error?.message || `Gemini HTTP ${resp.status}${rawText ? ` — ${rawText.slice(0,160)}` : ''}`;
-            const err = new Error(msg);
-            err.status = resp.status;
-            err.raw = data || rawText;
-
-            // If Google tells us to use a different surface, flip version once.
-            const m = msg.toLowerCase();
-            const hintOtherSurface =
-              m.includes('use v1') || m.includes('use v1beta') ||
-              m.includes('not found') || m.includes('model') && m.includes('not') && m.includes('found');
-            if (hintOtherSurface && vi === 0) {
-              // Try the other version immediately
-              continue;
-            }
-            throw err;
-          }
-
-          const block = data?.promptFeedback?.blockReason;
-          if (block && block !== 'BLOCK_REASON_UNSPECIFIED') {
-            const err = new Error(`Gemini blocked the request (${String(block).replace(/_/g,' ').toLowerCase()}).`);
-            err.type = 'blocked';
-            err.blockReason = block;
-            throw err;
-          }
-
-          const text =
-            (data?.candidates || [])
-              .flatMap(c => c?.content?.parts || [])
-              .map(p => p?.text || '')
-              .join('\n')
-              .trim();
-
-          if (text) return text;
-          throw new Error('Gemini returned no content.');
-        } catch (err) {
-          lastError = err;
-
-          // Safety schema/key toggles: retry once without safetySettings
-          if (!safetyRetried && resolvedSafety !== false && /invalid value at .*safety/i.test((err?.message || '').toLowerCase())) {
-            safetyRetried = true;
-            payload = { ...basePayload }; // drop safetySettings
-            // Restart inner loop from preferred version
-            vi = -1;
-            continue;
-          }
-
-          // If we failed on the first version, try the second; otherwise bubble to outer retry
-          if (vi === 0) {
-            continue; // try other version
-          }
-        }
-      }
-
-      // Retry on 429/5xx/temporary
-      const status = lastError?.status;
-      const transient = status === 429 || (status >= 500 && status < 600) || /temporar|timeout|rate/i.test((lastError?.message || '').toLowerCase());
-      if (attempt < retries && transient) {
-        await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
-        continue;
-      }
-      break;
-    }
-
-    // Bubble the best error we saw
-    throw lastError || new Error('Gemini request failed.');
+    pushContent(data?.output);
+    pushContent(data?.content);
+    pushContent(data?.output_text);
+    pushContent(data?.result);
+    const joined = segments.join('\n').trim();
+    return joined || rawText.trim();
   }
 
   async function analyzeMovement(){
-    if(!EngineState.geminiKey){
-      alert('Add a Gemini API key in “API Key / Engine”.');
+    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
+      alert('Enable ChatGPT mode and add your OpenAI API key first.');
       return;
     }
     if(!lastVideoBlob || !lastVideoBlob.type.startsWith('video/')){
@@ -3580,27 +3376,41 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       alert('Transcript required for movement analysis.');
       return;
     }
-    setStatus('Analyzing movement with Gemini…');
+    setStatus('Analyzing movement with ChatGPT…');
     try{
-      const model = EngineState.geminiModel || GEMINI_DEFAULT_MODEL;
-      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Ensure all guidance is professional, lawful, and consistent with safety policies. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
+      const model = EngineState.openaiModel || 'gpt-4o';
+      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Provide a concise bullet list of movement and gesture improvements. Keep guidance professional, lawful, and competition-safe. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
+      const format = (() => {
+        const subtype = (mime.split('/')[1]||'mp4').toLowerCase();
+        if(subtype.includes('quicktime')) return 'mov';
+        if(subtype.includes('x-matroska')) return 'mkv';
+        if(subtype.includes('x-msvideo')) return 'avi';
+        if(subtype.includes('x-flv')) return 'flv';
+        if(subtype.includes('mpeg')) return 'mpg';
+        if(subtype.includes('mp4')) return 'mp4';
+        if(subtype.includes('webm')) return 'webm';
+        if(subtype.includes('ogg')) return 'ogg';
+        if(subtype.includes('3gpp')) return '3gp';
+        return subtype.replace(/[^a-z0-9]/g,'') || 'mp4';
+      })();
       const approxDuration = Number.isFinite(lastVideoDuration) && lastVideoDuration>0 ? lastVideoDuration : null;
+
       const transcriptOnlyCall = async reason => {
         const prefix = reason ? `${reason}\n\n` : '';
-        return callGemini({
+        return callOpenAIResponse({
           model,
-          contents:[
+          temperature:0.25,
+          maxOutputTokens:600,
+          input:[
             {
               role:'user',
-              parts:[
-                {text:prompt},
-                {text: `${prefix}Transcript:\n${transcript}`}
+              content:[
+                {type:'input_text', text: prompt},
+                {type:'input_text', text: `${prefix}Transcript:\n${transcript}`}
               ]
             }
-          ],
-          generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
-          retries:1
+          ]
         });
       };
 
@@ -3612,26 +3422,26 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         feedbackNote='transcript-only (video exceeds 60 minutes)';
         setStatus('Video is over an hour; analyzing transcript only…', true);
         text = await transcriptOnlyCall('Transcript only (video longer than 60 minutes).');
-        statusMsg='Movement analyzed by Gemini (transcript-only: video over 60 minutes).';
+        statusMsg='Movement analyzed by ChatGPT (transcript-only: video over 60 minutes).';
       }else{
         const b64 = await blobToBase64(lastVideoBlob);
-        const videoContents = [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
-              { inlineData: { mimeType: mime, data: b64 } },
-              { text: 'Transcript:\n' + transcript }
-            ]
-          }
-        ];
         try{
-          text = await callGemini({
+          text = await callOpenAIResponse({
             model,
-            contents:videoContents,
-            generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
-            retries:2
+            temperature:0.25,
+            maxOutputTokens:600,
+            input:[
+              {
+                role:'user',
+                content:[
+                  {type:'input_text', text: prompt},
+                  {type:'input_video', video:{data:b64, format}},
+                  {type:'input_text', text: 'Transcript:\n' + transcript}
+                ]
+              }
+            ]
           });
+          statusMsg='Movement analyzed by ChatGPT.';
         }catch(err){
           const message = err?.message||'';
           const lowerMessage = message.toLowerCase();
@@ -3640,17 +3450,17 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           const sizeIssue = err?.status===413
             || /too large|payload too large|request entity too large|exceeds[^.]*limit|content length|too big|max(imum)?\s*size|resource_exhausted|input size|content size|quota exceeded/.test(lowerMessage)
             || /too large|payload too large|request entity too large|exceeds[^.]*limit|content length|too big|max(imum)?\s*size|resource_exhausted|input size|content size|quota exceeded/.test(lowerRaw);
-          const blocked = err?.type==='blocked' || /blocked|terms of service|policy/i.test(message);
-          if(blocked){
-            feedbackNote='transcript-only (video blocked by Gemini safety filters)';
-            setStatus('Gemini blocked the video analysis; retrying with transcript only…', true);
-            text = await transcriptOnlyCall('Transcript only (video blocked).');
-            statusMsg='Movement analyzed by Gemini transcript-only (video blocked).';
-          }else if(sizeIssue){
-            feedbackNote='transcript-only (video too large for Gemini REST)';
-            setStatus('Gemini could not process the video (too large); analyzing transcript only…', true);
-            text = await transcriptOnlyCall('Transcript only (video too large for Gemini REST).');
-            statusMsg='Movement analyzed by Gemini (transcript-only: video too large for REST).';
+          const unsupported = /unsupported|media type|video|input_(media|video)/.test(lowerMessage) || /unsupported|media type|video|input_(media|video)/.test(lowerRaw);
+          if(sizeIssue){
+            feedbackNote='transcript-only (video too large for ChatGPT)';
+            setStatus('ChatGPT could not process the video (too large); analyzing transcript only…', true);
+            text = await transcriptOnlyCall('Transcript only (video too large for ChatGPT video analysis).');
+            statusMsg='Movement analyzed by ChatGPT (transcript-only fallback).';
+          }else if(unsupported){
+            feedbackNote='transcript-only (video unsupported by ChatGPT model)';
+            setStatus('This ChatGPT model does not accept video; analyzing transcript only…', true);
+            text = await transcriptOnlyCall('Transcript only (model does not accept video uploads).');
+            statusMsg='Movement analyzed by ChatGPT (transcript-only: model lacks video support).';
           }else{
             throw err;
           }
@@ -3661,22 +3471,15 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const note = feedbackNote ? ` (${escHTML(feedbackNote)})` : '';
       $('movementFeedback').innerHTML = `<div><strong>Movement Feedback${note}</strong></div><div>${escHTML(cleaned).replace(/\n/g,'<br>')}</div>`;
       if(cleaned==='No feedback returned.'){
-        statusMsg='Gemini returned no movement feedback.';
+        statusMsg='ChatGPT returned no movement feedback.';
       }else if(!statusMsg){
-        statusMsg='Movement analyzed by Gemini.';
+        statusMsg='Movement analyzed by ChatGPT.';
       }
       setStatus(statusMsg);
     }catch(e){
       console.error(e);
       const message = e?.message || 'error';
-      const extra = /invalid value at .*safety/i.test(message)
-        ? ' Gemini rejected the key because of custom safety settings. Reset the key in Google AI Studio or create a new one with default safety controls.'
-        : '';
-      const low = (message||'').toLowerCase();
-      if(/use v1beta|use v1|not found|wrong surface|switch (api|version)/.test(low)){
-        $('videoStatus').innerHTML += '<div class="small">Hint: We now auto-detect v1/v1beta based on the model. If this persists, pick “gemini-1.5-*-latest” in the keys page.</div>';
-      }
-      setStatus('Gemini analysis failed: '+message+extra, true);
+      setStatus('ChatGPT movement analysis failed: '+message, true);
     }
   }
 
