@@ -3315,17 +3315,32 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       temperature,
       max_output_tokens: Math.max(50, Math.min(4096, Number(maxOutputTokens) || 600))
     };
-    const resp = await fetch('https://api.openai.com/v1/responses', {
+    const bodyJSON = JSON.stringify(body);
+    const fetchOpts = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${EngineState.openaiKey}`
       },
-      body: JSON.stringify(body),
+      body: bodyJSON,
       signal,
-      cache: 'no-store',
-      keepalive: true
-    });
+      cache: 'no-store'
+    };
+    // Chrome limits keepalive requests to ~64 KB. Large video payloads triggered a
+    // "TypeError: Load failed" network error when keepalive was always enabled,
+    // preventing movement analysis from reaching the OpenAI Responses endpoint.
+    // Only enable keepalive for small payloads so video uploads succeed.
+    if (bodyJSON.length < 60000) {
+      fetchOpts.keepalive = true;
+    }
+    let resp;
+    try {
+      resp = await fetch('https://api.openai.com/v1/responses', fetchOpts);
+    } catch (networkErr) {
+      const err = new Error(networkErr?.message || 'Network error calling OpenAI.');
+      err.type = 'network';
+      throw err;
+    }
     const rawText = await resp.text();
     let data = null;
     try { data = JSON.parse(rawText); } catch {}
