@@ -807,7 +807,7 @@ const ChatGPTScoring = (() => {
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
 Remember that “argumentative” is a Rule 611(a) objection about questions that argue with or harass the witness; do not confuse it with the everyday notion of someone sounding combative.
-If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and reserve sub-7 scores for arguments that are exceptionally brief or poor.
+If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and assign sub-7 scores whenever unchecked rubric items or serious mistakes truly warrant them. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above all, prioritize accurate scoring.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -839,21 +839,16 @@ CATEGORIES (sum to 10)
    0 – Rambling/disorganized or improper tone.
    0.5 – Tight 1–3 sentence structure, plain English, professional.
 
-SCORING FLOORS (apply BEFORE any small deductions)
-• If the advocate: (i) states the correct ground, (ii) cites a rule number, and (iii) ties it to at least ONE specific record fact → FLOOR = 8.0
-• If they ALSO (iv) address a likely exception/counter or (v) request the correct remedy/limiting instruction → FLOOR = 9.0
-• Missing the rule number may cap the floor at 8.75 (deduct ≤0.25 only).
-
-PENALTIES / GUARDRAILS
-• NO midpoint default. Do NOT pick “5” or “7” absent analysis.
-• Brevity is NOT a penalty. Concise, surgical arguments can be 9–10 if the elements above are met.
-• New facts or hypotheticals not in the transcript: −1.0 to −2.0 (and ignore them when scoring).
-• If the transcript is extremely short (<15 words) or an “I don’t know”: score = 1.
+SCORING NOTES
+• Avoid defaulting to midpoint scores—explain the rationale for any deduction.
+• Reward concise, surgical arguments when the rubric elements are satisfied.
+• Disregard new facts or hypotheticals that are not in the transcript when scoring.
+• Extremely short transcripts or explicit admissions of “I don’t know” should be treated as non-answers.
 
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10. Pick a spread that reflects how confident you are (typically 0.4–1.5 apart) and only use a wider range when the performance is inconsistent. Avoid repeating the same range across responses and ensure the range matches the transcript's quality.
+Score Range: two numbers from 1–10. Pick a spread that reflects how confident you are, and ensure the range matches the transcript's quality.
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -863,13 +858,11 @@ CHECKLIST THE JUDGE MUST APPLY (internally)
 
 Why this fixes the “5 for a 10” problem
 
-Hard floors (8.0 / 9.0) prevent safe mid-range scores when the core elements are nailed.
-
 Heavier weight on application (4 pts) mirrors how real judges reward fact-tight arguments.
 
 Explicit allowance for brevity stops the model from downgrading concise, correct takes.
 
-Counter/exception credit (up to 1.5 + 1.5) boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
+Counter/exception credit boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
 const PROMPT_TEMPLATE =
 `You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
@@ -881,7 +874,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Choose the high-low spread to reflect your confidence (usually 0.4–1.5 difference) and avoid defaulting to the same numbers.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Choose the high-low spread to reflect your confidence and avoid defaulting to the same numbers.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -893,7 +886,7 @@ const PROMPT_TEMPLATE =
 `9. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.6-8.4). Pick a spread that reflects confidence (generally 0.4–1.5 apart) and vary it based on performance.>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.6-8.4). Pick a spread that reflects confidence and vary it based on performance.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -908,7 +901,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Choose the high-low spread to reflect your confidence (usually 0.4–1.5 difference) and avoid defaulting to the same numbers.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Choose the high-low spread to reflect your confidence and avoid defaulting to the same numbers.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -922,12 +915,12 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.6-8.4). Pick a spread that reflects confidence (generally 0.4–1.5 apart) and vary it based on performance.>\n`+
+`Score Range: <low-high from 1 to 10 with one decimal place (e.g., 7.6-8.4). Pick a spread that reflects confidence and vary it based on performance.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. When the transcript convincingly satisfies every item with persuasive control, award a 9.3–10.0 range. If it hits almost everything with only light polish fixes, keep it around 8.5–9.2. Reserve 7s for clearly identified gaps, 6s for uneven or incomplete showings, and 5 or below only when major requirements are missing. Do not anchor to midrange habits—calibrate to what an actual judge would write on the ballot. Always provide a concrete score with a confidence-based low/high range (usually 0.4–1.5 apart, wider only when the performance is inconsistent). Vary the range rather than repeating the same numbers. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it.";
+  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Above all, prioritize giving an accurate score. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1069,8 +1062,9 @@ function makeRubricMap(stateName, abbr){
   - Tournament ready: Core boxes covered but one element lacks depth (e.g., thin witness preview or muted storytelling); still strong and persuasive.
   - Developing: Noticeable omissions, unclear roadmap, or weak theme reduce clarity; improvement needed before competition-ready.
   - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
-  Reward concise, story-driven openings that clearly state the verdict and burden. Do not keep accurate, checklist-complete work in the mid-80s.
-  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "74.0-80.5") with a spread that mirrors confidence—typically 6-12 points apart, wider only if performance quality varies greatly. Total must equal weighted sum of category scores (rounded).`,
+  Reward concise, story-driven openings that clearly state the verdict and burden.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "74.0-80.5") and should mirror your confidence in the evaluation. Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Content & Law Application (35)
   - Structure & Element Walk-through (20)
@@ -1094,8 +1088,9 @@ function makeRubricMap(stateName, abbr){
   - Tournament ready: Persuasive and well-structured with only minor lapses (e.g., light rebuttal coverage or slight delivery dip).
   - Developing: Several elements present but law application, roadmap, or rebuttal is underdeveloped.
   - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
-  Reward closings that explicitly contrast both sides and press for the verdict; avoid defaulting strong transcripts to the high-80s.
-  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "72.5-80.0") with a confidence-based spread of roughly 6-12 points, varying as needed. Total must equal weighted sum (rounded).`,
+  Reward closings that explicitly contrast both sides and press for the verdict.
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" (e.g., "72.5-80.0") and should reflect your confidence in the score. Total must equal weighted sum (rounded).`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
@@ -1119,7 +1114,8 @@ function makeRubricMap(stateName, abbr){
   - Developing: Multiple checklist items thin—overly leading, weak foundations, or inconsistent listening.
   - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with a confidence-based spread (roughly 6-12 points unless the performance justifies more). Total must equal weighted sum (rounded).`,
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" and should reflect your confidence in the evaluation. Total must equal weighted sum (rounded).`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -1145,7 +1141,8 @@ function makeRubricMap(stateName, abbr){
   - Developing: Core skills present but inconsistent control, unclear damage theory, or thin impeachment use.
   - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
   Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with a spread that reflects confidence (roughly 6-12 points by default). Total must equal weighted sum (rounded).`
+  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above all, prioritize accurate scoring.
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" and should reflect your confidence in the evaluation. Total must equal weighted sum (rounded).`
   };
 }
 
