@@ -202,8 +202,8 @@ a.inline{color:var(--accent);text-decoration:underline}
           </label>
           <label class="small" style="margin-top:8px">Model
             <select id="geminiModel" class="input">
-              <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
-              <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
+              <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest (fast)</option>
+              <option value="gemini-1.5-pro-latest">gemini-1.5-pro-latest (accurate)</option>
             </select>
           </label>
           <div class="row" style="margin-top:8px">
@@ -408,8 +408,8 @@ a.inline{color:var(--accent);text-decoration:underline}
         </label>
         <label class="small" style="margin-top:8px">Model
           <select id="keyPageGeminiModel" class="input">
-            <option value="gemini-1.5-flash">gemini-1.5-flash (fast)</option>
-            <option value="gemini-1.5-pro">gemini-1.5-pro (accurate)</option>
+            <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest (fast)</option>
+            <option value="gemini-1.5-pro-latest">gemini-1.5-pro-latest (accurate)</option>
           </select>
         </label>
         <div class="row" style="margin-top:8px">
@@ -997,8 +997,9 @@ var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation
 var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
+const GEMINI_DEFAULT_MODEL='gemini-1.5-flash-latest';
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: 'gemini-1.5-flash' };
+var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600, geminiKey: '', geminiModel: GEMINI_DEFAULT_MODEL };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -1017,6 +1018,16 @@ function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
+
+function normalizeGeminiModel(value){
+  const fallback=GEMINI_DEFAULT_MODEL;
+  if(!value) return fallback;
+  const map={
+    'gemini-1.5-flash': 'gemini-1.5-flash-latest',
+    'gemini-1.5-pro': 'gemini-1.5-pro-latest'
+  };
+  return map[value]||value;
+}
 
 function attachFollowupSender(id, handler){
   const el=$(id);
@@ -1161,8 +1172,16 @@ EngineState = {
   set openaiMaxTokens(v){ save('mtpl.openaiMaxTokens', Number(v)||600) },
   get geminiKey(){ return load('mtpl.geminiKey','') },
   set geminiKey(v){ save('mtpl.geminiKey', v||'') },
-  get geminiModel(){ return load('mtpl.geminiModel','gemini-1.5-flash') },
-  set geminiModel(v){ save('mtpl.geminiModel', v||'gemini-1.5-flash') }
+  get geminiModel(){
+    const raw = load('mtpl.geminiModel',GEMINI_DEFAULT_MODEL);
+    const normalized = normalizeGeminiModel(raw);
+    if(normalized !== raw){ save('mtpl.geminiModel', normalized); }
+    return normalized;
+  },
+  set geminiModel(v){
+    const normalized = normalizeGeminiModel(v);
+    save('mtpl.geminiModel', normalized || GEMINI_DEFAULT_MODEL);
+  }
 };
 
 if (EngineState.openaiKey && EngineState.mode !== 'chatgpt') {
@@ -3431,7 +3450,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     setStatus('Analyzing movement with Gemini…');
     try{
       const b64 = await blobToBase64(lastVideoBlob);
-      const model = EngineState.geminiModel || 'gemini-1.5-flash';
+      const model = EngineState.geminiModel || GEMINI_DEFAULT_MODEL;
       const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Ensure all guidance is professional, lawful, and consistent with safety policies. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
       let text = '';
