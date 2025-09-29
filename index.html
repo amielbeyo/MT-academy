@@ -3364,9 +3364,23 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         if (trimmed) segments.push(trimmed);
         return;
       }
-      if (typeof value?.text === 'string') {
+      if (typeof value !== 'object') return;
+      if (typeof value.text === 'string') {
         const trimmed = value.text.trim();
         if (trimmed) segments.push(trimmed);
+      }
+      if (typeof value.output_text === 'string') {
+        const trimmed = value.output_text.trim();
+        if (trimmed) segments.push(trimmed);
+      }
+      if (Array.isArray(value.content)) {
+        value.content.forEach(pushContent);
+      }
+      if (Array.isArray(value.messages)) {
+        value.messages.forEach(pushContent);
+      }
+      if (Array.isArray(value.output)) {
+        value.output.forEach(pushContent);
       }
     };
     pushContent(data?.output);
