@@ -3477,10 +3477,15 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
       let text = '';
       let blockedReason = '';
+      const videoContents = [
+        {role:'user',parts:[{text:prompt}]},
+        {role:'user',parts:[{inlineData:{mimeType:mime,data:b64}}]},
+        {role:'user',parts:[{text:'Transcript:\n'+transcript}]}
+      ];
       try{
         text = await callGemini({
           model,
-          contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],
+          contents:videoContents,
           generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
           retries:2
         });
@@ -3492,7 +3497,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         setStatus('Gemini blocked the video analysis; retrying with transcript only…', true);
         text = await callGemini({
           model,
-          contents:[{role:'user',parts:[{text:prompt},{text:'Transcript only (video blocked).\n\nTranscript:\n'+transcript}]}],
+          contents:[
+            {role:'user',parts:[{text:prompt}]},
+            {role:'user',parts:[{text:'Transcript only (video blocked).\n\nTranscript:\n'+transcript}]}
+          ],
           generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
           retries:1
         });
