@@ -3380,11 +3380,22 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     let lastError=null;
     const attempts=Math.max(0,retries);
     let safetyRetried=false;
+    const key = EngineState.geminiKey.trim();
+    const safeModel = encodeURIComponent(model);
+    const pathOptions = (() => {
+      const bases = [];
+      if (/^gemini-1\.5/i.test(model)) bases.push('v1beta');
+      bases.push('v1');
+      return Array.from(new Set(bases));
+    })();
+    let pathIndex = 0;
+    const buildEndpoint = (base) => `https://generativelanguage.googleapis.com/${base}/models/${safeModel}:generateContent?key=${encodeURIComponent(key)}`;
+    let endpoint = buildEndpoint(pathOptions[pathIndex] || 'v1beta');
     for(let i=0;i<=attempts;i++){
       try{
-        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{
+        const resp=await fetch(endpoint,{
           method:'POST',
-          headers:{'Content-Type':'application/json','x-goog-api-key':EngineState.geminiKey},
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify(payload),
           signal
         });
@@ -3415,13 +3426,20 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         throw new Error('Gemini returned no content.');
       }catch(err){
         lastError=err;
+        const status=err?.status;
+        const canSwitchPath = status===404 && pathIndex < pathOptions.length-1;
+        if(canSwitchPath){
+          pathIndex += 1;
+          endpoint = buildEndpoint(pathOptions[pathIndex]);
+          i-=1;
+          continue;
+        }
         if(!safetyRetried && resolvedSafety!==false && /invalid value at .*safety/i.test(err?.message||'')){
           safetyRetried=true;
           payload={...basePayload};
           i-=1;
           continue;
         }
-        const status=err?.status;
         const retriable=i<attempts && (status===429 || (status>=500 && status<600) || /temporar|timeout|rate/i.test(err?.message||''));
         if(retriable){
           await new Promise(resolve=>setTimeout(resolve,400*(i+1)));
