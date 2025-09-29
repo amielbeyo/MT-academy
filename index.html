@@ -3428,17 +3428,23 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return /^gemini-1\.5[-]/i.test(modelName) ? 'v1' : 'v1beta';
     }
 
-    // 3) Convert generation config to REST snake_case (v1/v1beta both accept this)
-    function toSnakeGenCfg(cfg) {
+    // 3) Normalize generation config to the camelCase schema that Gemini expects
+    function toCamelGenCfg(cfg) {
       const out = {};
       if (!cfg || typeof cfg !== 'object') return out;
-      if (cfg.maxOutputTokens != null) out.max_output_tokens = cfg.maxOutputTokens;
-      if (cfg.max_output_tokens != null) out.max_output_tokens = cfg.max_output_tokens; // already snake ok
-      if (cfg.temperature != null) out.temperature = cfg.temperature;
-      if (cfg.topP != null) out.top_p = cfg.topP;
-      if (cfg.top_p != null) out.top_p = cfg.top_p; // already snake ok
-      if (cfg.topK != null) out.top_k = cfg.topK;
-      if (cfg.top_k != null) out.top_k = cfg.top_k; // already snake ok
+      const read = (primary, fallback) => {
+        if (cfg[primary] != null) return cfg[primary];
+        if (fallback && cfg[fallback] != null) return cfg[fallback];
+        return undefined;
+      };
+      const maxTokens = read('maxOutputTokens', 'max_output_tokens');
+      if (maxTokens != null) out.maxOutputTokens = maxTokens;
+      const temperature = read('temperature');
+      if (temperature != null) out.temperature = temperature;
+      const topP = read('topP', 'top_p');
+      if (topP != null) out.topP = topP;
+      const topK = read('topK', 'top_k');
+      if (topK != null) out.topK = topK;
       return out;
     }
 
@@ -3454,10 +3460,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const basePayload = {
       contents,
       generationConfig: {
-        max_output_tokens: 512,
+        maxOutputTokens: 512,
         temperature: 0.2,
-        top_p: 0.9,
-        ...toSnakeGenCfg(generationConfig)
+        topP: 0.9,
+        ...toCamelGenCfg(generationConfig)
       }
     };
 
@@ -3606,7 +3612,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         const b64 = await blobToBase64(lastVideoBlob);
         const videoContents = [
           { role: 'user', parts: [ { text: prompt } ] },
-          { role: 'user', parts: [ { inline_data: { mime_type: mime, data: b64 } } ] },
+          { role: 'user', parts: [ { inlineData: { mimeType: mime, data: b64 } } ] },
           { role: 'user', parts: [ { text: 'Transcript:\n' + transcript } ] }
         ];
         try{
