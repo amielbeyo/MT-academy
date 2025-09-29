@@ -3382,10 +3382,6 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       alert('Enable ChatGPT mode and add your OpenAI API key first.');
       return;
     }
-    if(!lastVideoBlob || !lastVideoBlob.type.startsWith('video/')){
-      alert('Record a video first.');
-      return;
-    }
     const transcript = $('videoTranscript').value.trim();
     if(!transcript){
       alert('Transcript required for movement analysis.');
@@ -3394,103 +3390,31 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     setStatus('Analyzing movement with ChatGPT…');
     try{
       const model = EngineState.openaiModel || 'gpt-4o';
-      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Provide a concise bullet list of movement and gesture improvements. Keep guidance professional, lawful, and competition-safe. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
-      const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
-      const format = (() => {
-        const subtype = (mime.split('/')[1]||'mp4').toLowerCase();
-        if(subtype.includes('quicktime')) return 'mov';
-        if(subtype.includes('x-matroska')) return 'mkv';
-        if(subtype.includes('x-msvideo')) return 'avi';
-        if(subtype.includes('x-flv')) return 'flv';
-        if(subtype.includes('mpeg')) return 'mpg';
-        if(subtype.includes('mp4')) return 'mp4';
-        if(subtype.includes('webm')) return 'webm';
-        if(subtype.includes('ogg')) return 'ogg';
-        if(subtype.includes('3gpp')) return '3gp';
-        return subtype.replace(/[^a-z0-9]/g,'') || 'mp4';
-      })();
-      const approxDuration = Number.isFinite(lastVideoDuration) && lastVideoDuration>0 ? lastVideoDuration : null;
+      const prompt = 'You are a mock trial performance coach. Read the transcript carefully and infer where purposeful movement, gestures, or positioning will reinforce the spoken content. Provide a concise bullet list of improvements. Keep guidance professional, lawful, and competition-safe. Tie each suggestion to specific transcript cues (quoted phrases, sentence numbers, or structural signals like lists) and explain how, where, and when to move or gesture differently. When the transcript enumerates points, recommend gestures that visibly count or differentiate each item (e.g., holding up fingers or shifting position). Include precise guidance on where to stand or move relative to courtroom landmarks (judge, jury, witness stand, counsel tables, podium).';
 
-      const transcriptOnlyCall = async reason => {
-        const prefix = reason ? `${reason}\n\n` : '';
-        return callOpenAIResponse({
-          model,
-          temperature:0.25,
-          maxOutputTokens:600,
-          input:[
-            {
-              role:'user',
-              content:[
-                {type:'input_text', text: prompt},
-                {type:'input_text', text: `${prefix}Transcript:\n${transcript}`}
-              ]
-            }
-          ]
-        });
-      };
-
-      let text='';
-      let feedbackNote='';
-      let statusMsg='';
-
-      if(approxDuration && approxDuration>=3600){
-        feedbackNote='transcript-only (video exceeds 60 minutes)';
-        setStatus('Video is over an hour; analyzing transcript only…', true);
-        text = await transcriptOnlyCall('Transcript only (video longer than 60 minutes).');
-        statusMsg='Movement analyzed by ChatGPT (transcript-only: video over 60 minutes).';
-      }else{
-        const b64 = await blobToBase64(lastVideoBlob);
-        try{
-          text = await callOpenAIResponse({
-            model,
-            temperature:0.25,
-            maxOutputTokens:600,
-            input:[
-              {
-                role:'user',
-                content:[
-                  {type:'input_text', text: prompt},
-                  {type:'input_video', video:{data:b64, format}},
-                  {type:'input_text', text: 'Transcript:\n' + transcript}
-                ]
-              }
+      const text = await callOpenAIResponse({
+        model,
+        temperature:0.25,
+        maxOutputTokens:600,
+        input:[
+          {
+            role:'user',
+            content:[
+              {type:'input_text', text: prompt},
+              {type:'input_text', text: 'Transcript (use this to infer movement—no video available):\n' + transcript}
             ]
-          });
-          statusMsg='Movement analyzed by ChatGPT.';
-        }catch(err){
-          const message = err?.message||'';
-          const lowerMessage = message.toLowerCase();
-          const rawStr = err?.raw ? (typeof err.raw==='string'?err.raw:JSON.stringify(err.raw)) : '';
-          const lowerRaw = rawStr.toLowerCase();
-          const sizeIssue = err?.status===413
-            || /too large|payload too large|request entity too large|exceeds[^.]*limit|content length|too big|max(imum)?\s*size|resource_exhausted|input size|content size|quota exceeded/.test(lowerMessage)
-            || /too large|payload too large|request entity too large|exceeds[^.]*limit|content length|too big|max(imum)?\s*size|resource_exhausted|input size|content size|quota exceeded/.test(lowerRaw);
-          const unsupported = /unsupported|media type|video|input_(media|video)/.test(lowerMessage) || /unsupported|media type|video|input_(media|video)/.test(lowerRaw);
-          if(sizeIssue){
-            feedbackNote='transcript-only (video too large for ChatGPT)';
-            setStatus('ChatGPT could not process the video (too large); analyzing transcript only…', true);
-            text = await transcriptOnlyCall('Transcript only (video too large for ChatGPT video analysis).');
-            statusMsg='Movement analyzed by ChatGPT (transcript-only fallback).';
-          }else if(unsupported){
-            feedbackNote='transcript-only (video unsupported by ChatGPT model)';
-            setStatus('This ChatGPT model does not accept video; analyzing transcript only…', true);
-            text = await transcriptOnlyCall('Transcript only (model does not accept video uploads).');
-            statusMsg='Movement analyzed by ChatGPT (transcript-only: model lacks video support).';
-          }else{
-            throw err;
           }
-        }
-      }
+        ]
+      });
 
       const cleaned=text||'No feedback returned.';
-      const note = feedbackNote ? ` (${escHTML(feedbackNote)})` : '';
+      const note = ' (transcript-based guidance)';
       $('movementFeedback').innerHTML = `<div><strong>Movement Feedback${note}</strong></div><div>${escHTML(cleaned).replace(/\n/g,'<br>')}</div>`;
       if(cleaned==='No feedback returned.'){
-        statusMsg='ChatGPT returned no movement feedback.';
-      }else if(!statusMsg){
-        statusMsg='Movement analyzed by ChatGPT.';
+        setStatus('ChatGPT returned no movement feedback.', true);
+      }else{
+        setStatus('Movement analyzed by ChatGPT (transcript-based).');
       }
-      setStatus(statusMsg);
     }catch(e){
       console.error(e);
       const message = e?.message || 'error';
