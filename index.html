@@ -283,7 +283,6 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnFlipCamera" class="btn secondary" title="Switch between front and rear camera">Flip Camera</button>
       <button id="btnStopRecording" class="btn secondary">Stop</button>
       <button id="btnPlayRecording" class="btn secondary">Play</button>
-      <a id="btnDownloadRecording" class="btn secondary" download="speech.webm">Download</a>
       <span>Timer: <span id="videoTimer">00:00</span></span>
     </div>
     <div class="row" style="align-items:center;gap:8px">
@@ -801,7 +800,8 @@ const ChatGPTScoring = (() => {
     + `7 — Strong foundation but at least one significant checklist box is unchecked or weakly supported.\n`
     + `8 — High performing: satisfies nearly every rubric expectation with persuasive structure and only minor polish fixes.\n`
     + `9 — Finalist level: meets every checklist item, ties arguments to the record/law, anticipates counters, and stays precise.\n`
-    + `10 — Championship caliber: complete, strategic, and polished throughout; nothing material to improve.`;
+    + `10 — Championship caliber: complete, strategic, and polished throughout; nothing material to improve.\n`
+    + `Note: Ignore typos, misspellings, or minor grammar slips if the meaning is clear.`;
 
   const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
 
@@ -878,12 +878,13 @@ const PROMPT_TEMPLATE =
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`7. Provide a brief explanation for why you chose that score, referring to \n`+
+`6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
+`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`8. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`8. List specific improvement suggestions, quoting exact words or phrases \n`+
+`9. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`9. State any assumptions you made.\n\n`+
+`10. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
 `Score Range: <low-high from 1 to 10 with one decimal place where the high value is exactly 1.0 higher than the low value (e.g., 7.5-8.5).>\n`+
@@ -905,13 +906,14 @@ const PROMPT_TEMPLATE_RULING =
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`7. Decide whether the objection should be sustained or overruled.\n`+
-`8. Provide a brief explanation for why you chose that score, referring to \n`+
+`6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
+`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
+`8. Decide whether the objection should be sustained or overruled.\n`+
+`9. Provide a brief explanation for why you chose that score, referring to \n`+
 `   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`9. List specific improvement suggestions, quoting exact words or phrases \n`+
+`10. List specific improvement suggestions, quoting exact words or phrases \n`+
 `   from the transcript and offering concrete alternative wording or steps.\n`+
-`10. State any assumptions you made.\n\n`+
+`11. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
@@ -920,7 +922,7 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short.";
+  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short. Focus on the substance: do not dock points for typos, accent-based word choice, or minor grammar errors when the intended meaning is clear. Brief argumentative detours in an opening should be noted but treated as only a light deduction unless the speech turns into a closing argument.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1014,6 +1016,7 @@ function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
+const wait = ms => new Promise(resolve=>setTimeout(resolve,ms));
 
 function attachFollowupSender(id, handler){
   const el=$(id);
@@ -1043,11 +1046,11 @@ function extractFirstJson(str){
 function makeRubricMap(stateName, abbr){
   return {
     opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
-  - Content & Law/Facts (32.5)
-  - Organization & Roadmap (32.5)
-  - Persuasiveness (20)
+  - Content & Law/Facts (37)
+  - Organization & Roadmap (36)
+  - Persuasiveness (12)
   - Delivery (15)
-  Rules: No new facts. The opening must not analyze the law or facts, draw conclusions, or otherwise argue; deduct points for any such argument. Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme. Openings should begin with a theme and brief story, clearly state the side represented, explain the burden of proof, preview key witnesses and evidence, and end with the verdict requested.
+  Rules: No new facts. The opening should not analyze the law or facts, draw conclusions, or otherwise argue; treat any brief argumentative phrasing as a minor issue (note it and deduct no more than about 0.5 unless the speech truly becomes a closing). Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme. Openings should begin with a theme and brief story, clearly state the side represented, explain the burden of proof, preview key witnesses and evidence, and end with the verdict requested. Ignore spelling or grammar slips so long as the meaning is clear and the checklist is satisfied.
   Evaluate using this checklist:
   \u25a1 Provided a case overview and story
   \u25a1 The theme/theory of the case was identified
@@ -1066,9 +1069,9 @@ function makeRubricMap(stateName, abbr){
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "74.0-84.0"). Total must equal weighted sum of category scores (rounded).`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
-  - Content & Law Application (35)
-  - Structure & Element Walk-through (20)
-  - Refutation & Rebuttal (15)
+  - Content & Law Application (38)
+  - Structure & Element Walk-through (22)
+  - Refutation & Rebuttal (10)
   - Persuasiveness (15)
   - Delivery (15)
   A strong closing should follow this organization:\n1. Introduction \u2013 start with a story or hook tying the theme to the case.\n2. Burden \u2013 state the burden of proof.\n3. Roadmap \u2013 highlight the evidence the fact-finder must focus on to see the case is proven.\n4. Witnesses \u2013 explain what each witness did and link it to the evidence and theme.\n5. Rebuttal \u2013 address opposing counsel\u2019s main points.\n6. Verdict Request \u2013 ask the jury or judge to rule in your favor.\n  Closings must apply the law to the facts and address the opponent ("they said..."). Deduct points if the argument omits or poorly organizes these elements or merely summarizes without analysis.\n  Evaluate using this checklist:
@@ -2273,8 +2276,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   const RUBRICS={
-    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.325},{key:'organization',n:'Organization & Roadmap',w:0.325},{key:'persuasion',n:'Persuasiveness',w:0.20},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
-    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.35},{key:'organization',n:'Structure & Element Walk-through',w:0.20},{key:'refutation',n:'Refutation & Rebuttal',w:0.15},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15}]},
+    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.37},{key:'organization',n:'Organization & Roadmap',w:0.36},{key:'persuasion',n:'Persuasiveness',w:0.12},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
+    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.38},{key:'organization',n:'Structure & Element Walk-through',w:0.22},{key:'refutation',n:'Refutation & Rebuttal',w:0.10},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15}]},
     direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.30},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15}]},
     cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
   };
@@ -2853,7 +2856,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return;
     }
     rec.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data) };
-    rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const ext=type.includes('mp4')?'mp4':type.includes('ogg')?'ogg':type.includes('mpeg')?'mp3':type.includes('wav')?'wav':'webm'; $('btnDownloadRecording').href=url; $('btnDownloadRecording').download=(hasVideo?'speech.':'audio.')+ext; $('btnPlayRecording').onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; };
+    rec.onstop=()=>{ const type=rec.mimeType||mime||(hasVideo?'video/webm':'audio/webm'); const blob=new Blob(chunks,{type}); lastVideoBlob=blob; const url=URL.createObjectURL(blob); const playBtn=$('btnPlayRecording'); if(playBtn){ playBtn.onclick=()=>{ const v=$('videoPreview'); v.srcObject=null; v.src=url; v.controls=true; v.play().catch(()=>{}); }; } };
     let audioLossNotified=false;
     const notifyAudioLoss=()=>{
       if(audioLossNotified) return;
@@ -3237,6 +3240,72 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
   }
 
+  const GEMINI_SAFETY_SETTINGS=[
+    {category:'HARM_CATEGORY_DANGEROUS_CONTENT',threshold:'BLOCK_NONE'},
+    {category:'HARM_CATEGORY_HARASSMENT',threshold:'BLOCK_NONE'},
+    {category:'HARM_CATEGORY_HATE_SPEECH',threshold:'BLOCK_NONE'},
+    {category:'HARM_CATEGORY_SEXUAL_CONTENT',threshold:'BLOCK_NONE'},
+    {category:'HARM_CATEGORY_VIOLENCE',threshold:'BLOCK_NONE'},
+    {category:'HARM_CATEGORY_SELF_HARM',threshold:'BLOCK_NONE'}
+  ];
+
+  async function callGemini({model, contents, generationConfig={}, retries=1, signal}){
+    if(!EngineState.geminiKey){
+      const err=new Error('Gemini key missing.');
+      err.type='config';
+      throw err;
+    }
+    const payload={
+      contents,
+      generationConfig:{maxOutputTokens:512,temperature:0.2,topP:0.9,...generationConfig},
+      safetySettings:GEMINI_SAFETY_SETTINGS
+    };
+    let lastError=null;
+    const attempts=Math.max(0,retries);
+    for(let i=0;i<=attempts;i++){
+      try{
+        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','x-goog-api-key':EngineState.geminiKey},
+          body:JSON.stringify(payload),
+          signal
+        });
+        const rawText=await resp.text();
+        let data=null;
+        try{ data=rawText?JSON.parse(rawText):null; }catch(_){ data=null; }
+        if(!resp.ok){
+          const msg=data?.error?.message||`Gemini HTTP ${resp.status}${rawText?` — ${rawText.slice(0,160)}`:''}`;
+          const err=new Error(msg);
+          err.status=resp.status;
+          err.raw=data||rawText;
+          throw err;
+        }
+        const block=data?.promptFeedback?.blockReason;
+        if(block && block!=='BLOCK_REASON_UNSPECIFIED'){
+          const reason=String(block).replace(/_/g,' ').toLowerCase();
+          throw new Error(`Gemini blocked the request (${reason||'safety'}).`);
+        }
+        const text=(data?.candidates||[])
+          .flatMap(c=>c?.content?.parts||[])
+          .map(p=>p?.text||'')
+          .join('\n')
+          .trim();
+        if(text) return text;
+        throw new Error('Gemini returned no content.');
+      }catch(err){
+        lastError=err;
+        const status=err?.status;
+        const retriable=i<attempts && (status===429 || (status>=500 && status<600) || /temporar|timeout|rate/i.test(err?.message||''));
+        if(retriable){
+          await wait(400*(i+1));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError||new Error('Gemini request failed.');
+  }
+
   async function analyzeMovement(){
     if(!EngineState.geminiKey){
       alert('Add a Gemini API key in “API Key / Engine”.');
@@ -3255,21 +3324,17 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     try{
       const b64 = await blobToBase64(lastVideoBlob);
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${EngineState.geminiKey}`;
       const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
-      const body = {contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],generationConfig:{maxOutputTokens:512}};
-      const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(!resp.ok){
-        const errTxt = await resp.text();
-        let msg = 'Gemini API error';
-        try{ msg = JSON.parse(errTxt).error?.message || msg; }catch(_){ if(errTxt) msg = errTxt; }
-        throw new Error(msg);
-      }
-      const data=await resp.json();
-      const text=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text).join('\n').trim();
-      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(text||'No feedback returned.').replace(/\n/g,'<br>')}</div>`;
-      setStatus('Movement analyzed by Gemini.');
+      const text = await callGemini({
+        model,
+        contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}}]}],
+        generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
+        retries:2
+      });
+      const cleaned=text||'No feedback returned.';
+      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(cleaned).replace(/\n/g,'<br>')}</div>`;
+      setStatus(cleaned==='No feedback returned.'?'Gemini returned no movement feedback.':'Movement analyzed by Gemini.');
     }catch(e){
       console.error(e);
       setStatus('Gemini analysis failed: '+(e?.message||'error'), true);
