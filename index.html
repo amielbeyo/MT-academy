@@ -3332,25 +3332,16 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
   }
 
-  const GEMINI_SAFETY_SETTINGS=[
-    {category:'HARM_CATEGORY_DANGEROUS_CONTENT',threshold:'BLOCK_NONE'},
-    {category:'HARM_CATEGORY_HARASSMENT',threshold:'BLOCK_NONE'},
-    {category:'HARM_CATEGORY_HATE_SPEECH',threshold:'BLOCK_NONE'},
-    {category:'HARM_CATEGORY_SEXUAL_CONTENT',threshold:'BLOCK_NONE'},
-    {category:'HARM_CATEGORY_VIOLENCE',threshold:'BLOCK_NONE'},
-    {category:'HARM_CATEGORY_SELF_HARM',threshold:'BLOCK_NONE'}
-  ];
-
   async function callGemini({model, contents, generationConfig={}, retries=1, signal}){
     if(!EngineState.geminiKey){
       const err=new Error('Gemini key missing.');
       err.type='config';
       throw err;
     }
+    // Rely on Gemini's default safety settings so requests remain policy compliant.
     const payload={
       contents,
-      generationConfig:{maxOutputTokens:512,temperature:0.2,topP:0.9,...generationConfig},
-      safetySettings:GEMINI_SAFETY_SETTINGS
+      generationConfig:{maxOutputTokens:512,temperature:0.2,topP:0.9,...generationConfig}
     };
     let lastError=null;
     const attempts=Math.max(0,retries);
@@ -3375,7 +3366,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         const block=data?.promptFeedback?.blockReason;
         if(block && block!=='BLOCK_REASON_UNSPECIFIED'){
           const reason=String(block).replace(/_/g,' ').toLowerCase();
-          throw new Error(`Gemini blocked the request (${reason||'safety'}).`);
+          const err=new Error(`Gemini blocked the request (${reason||'safety'}).`);
+          err.type='blocked';
+          err.blockReason=block;
+          throw err;
         }
         const text=(data?.candidates||[])
           .flatMap(c=>c?.content?.parts||[])
@@ -3416,17 +3410,39 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     try{
       const b64 = await blobToBase64(lastVideoBlob);
       const model = EngineState.geminiModel || 'gemini-1.5-flash';
-      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
+      const prompt = 'You are a mock trial performance coach. Watch the video and read the transcript. Give a concise bullet list of movement and gesture improvements. Ensure all guidance is professional, lawful, and consistent with safety policies. Each item must cite an approximate timestamp (mm:ss) or transcript sentence and explain how, where, and when to move or gesture differently.';
       const mime = (lastVideoBlob.type||'video/mp4').split(';')[0];
-      const text = await callGemini({
-        model,
-        contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],
-        generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
-        retries:2
-      });
+      let text = '';
+      let blockedReason = '';
+      try{
+        text = await callGemini({
+          model,
+          contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:mime,data:b64}},{text:'Transcript:\n'+transcript}]}],
+          generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
+          retries:2
+        });
+      }catch(err){
+        const message = err?.message||'';
+        const blocked = err?.type==='blocked' || /blocked|terms of service|policy/i.test(message);
+        if(!blocked) throw err;
+        blockedReason = err?.blockReason||'';
+        setStatus('Gemini blocked the video analysis; retrying with transcript only…', true);
+        text = await callGemini({
+          model,
+          contents:[{role:'user',parts:[{text:prompt},{text:'Transcript only (video blocked).\n\nTranscript:\n'+transcript}]}],
+          generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
+          retries:1
+        });
+      }
       const cleaned=text||'No feedback returned.';
-      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback</strong></div><div>${escHTML(cleaned).replace(/\n/g,'<br>')}</div>`;
-      setStatus(cleaned==='No feedback returned.'?'Gemini returned no movement feedback.':'Movement analyzed by Gemini.');
+      const note = blockedReason ? ' (video content blocked by Gemini safety filters)' : '';
+      $('movementFeedback').innerHTML = `<div><strong>Movement Feedback${escHTML(note)}</strong></div><div>${escHTML(cleaned).replace(/\n/g,'<br>')}</div>`;
+      const statusMsg = cleaned==='No feedback returned.'
+        ? 'Gemini returned no movement feedback.'
+        : blockedReason
+          ? 'Movement analyzed by Gemini transcript-only (video blocked).'
+          : 'Movement analyzed by Gemini.';
+      setStatus(statusMsg);
     }catch(e){
       console.error(e);
       setStatus('Gemini analysis failed: '+(e?.message||'error'), true);
