@@ -982,6 +982,15 @@ function showProvenance(msg, isErr=false){
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function load(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
 function clamp(n,min,max){return Math.max(min,Math.min(max,n))}
+function scoreToRating(score){
+  const val=Number(score);
+  if(!Number.isFinite(val)) return 'Unrated';
+  if(val<40) return 'Terrible';
+  if(val<60) return 'Bad';
+  if(val<75) return 'Medium';
+  if(val<90) return 'Good';
+  return 'Amazing';
+}
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
@@ -2406,11 +2415,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
+    const ratingText=result.rating || scoreToRating(result.total);
     let html=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
-        <div>Final Score</div><div><strong>${result.range || result.total}</strong> / 100</div>
+        <div>Final Rating</div><div><strong>${ratingText}</strong></div>
+        <div>Score</div><div>${result.total} / 100</div>
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
         <div>Fillers</div><div>${m.fillers}</div>
@@ -3104,6 +3115,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return {
         total,
         range: payload.range || '',
+        rating: scoreToRating(total),
         scoreLow: Number.isFinite(payload.scoreLow) ? payload.scoreLow : null,
         scoreHigh: Number.isFinite(payload.scoreHigh) ? payload.scoreHigh : null,
         explanation: payload.explanation || "",
@@ -3145,14 +3157,15 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       low=Math.max(0,high-10);
     }
     result.range=`${low}-${high}`;
+    result.rating=scoreToRating(result.total);
     renderReport(type,result);
     $('videoStatus').textContent='Scored.';
 
     const summaryText=summarizeVideoResult(type,result);
     const rawLines=[
       'Built-in scoring summary (local heuristics).',
+      `Final Rating: ${result.rating || scoreToRating(result.total)}`,
       `Total Score: ${result.total}`,
-      `Range: ${result.range}`,
       'Category breakdown:',
       ...Object.entries(result.cats||{}).map(([k,v])=>`- ${k}: ${v}`)
     ];
@@ -3239,6 +3252,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
   const boundedTotal = Math.max(0, Math.min(100, totalFromLLM));
   result.total = Number(boundedTotal.toFixed(1));
+  const ratingFromData = typeof scoreData.rating === 'string' && scoreData.rating.trim() ? scoreData.rating.trim() : null;
+  result.rating = ratingFromData || scoreToRating(result.total);
   if(scoreData.range){
     result.range = scoreData.range;
   }
@@ -3604,7 +3619,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   function summarizeVideoResult(type,result){
     const conf=RUBRICS[type]||{name:type,cats:[]};
-    const lines=[`${conf.name} evaluation:`, `Final Score: ${result.total}${result.range?` (range ${result.range})`:''}`];
+    const ratingText=result.rating || scoreToRating(result.total);
+    const lines=[`${conf.name} evaluation:`, `Final Rating: ${ratingText}`, `Total Score: ${result.total}`];
     (conf.cats||[]).forEach(c=>{
       const val=result.cats?.[c.key];
       const comment=result.comments?.[c.key];
