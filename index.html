@@ -848,7 +848,7 @@ SCORING NOTES
 FORMAT TO RETURN
 Provide:
 Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10 that are exactly 1.0 apart (a 10-point spread on the 0–100 scale, i.e., the low number is precisely 10 points below the high). Provide a unique range tailored to this material—no reused or default numbers—and ensure it matches what a real high school regional judge would award.
+Score Range: two numbers from 1–10 with at least one decimal place. Make the spread reflect your confidence (narrow if you are certain, wider if you are unsure), tailor the pair to this material alone, and ensure it matches what a real high school regional judge would award.
 Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
 
 CHECKLIST THE JUDGE MUST APPLY (internally)
@@ -874,7 +874,7 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high number must be exactly 1.0 higher than the low number — a 10-point spread on the 0–100 scale — with the low value precisely 10 points beneath the high. Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Always provide both a low and high value with at least one decimal place, basing the width of the range on your confidence (narrow when certain, wider when unsure). Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -887,7 +887,7 @@ const PROMPT_TEMPLATE =
 `10. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place where the high value is exactly 1.0 higher than the low value (e.g., 7.5-8.5). Ensure the low figure is exactly 10 points beneath the high and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
+`Score Range: <low-high from 1 to 10 with at least one decimal place. Make the range width reflect your confidence (smaller when certain, larger if uncertain) and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -902,7 +902,7 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). The high number must be exactly 1.0 higher than the low number — a 10-point spread on the 0–100 scale — with the low value precisely 10 points beneath the high. Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
+`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Always provide both a low and high value with at least one decimal place, basing the width of the range on your confidence (narrow when certain, wider when unsure). Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
 `   should reflect the transcript and not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
@@ -917,12 +917,12 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with one decimal place where the high value is exactly 1.0 higher than the low value (e.g., 7.5-8.5). Ensure the low figure is exactly 10 points beneath the high and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
+`Score Range: <low-high from 1 to 10 with at least one decimal place. Make the range width reflect your confidence (smaller when certain, larger if uncertain) and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary the range to reflect the unique performance. Never reuse the same low/high pair across materials or lean on default/suggested ranges—the low value must always sit exactly 10 points below the high. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short. Focus on the substance: do not dock points for typos, accent-based word choice, or minor grammar errors when the intended meaning is clear. Brief argumentative detours in an opening should be noted but treated as only a light deduction unless the speech turns into a closing argument.";
+  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary both the placement and width to reflect the unique performance — never reuse the same low/high pair across materials or lean on default/suggested spreads. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short. Focus on the substance: do not dock points for typos, accent-based word choice, or minor grammar errors when the intended meaning is clear. Brief argumentative detours in an opening should be noted but treated as only a light deduction unless the speech turns into a closing argument.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -945,7 +945,7 @@ const PROMPT_TEMPLATE_RULING =
   function parseScoreResponse(text){
     const rulingMatch = text.match(/Ruling:\s*(Sustained|Overruled)/i);
     const summaryMatch = text.match(/Summary:\s*([\s\S]*?)\nScore(?: Range)?:/i);
-    const scoreMatch = text.match(/Score(?: Range)?:\s*(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?/i);
+    const scoreMatch = text.match(/Score(?: Range)?:\s*(\d+(?:\.\d+)?)(?:\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?))?/i);
     const explanationMatch = text.match(/Explanation:\s*([\s\S]*?)(?:\nAssumptions?:|\nImprovements?:|\n?$)/i);
     const assumptionsMatch = text.match(/Assumptions?:\s*([\s\S]*?)(?:\nImprovements?:|\n?$)/i);
     const improvementMatch = text.match(/Improvements?:\s*([\s\S]*)/i);
@@ -2998,8 +2998,31 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           }
         }
       }
+      if (payload && !payload.range) {
+        const low = Number(payload.score_low ?? payload.low ?? payload.range_low ?? payload.scoreLow);
+        const high = Number(payload.score_high ?? payload.high ?? payload.range_high ?? payload.scoreHigh);
+        if (Number.isFinite(low) && Number.isFinite(high)) {
+          let lowVal = low;
+          let highVal = high;
+          if (highVal < lowVal) [lowVal, highVal] = [highVal, lowVal];
+          const unitScale = highVal <= 10 && lowVal <= 10;
+          if (unitScale) {
+            lowVal *= 10;
+            highVal *= 10;
+          }
+          const lowFixed = Number(lowVal.toFixed(1));
+          const highFixed = Number(highVal.toFixed(1));
+          payload.scoreLow = lowFixed;
+          payload.scoreHigh = highFixed;
+          payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
+          if (!Number.isFinite(Number(payload.total))) {
+            payload.total = Number(((lowVal + highVal) / 2).toFixed(1));
+          }
+        }
+      }
       if (payload && payload.range) {
-        const parts = String(payload.range).split('-').map(p=>Number(p.trim()));
+        const normalizedRange = String(payload.range).replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
+        const parts = normalizedRange.split('-').map(p=>Number(p.trim()));
         if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
           let [low, high] = parts;
           if (high < low) [low, high] = [high, low];
