@@ -442,6 +442,7 @@ a.inline{color:var(--accent);text-decoration:underline}
           <li>Use <em>Stop</em> when done, then <em>Play</em> or <em>Download</em> to review.</li>
           <li><em>Re-score</em> analyzes delivery; <em>Show Voice</em> displays the transcript.</li>
           <li><em>Movement (Gemini)</em> checks gestures; <em>API Key / Engine</em> adds keys.</li>
+          <li>If Gemini says “Invalid value at … safetySettings”, delete that key in Google AI Studio and make a new API key without changing the safety toggles.</li>
           <li><em>Test ChatGPT</em> confirms your key works.</li>
         </ul>
       </li>
@@ -3332,19 +3333,35 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
   }
 
-  async function callGemini({model, contents, generationConfig={}, retries=1, signal}){
+  const GEMINI_DEFAULT_SAFETY = Object.freeze([
+    {category:'HARM_CATEGORY_HARASSMENT',threshold:'BLOCK_MEDIUM_AND_ABOVE'},
+    {category:'HARM_CATEGORY_HATE_SPEECH',threshold:'BLOCK_MEDIUM_AND_ABOVE'},
+    {category:'HARM_CATEGORY_SEXUAL',threshold:'BLOCK_MEDIUM_AND_ABOVE'},
+    {category:'HARM_CATEGORY_DANGEROUS_CONTENT',threshold:'BLOCK_MEDIUM_AND_ABOVE'},
+    {category:'HARM_CATEGORY_SELF_HARM',threshold:'BLOCK_MEDIUM_AND_ABOVE'},
+    {category:'HARM_CATEGORY_CIVIC_INTEGRITY',threshold:'BLOCK_MEDIUM_AND_ABOVE'}
+  ]);
+
+  async function callGemini({model, contents, generationConfig={}, safetySettings, retries=1, signal}){
     if(!EngineState.geminiKey){
       const err=new Error('Gemini key missing.');
       err.type='config';
       throw err;
     }
-    // Rely on Gemini's default safety settings so requests remain policy compliant.
-    const payload={
+    // Use explicit Gemini default safety thresholds to avoid invalid key configurations.
+    const resolvedSafety = safetySettings===false
+      ? false
+      : Array.isArray(safetySettings)
+        ? safetySettings
+        : GEMINI_DEFAULT_SAFETY.map(s=>({...s}));
+    const basePayload={
       contents,
       generationConfig:{maxOutputTokens:512,temperature:0.2,topP:0.9,...generationConfig}
     };
+    let payload = resolvedSafety===false ? {...basePayload} : {...basePayload,safetySettings:resolvedSafety};
     let lastError=null;
     const attempts=Math.max(0,retries);
+    let safetyRetried=false;
     for(let i=0;i<=attempts;i++){
       try{
         const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{
@@ -3380,6 +3397,12 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         throw new Error('Gemini returned no content.');
       }catch(err){
         lastError=err;
+        if(!safetyRetried && resolvedSafety!==false && /invalid value at .*safety/i.test(err?.message||'')){
+          safetyRetried=true;
+          payload={...basePayload};
+          i-=1;
+          continue;
+        }
         const status=err?.status;
         const retriable=i<attempts && (status===429 || (status>=500 && status<600) || /temporar|timeout|rate/i.test(err?.message||''));
         if(retriable){
@@ -3445,7 +3468,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       setStatus(statusMsg);
     }catch(e){
       console.error(e);
-      setStatus('Gemini analysis failed: '+(e?.message||'error'), true);
+      const message = e?.message || 'error';
+      const extra = /invalid value at .*safety/i.test(message)
+        ? ' Gemini rejected the key because of custom safety settings. Reset the key in Google AI Studio or create a new one with default safety controls.'
+        : '';
+      setStatus('Gemini analysis failed: '+message+extra, true);
     }
   }
 
