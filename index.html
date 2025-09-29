@@ -3380,11 +3380,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     let lastError=null;
     const attempts=Math.max(0,retries);
     let safetyRetried=false;
+    const key = EngineState.geminiKey.trim();
+    const safeModel = encodeURIComponent(model);
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${safeModel}:generateContent?key=${encodeURIComponent(key)}`;
     for(let i=0;i<=attempts;i++){
       try{
-        const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{
+        const resp=await fetch(endpoint,{
           method:'POST',
-          headers:{'Content-Type':'application/json','x-goog-api-key':EngineState.geminiKey},
+          headers:{'Content-Type':'application/json'},
           body:JSON.stringify(payload),
           signal
         });
