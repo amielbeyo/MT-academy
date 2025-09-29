@@ -3591,8 +3591,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         return callGemini({
           model,
           contents:[
-            {role:'user',parts:[{text:prompt}]},
-            {role:'user',parts:[{text: `${prefix}Transcript:\n` + transcript}]}
+            {
+              role:'user',
+              parts:[
+                {text:prompt},
+                {text: `${prefix}Transcript:\n${transcript}`}
+              ]
+            }
           ],
           generationConfig:{maxOutputTokens:512,temperature:0.25,topP:0.9},
           retries:1
@@ -3611,9 +3616,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       }else{
         const b64 = await blobToBase64(lastVideoBlob);
         const videoContents = [
-          { role: 'user', parts: [ { text: prompt } ] },
-          { role: 'user', parts: [ { inlineData: { mimeType: mime, data: b64 } } ] },
-          { role: 'user', parts: [ { text: 'Transcript:\n' + transcript } ] }
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: mime, data: b64 } },
+              { text: 'Transcript:\n' + transcript }
+            ]
+          }
         ];
         try{
           text = await callGemini({
