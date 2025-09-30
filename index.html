@@ -832,6 +832,40 @@ Explicit allowance for brevity stops the model from downgrading concise, correct
 
 Counter/exception credit boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
+const PROMPT_TEMPLATE_RELAXED =
+`You are a neutral mock trial high school judge. Read the transcript, apply the rubric, and let the performance earn the score it deserves. Prioritize an accurate, competition-calibrated result grounded in what you observe—outstanding advocacy can earn top marks, while weak efforts should land lower.\n\n`+
+`Transcript:\n{transcript}\n\n`+
+`Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Your approach:\n`+
+`• Review the transcript with the rubric in mind and rely on your judging instincts.\n`+
+`• Summarize the key moments that influenced your decision.\n`+
+`• Assign a single score or a range between 1 and 10 that reflects the performance.\n`+
+`• Explain the reasoning behind the score and offer any helpful improvements.\n`+
+`• Note assumptions only if they affected your evaluation.\n\n`+
+`Format your response as:\n`+
+`Summary: <concise overview>\n`+
+`Score: <number or range from 1–10>\n`+
+`Explanation: <why the score fits the transcript and rubric>\n`+
+`Assumptions: <list or "None">\n`+
+`Improvements: <actionable advice>`;
+
+const PROMPT_TEMPLATE_RULING_RELAXED =
+`You are a neutral mock trial high school judge. Read the transcript, apply the rubric, and let the performance earn the result it deserves. Stay grounded in the record and reach the same outcome you would deliver in a live round.\n\n`+
+`Transcript:\n{transcript}\n\n`+
+`Rating rubric (1–10 scale):\n{rubric}\n\n`+
+`Your approach:\n`+
+`• Decide whether the objection should be sustained or overruled.\n`+
+`• Summarize the key exchanges that shaped your ruling and score.\n`+
+`• Assign a score from 1 to 10 (single number or range) that reflects the rubric and transcript.\n`+
+`• Explain your reasoning, share useful improvements, and only mention assumptions if they mattered.\n\n`+
+`Format your response as:\n`+
+`Ruling: <Sustained or Overruled>\n`+
+`Summary: <concise overview>\n`+
+`Score: <number or range from 1–10>\n`+
+`Explanation: <why the ruling and score fit the transcript and rubric>\n`+
+`Assumptions: <list or "None">\n`+
+`Improvements: <actionable advice>`;
+
 const PROMPT_TEMPLATE =
 `You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but let the transcript earn whatever it deserves: outstanding work can reach 9, 10, or even 100/100, and weak performances should drop into the 60s or below when the checklist demands it. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
@@ -890,28 +924,43 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
+  const PROMPT_PREFIX_RELAXED =
+  "Important: Score as a high-school regional judge who trusts their instincts. " +
+  "Prioritize an accurate, rubric-driven result while letting your natural judging voice shine. " +
+  "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
+  "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
+  "and focus on substance drawn solely from the provided transcript. Ignore typos or accents.";
+
   const PROMPT_PREFIX =
   "Important: Score as a high-school regional judge who trusts their instincts. " +
   "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
   "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
   "and focus on substance drawn solely from the provided transcript. Ignore typos or accents.";
 
-  function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
+  function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, options={}){
+    const relaxed = Boolean(options && options.relaxed);
     let cleaned = transcript.trim();
     const lowered = cleaned.toLowerCase();
     if (NON_ANSWER_PATTERNS.some(r => r.test(lowered))) {
-      cleaned += '\n\n[Note: The participant admitted lack of knowledge; according to the rubric this should be scored 1.]';
+      cleaned += relaxed
+        ? '\n\n[Context: The participant indicated they lacked an answer. Apply the rubric accordingly.]'
+        : '\n\n[Note: The participant admitted lack of knowledge; according to the rubric this should be scored 1.]';
     }
-    const wordCount = (lowered.match(/\b\w+\b/g) || []).length;
-    if (wordCount < 15) {
-      cleaned += '\n\n[Note: The response is very brief. Only award a high score if the brevity still covers the rubric items with concrete support; otherwise explain the deduction.]';
+    if (!relaxed) {
+      const wordCount = (lowered.match(/\b\w+\b/g) || []).length;
+      if (wordCount < 15) {
+        cleaned += '\n\n[Note: The response is very brief. Only award a high score if the brevity still covers the rubric items with concrete support; otherwise explain the deduction.]';
+      }
+      const sentenceCount = (cleaned.match(/[.!?](?:\s|$)/g) || []).length;
+      if (sentenceCount < 8) {
+        cleaned += '\n\n[Note: This transcript is quite brief. If you lower the score, tie the deduction to specific unchecked checklist items rather than the length alone.]';
+      }
     }
-    const sentenceCount = (cleaned.match(/[.!?](?:\s|$)/g) || []).length;
-    if (sentenceCount < 8) {
-      cleaned += '\n\n[Note: This transcript is quite brief. If you lower the score, tie the deduction to specific unchecked checklist items rather than the length alone.]';
-    }
-    const tmpl = includeRuling ? PROMPT_TEMPLATE_RULING : PROMPT_TEMPLATE;
-    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', PROMPT_PREFIX + "\n\n" + rubric);
+    const tmpl = includeRuling
+      ? (relaxed ? PROMPT_TEMPLATE_RULING_RELAXED : PROMPT_TEMPLATE_RULING)
+      : (relaxed ? PROMPT_TEMPLATE_RELAXED : PROMPT_TEMPLATE);
+    const prefix = relaxed ? PROMPT_PREFIX_RELAXED : PROMPT_PREFIX;
+    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', prefix + "\n\n" + rubric);
   }
 
   function parseScoreResponse(text){
@@ -2992,7 +3041,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       cross: 'CROSS EXAMINATION'
     };
     const selectedLabel = typeLabels[type] || type?.toString().toUpperCase() || 'PERFORMANCE';
-    const basePrompt = ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
+    const basePrompt = ChatGPTScoring.buildScoringPrompt(transcript, false, rubric, { relaxed: true, mode: 'video' });
     const emphasis = `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`;
     return `${emphasis}\n\n${basePrompt}`;
   }
