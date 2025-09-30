@@ -1025,7 +1025,7 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; it’s fine to finalize in that band when the rubric supports it—just avoid treating it as an automatic midpoint. If you genuinely have fewer than two observations, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Content & Law/Facts (37)
   - Organization & Roadmap (36)
   - Persuasiveness (12)
@@ -1047,9 +1047,9 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
   Reward concise, story-driven openings that clearly state the verdict and burden.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  If you finalize in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there so it’s clear the choice wasn’t automatic.
   Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; it’s fine to stay there when the rubric calls for it—just make sure the range isn’t a mindless midpoint. If you genuinely have fewer than two observations, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Content & Law Application (38)
   - Structure & Element Walk-through (22)
   - Refutation & Rebuttal (10)
@@ -1074,9 +1074,9 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
   Reward closings that explicitly contrast both sides and press for the verdict.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  If you finalize in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there so it’s clear the band wasn’t selected by default.
   Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; you can absolutely stay there when warranted—just be sure it isn’t a default midpoint. If you genuinely have fewer than two observations, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
@@ -1100,9 +1100,9 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  If you finalize in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there so the deliberate reasoning is captured.
   Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; holding steady in that band is fine when justified—just avoid drifting there out of habit. If you genuinely have fewer than two observations, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
@@ -1128,7 +1128,7 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
   Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  If you finalize in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there so it’s clearly a considered call.
   Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`
   };
 }
@@ -2489,7 +2489,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           if(midbandMeta.resolvedMidband){
             auditParts.push(`Stayed in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} with ${midbandMeta.justificationCount||0} checklist observations logged.`);
           } else {
-            auditParts.push(`Warning: remained in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} without 2 concrete observations.`);
+            auditParts.push(`Reminder: double-check the ${midbandMeta.justificationCount||0} mid-band observation${(midbandMeta.justificationCount||0)===1?'':'s'} and confirm the 75–80 score isn’t just a default midpoint.`);
             auditWarn=true;
           }
         } else {
@@ -3564,21 +3564,8 @@ ${transcript}`
           const isGeneric = /good|solid|overall|minor|polish|pretty|decent/.test(text) && text.length < 300;
 
           if (Number.isFinite(t) && t >= 75 && t <= 80 && (just.length < 2 || isGeneric)) {
-            if (typeof pl.range === 'string' && pl.range.includes('-')) {
-              const parts = pl.range.split('-').map(x=>Number(x.trim()));
-              if (parts.length===2 && parts.every(Number.isFinite)) {
-                const width = parts[1]-parts[0];
-                if (width < 10) {
-                  const center = (parts[0]+parts[1])/2;
-                  pl.range = `${(center-6).toFixed(1)}-${(center+6).toFixed(1)}`;
-                  pl.scoreLow = Number((center-6).toFixed(1));
-                  pl.scoreHigh= Number((center+6).toFixed(1));
-                }
-              }
-            } else {
-              pl.total = t <= 77 ? Number((t-3).toFixed(1)) : Number((t+3).toFixed(1));
-            }
-            pl.notes = ((pl.notes||'')+'\n(mid-band anti-stickiness applied)').trim();
+            const reminder = 'Mid-band reminder: add concrete checklist observations and be sure the 75–80 choice reflects the transcript, not habit.';
+            pl.notes = [pl.notes, reminder].filter(Boolean).join('\n');
           }
         })(payload);
 
@@ -3841,7 +3828,7 @@ ${transcript}`
         if(meta.resolvedMidband){
           provenanceMessages.push(`Model remained in 75–80 after ${passes} reconsideration${passes===1?'':'s'} with ${meta.justificationCount||0} checklist observations logged.`);
         } else {
-          provenanceMessages.push(`Model stayed in 75–80 without the required mid-band justification after ${passes} reconsideration${passes===1?'':'s'}.`);
+          provenanceMessages.push(`Model remained in 75–80 after ${passes} reconsideration${passes===1?'':'s'}; revisit the mid-band observations to confirm the score isn’t a default midpoint.`);
           provenanceWarn=true;
         }
     } else {
@@ -3851,7 +3838,7 @@ ${transcript}`
       if(Array.isArray(justifications) && justifications.length >= 2){
         provenanceMessages.push('Model selected a mid-band total with sufficient observations.');
       } else {
-        provenanceMessages.push('Model produced a mid-band total without the required observations.');
+        provenanceMessages.push('Model produced a mid-band total without the usual observations—confirm the band truly fits and add checklist notes.');
         provenanceWarn=true;
       }
   } else {
