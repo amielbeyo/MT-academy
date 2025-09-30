@@ -3650,6 +3650,15 @@ ${transcript}`
       }
 
       return result;
+    } catch (err) {
+      console.error('[scoreViaChatGPT]', err);
+      const error = err instanceof Error ? err : new Error(err?.message || 'scoreViaChatGPT failed');
+      if (err && typeof err === 'object' && 'raw' in err && err.raw && typeof err.raw === 'string' && !('raw' in error)) {
+        error.raw = err.raw;
+      } else if (rawText && typeof rawText === 'string' && !('raw' in error)) {
+        error.raw = rawText;
+      }
+      throw error;
     }
   }
 
