@@ -1488,6 +1488,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     throw e;
   }
 }
+
 </script>
 <script>
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -3003,6 +3004,22 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const clampScore=v=>Math.max(0,Math.min(100,Number(v)));
     const toOneDecimal=v=>Number(clampScore(v).toFixed(1));
 
+    if (Number.isFinite(payload.total) && payload.total <= 10) {
+      payload.total = Number((Number(payload.total) * 10).toFixed(1));
+    }
+    if (Number.isFinite(payload.scoreLow) && payload.scoreLow <= 10) {
+      payload.scoreLow = Number((Number(payload.scoreLow) * 10).toFixed(1));
+    }
+    if (Number.isFinite(payload.scoreHigh) && payload.scoreHigh <= 10) {
+      payload.scoreHigh = Number((Number(payload.scoreHigh) * 10).toFixed(1));
+    }
+    if (typeof payload.range === 'string' && /^\s*\d+(\.\d+)?\s*-\s*\d+(\.\d+)?\s*$/.test(payload.range)) {
+      const [lo, hi] = payload.range.split('-').map(x=>Number(x.trim()));
+      if (lo <= 10 && hi <= 10) {
+        payload.range = `${(lo*10).toFixed(1)}-${(hi*10).toFixed(1)}`;
+      }
+    }
+
     let lowVal=Number(payload.scoreLow);
     let highVal=Number(payload.scoreHigh);
     const hasLow=Number.isFinite(lowVal);
@@ -3086,12 +3103,47 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   // Backwards-compat alias used by earlier patches
   const capOpeningScore = capScore;
 
+  // Retry wrapper: chat first (JSON), then chat (plain), then /responses
+  async function robustLLMScore({model, maxTokens, transcript, buildPromptJSON, buildPromptText}) {
+    try {
+      const raw = await callOpenAIChat({
+        messages: [{role: "user", content: buildPromptJSON()}],
+        model, maxTokens, json: true
+      });
+      return { raw, mode: 'chat-json' };
+    } catch (e1) {
+      try {
+        const raw = await callOpenAIChat({
+          messages: [{role: "user", content: buildPromptText()}],
+          model, maxTokens, json: false
+        });
+        return { raw, mode: 'chat-text' };
+      } catch (e2) {
+        try {
+          const raw = await callOpenAIResponse({
+            model,
+            input: [{ role:'user', content: [
+              { type:'input_text', text: buildPromptJSON() }
+            ]}],
+            maxOutputTokens: maxTokens,
+            temperature: 0.2
+          });
+          return { raw, mode: 'responses' };
+        } catch (e3) {
+          const err = new Error(e3?.message || e2?.message || e1?.message || 'LLM error');
+          err.stack = (e3?.stack || e2?.stack || e1?.stack);
+          throw err;
+        }
+      }
+    }
+  }
+
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey) throw new Error("no_key");
     const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
-    const conf = RUBRICS[type] || { cats: [] };
+    let conf = RUBRICS[type] || { cats: [] };
 
     const eff = effectiveWordCount(transcript);
     if(eff < 8){
@@ -3099,26 +3151,32 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return { total:0, explanation:'Transcript too short to score (minimum 8 words).', notes:'', categories: cats, comments:{}, qa:[], raw:'' };
     }
 
-    const ctrl = new AbortController();
-    const t = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 15000);
-
     let rawText='';
     let payload = null;
     let usedType = type;
     let secondUsed = false;
     let typeAudit = null;
     let mismatch = false;
+    let scorerMode = null;
     try {
+      const CONF_STRONG = 0.55;
       typeAudit = detectSpeechType(transcript);
-      mismatch = typeAudit.type && typeAudit.type !== type && typeAudit.confidence >= 0.35; // mild confidence
-
-      // Helper to run one scoring pass for a given rubric type
-      async function runPass(passType){
-        const passPrompt = buildChatGPTPrompt(passType, transcript);
-        const passMessages = [{ role: "user", content: passPrompt }];
-        const raw = await callOpenAIChat({ messages: passMessages, model, maxTokens, json: true, signal: ctrl.signal });
-        return { raw, passType };
+      mismatch = !!(typeAudit.type && typeAudit.type !== type);
+      if (mismatch && typeAudit.confidence >= CONF_STRONG) {
+        usedType = typeAudit.type;
+        secondUsed = true;
+        conf = RUBRICS[usedType] || conf;
       }
+
+      const scorer = await robustLLMScore({
+        model,
+        maxTokens,
+        transcript,
+        buildPromptJSON: ()=>buildChatGPTPrompt(usedType, transcript),
+        buildPromptText: ()=>buildChatGPTPrompt(usedType, transcript)
+      });
+      rawText = scorer.raw;
+      scorerMode = scorer.mode || null;
 
       function parsePayload(raw){
         let parsed = null;
@@ -3198,25 +3256,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         return parsed;
       }
 
-      const pass1 = await runPass(type);
-      let pass2 = null;
-      if (mismatch) {
-        try { pass2 = await runPass(typeAudit.type); } catch(_){}
-      }
-
-      const payload1 = parsePayload(pass1.raw);
-      const payload2 = pass2 ? parsePayload(pass2.raw) : null;
-
-      payload = payload1;
-      if (payload2 && mismatch) {
-        if (Number(payload2.total) < Number(payload1.total) - 0.1) {
-          payload = payload2;
-          usedType = typeAudit.type;
-          secondUsed = true;
-        }
-      }
-
-      rawText = secondUsed && pass2 ? pass2.raw : pass1.raw;
+      payload = parsePayload(rawText);
+      if (!payload) throw new Error('empty_payload');
 
       let midbandMeta = {
         attempts: 0,
@@ -3516,6 +3557,31 @@ ${transcript}`
           }
         }
 
+        (function antiMidbandStickiness(pl){
+          const t = Number(pl.total);
+          const text = (pl.explanation||'').toLowerCase();
+          const just = Array.isArray(pl.midband_justification) ? pl.midband_justification.filter(Boolean) : [];
+          const isGeneric = /good|solid|overall|minor|polish|pretty|decent/.test(text) && text.length < 300;
+
+          if (Number.isFinite(t) && t >= 75 && t <= 80 && (just.length < 2 || isGeneric)) {
+            if (typeof pl.range === 'string' && pl.range.includes('-')) {
+              const parts = pl.range.split('-').map(x=>Number(x.trim()));
+              if (parts.length===2 && parts.every(Number.isFinite)) {
+                const width = parts[1]-parts[0];
+                if (width < 10) {
+                  const center = (parts[0]+parts[1])/2;
+                  pl.range = `${(center-6).toFixed(1)}-${(center+6).toFixed(1)}`;
+                  pl.scoreLow = Number((center-6).toFixed(1));
+                  pl.scoreHigh= Number((center+6).toFixed(1));
+                }
+              }
+            } else {
+              pl.total = t <= 77 ? Number((t-3).toFixed(1)) : Number((t+3).toFixed(1));
+            }
+            pl.notes = ((pl.notes||'')+'\n(mid-band anti-stickiness applied)').trim();
+          }
+        })(payload);
+
         enforceTenPointRange(payload);
       }
 
@@ -3559,7 +3625,14 @@ ${transcript}`
         usedType,
         mismatchDetected: !!mismatch,
         detector: typeAudit,
-        secondPassUsed: !!secondUsed
+        secondPassUsed: !!secondUsed,
+        llmMode: scorerMode
+      };
+
+      result.audit = {
+        ...result.audit,
+        detectorVector: typeAudit?.vector || null,
+        detectorConfidence: typeAudit?.confidence ?? null
       };
 
       // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
@@ -3577,71 +3650,91 @@ ${transcript}`
       }
 
       return result;
-    } finally {
-      clearTimeout(t);
     }
   }
 
-  function scoreWithBuiltin(type, txt, audio, reason){
+  function scoreWithBuiltin(type, raw, audio, reason){
     resetVideoFollowup();
-    const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
-    const conf=RUBRICS[type]||{cats:[]};
-    const cats={};
-    (conf.cats||[]).forEach(c=>{ cats[c.key]=0; });
 
-    const metrics={
-      wordCount: effectiveWordCount(transcript),
-      wpm: 0,
-      fillers: 0,
-      signposts: 0,
-      vocabRich: 0
-    };
+    const transcript = (type==='direct'||type==='cross') ? formatTranscriptQA(raw) : raw;
+    const eff = effectiveWordCount(transcript);
+    const tooShort = eff < 8;
 
-    if(audio){
-      if(Number.isFinite(audio.wpm)){ metrics.wpm=audio.wpm; }
-      else if(Number.isFinite(audio.estimatedWpm)){ metrics.wpm=audio.estimatedWpm; }
-      if(!audio.wpm && metrics.wpm) audio.wpm=metrics.wpm;
-      if(audio.wpm){
-        audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
-        audio.tips=(audio.tips||'')+(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
-      }
+    const bm  = baseMetrics(transcript);
+    const cmp = compareToExemplar(type, transcript);
+    const qM  = questionMetrics(transcript, sec);
+
+    const conf = RUBRICS[type]||{cats:[]};
+    const cats = {};
+    conf.cats.forEach(c=>{ cats[c.key]=6; });
+
+    if (type==='opening'){
+      const lower=transcript.toLowerCase();
+      const theme = /\b(theme|theory|story)\b/.test(lower);
+      const ews   = /\bthe evidence will show\b/.test(lower);
+      const burden= /\b(preponderance|burden|more likely than not)\b/.test(lower);
+      const ask   = /\b(ask (you|the jury)|return a verdict|rule in|find for)\b/.test(lower);
+
+      cats.content     = clamp(Math.round(10*(0.35*cmp.score + 0.25*cmp.biCos)) + (theme?1:0)+(ews?1:0)+(burden?1:0),1,10);
+      cats.organization= clamp(4 + (ews?2:0) + (theme?1:0) + (ask?1:0) + Math.min(3, Math.floor(bm.signposts/2)),1,10);
+      cats.persuasion  = clamp(3 + Math.round(3*cmp.lexCos) + (theme?1:0) + (ask?1:0),1,10);
+      cats.delivery    = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
+    } else if (type==='closing'){
+      const lower=transcript.toLowerCase();
+      const rebut = /\b(they (said|claim|argue)|opposing counsel|rebut)\b/.test(lower);
+      cats.content     = clamp(Math.round(10*(0.35*cmp.score + 0.25*cmp.biCos)),1,10);
+      cats.organization= clamp(5 + Math.round(cmp.struct*5),1,10);
+      cats.refutation  = rebut?8:5;
+      cats.persuasion  = clamp(4 + Math.round(3*cmp.lexCos),1,10);
+      cats.delivery    = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
+    } else if (type==='direct'){
+      cats.content    = clamp(5 + Math.round(3*cmp.lexCos),1,10);
+      cats.openq      = qM.qCount? (qM.openRatio>=0.6?8:qM.openRatio>=0.5?7:5) : 5;
+      cats.foundation = qM.foundationCount>=2?8:qM.foundationCount===1?6:4;
+      cats.listening  = qM.followupCount>=2?8:qM.followupCount===1?6:4;
+      cats.delivery   = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
+    } else {
+      cats.content   = clamp(5 + Math.round(3*cmp.lexCos),1,10);
+      cats.leading   = qM.leadRatio>=0.7?9:qM.leadRatio>=0.5?8:6;
+      cats.impeach   = qM.impeachCount>=2?8:qM.impeachCount===1?6:4;
+      cats.brevity   = (qM.avgTokens||0)<=11 ? 8 : (qM.avgTokens<=14?6:4);
+      cats.delivery  = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
     }
 
-    const explanationBase='Built-in scoring has been removed. Add your OpenAI API key to generate rubric scores.';
-    const combinedReason=reason?`${reason}${reason.endsWith('.')?'':'.'}`:'';
-    const explanation=combinedReason?`${combinedReason} ${explanationBase}`.trim():explanationBase;
+    let total=0; conf.cats.forEach(c=>{ total+= clamp(cats[c.key],1,10) * (c.w*10); });
+    total = tooShort ? 0 : Number(total.toFixed(1));
+    const low = Math.max(0, total-5);
+    const high = Math.min(100, total+5);
 
     const result={
       cats,
-      total:0,
-      metrics,
-      compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
+      total,
+      metrics: bm,
+      compare: cmp,
       comments:{},
-      rating:scoreToRating(0),
-      range:'0-0',
-      explanation,
-      notes:'',
+      rating: scoreToRating(total),
+      range: `${low.toFixed(1)}-${high.toFixed(1)}`,
+      scoreLow: Number(low.toFixed(1)),
+      scoreHigh: Number(high.toFixed(1)),
+      explanation: (tooShort?'Transcript too short to score. ':'') + (reason||'Heuristic fallback score.'),
+      notes:'(Emergency local scorer — add an API key for full rubric + narrative feedback.)',
       qa:[],
       midband_justification:[],
       decimals_used:'',
       midbandMeta:null
     };
 
-    if(audio){
-      result.audio=audio;
-    }
-
-    renderReport(type,result);
-    const statusEl=$('videoStatus');
-    if(statusEl && !statusEl.textContent.trim()){
-      statusEl.textContent='Scoring unavailable without a ChatGPT API key.';
-    }
-    const summaryText=reason||'Built-in scoring disabled. No score generated.';
-    const rawText=combinedReason?`${combinedReason}\n${explanationBase}`:summaryText;
-    prepareVideoFollowup({transcript,type,summaryText,rawText});
+    if(audio){ result.audio = audio; }
+    renderReport(type, result);
+    $('videoStatus').textContent = tooShort ? 'Transcript too short.' : 'Scored by emergency fallback.';
+    const summaryText = summarizeVideoResult(type, result);
+    prepareVideoFollowup({transcript, type, summaryText, rawText: result.explanation});
     return result;
   }
+  let _scoreLock = false;
   async function scoreNow(){
+    if(_scoreLock) return;
+    _scoreLock = true;
     const type=$('videoType').value||'opening';
     const raw=$('videoTranscript').value||'';
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(raw):raw;
@@ -3655,6 +3748,7 @@ ${transcript}`
       $('videoStatus').textContent='Transcript too short to score (minimum 8 words).';
       scoreWithBuiltin(type, raw, audio, 'Transcript too short to score (minimum 8 words)');
       showProvenance('Transcript too short; score held at 0.', true);
+      _scoreLock = false;
       return;
     }
 
@@ -3662,7 +3756,8 @@ ${transcript}`
       $('videoStatus').textContent='Scoring via ChatGPT…';
       scoreViaChatGPT(type, transcript).then(scoreData=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
-  const conf = RUBRICS[type];
+  const usedType = scoreData?.audit?.usedType || type;
+  const conf = RUBRICS[usedType] || RUBRICS[type];
 
   // Categories from the model; default to 6 only if missing
   const cats = {};
@@ -3725,7 +3820,7 @@ ${transcript}`
     }
   }
 
-  renderReport(type, result);
+  renderReport(usedType, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   const provenanceMessages=['LLM-only rubric scoring (no local blend).'];
   let provenanceWarn=false;
@@ -3770,11 +3865,11 @@ ${transcript}`
     provenanceMessages.push(`Decimals note auto-filled${note}.`);
   }
   showProvenance(provenanceMessages.join('<br>'), provenanceWarn);
-  const summaryText = summarizeVideoResult(type, result);
-  prepareVideoFollowup({transcript, type, summaryText, rawText: scoreData.raw || ''});
+  const summaryText = summarizeVideoResult(usedType, result);
+  prepareVideoFollowup({transcript, type: usedType, summaryText, rawText: scoreData.raw || ''});
 }).catch(err => {
   // Surface precise error info
-  let msg = 'ChatGPT scoring unavailable \u2014 no score generated.';
+  let msg = 'ChatGPT scoring unavailable \u2014 using emergency fallback.';
   if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
   else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'Rate limit on your OpenAI account (429). Try again or switch model.';
   else if (err?.status === 403) msg = 'OpenAI request forbidden (403). Check org/project access for this key.';
@@ -3789,17 +3884,18 @@ ${transcript}`
 
   // Do NOT flip engine mode; just fall back this run
   scoreWithBuiltin(type, raw, audio, 'ChatGPT error prevented scoring');
-  showProvenance('No score generated (ChatGPT error).', true);
+  showProvenance('Emergency fallback score applied (ChatGPT error).', true);
 
   const badge = $('modeBadge');
   if (badge && /ChatGPT/i.test(badge.textContent)) {
     badge.textContent = 'Mode: ChatGPT (scoring unavailable)';
   }
-});
+}).finally(()=>{ _scoreLock = false; });
       return;
     }
     scoreWithBuiltin(type, raw, audio, 'ChatGPT scoring not configured');
-    showProvenance('Scoring unavailable without a ChatGPT API key.', true);
+    showProvenance('Emergency fallback score used (no ChatGPT API key).', true);
+    _scoreLock = false;
   }
 
   async function testChatGPT(){
@@ -4260,7 +4356,7 @@ ${transcript}`
     $('btnVideoStart').addEventListener('click',startCamera);
     $('btnFlipCamera')?.addEventListener('click',flipCamera);
     $('btnStopRecording').addEventListener('click',stop);
-    $('btnScoreVideo').addEventListener('click',scoreNow);
+    $('btnScoreVideo').addEventListener('click', ()=>scoreNow());
     $('btnAnalyzeMovement')?.addEventListener('click', analyzeMovement);
     $('btnShowVoice')?.addEventListener('click',()=>{
       const v=$('voiceFeedback');
