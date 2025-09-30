@@ -842,9 +842,9 @@ const PROMPT_TEMPLATE =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Always provide both a low and high value with at least one decimal place, basing the width of the range on your confidence (narrow when certain, wider when unsure). Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
+`3. Assign a score between 1 and 10 using the rubric above (rate “I don't know” or non-answers as 1). You may report either a single value or a low/high range—choose numbers that reflect your confidence and the actual performance.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
-`   should reflect the transcript and not default to a midpoint score.\n`+
+`   should reflect the transcript and should not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
 `6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
 `7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
@@ -855,7 +855,7 @@ const PROMPT_TEMPLATE =
 `10. State any assumptions you made.\n\n`+
 `Format your response as:\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with at least one decimal place. Make the range width reflect your confidence (smaller when certain, larger if uncertain) and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
+`Score: <either a single number from 1 to 10 or a low-high range. Use decimals when helpful and let confidence dictate the spread.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
@@ -870,9 +870,9 @@ const PROMPT_TEMPLATE_RULING =
 `2. Summarize the transcript in detail, citing at least three direct quotes \n`+
 `   or paraphrased references from different parts of the transcript to \n`+
 `   demonstrate you read all of it.\n`+
-`3. Assign a score range from 1 to 10 using the rubric above (rate “I don't know” or non-answers as 1). Always provide both a low and high value with at least one decimal place, basing the width of the range on your confidence (narrow when certain, wider when unsure). Tailor the pair to this material alone, avoid repeating the same low/high combination across different evaluations, ignore any default or suggested ranges, and ensure the numbers mirror what a high school regional judge would realistically award.\n`+
+`3. Assign a score between 1 and 10 using the rubric above (rate “I don't know” or non-answers as 1). You may report either a single value or a low/high range—choose numbers that reflect your confidence and the actual performance.\n`+
 `4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
-`   should reflect the transcript and not default to a midpoint score.\n`+
+`   should reflect the transcript and should not default to a midpoint score.\n`+
 `5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
 `6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
 `7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
@@ -885,21 +885,16 @@ const PROMPT_TEMPLATE_RULING =
 `Format your response as:\n`+
 `Ruling: <Sustained or Overruled>\n`+
 `Summary: <detailed summary with references>\n`+
-`Score Range: <low-high from 1 to 10 with at least one decimal place. Make the range width reflect your confidence (smaller when certain, larger if uncertain) and pick a unique pair tailored to this material—no default or repeated ranges.>\n`+
+`Score: <either a single number from 1 to 10 or a low-high range. Use decimals when helpful and let confidence dictate the spread.>\n`+
 `Explanation: <short paragraph explaining the score>\n`+
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
   const PROMPT_PREFIX =
-  "Important: You are scoring as a high-school regional judge, but DO NOT midpoint-anchor. " +
-  "If the performance is championship-caliber, award 9–10/10 and feel free to give 100/100 when nothing material is missing. " +
-  "If it has major gaps, drop below 7/10 and do not shy away from the 60s or lower when deserved. " +
-  "Regularly use the full 1–10 scale; strong transcripts should often earn 8+ when they satisfy the checklist. " +
-  "Before choosing any score in the 7.5–8.5 band, pause and verify at least two concrete unchecked rubric items; " +
-  "if you cannot list them explicitly, spell out the strengths that keep the score there or adjust the number accordingly. " +
-  "Vary your low/high decimals (avoid .0 and .8), and pick a pair tailored to THIS material (do not reuse prior pairs). " +
-  "Score the substance (don’t dock typos/accent), cite precise rules, and base everything only on the provided transcript. " +
-  "Above all, give the number a real judge would give today.";
+  "Important: Score as a high-school regional judge who trusts their instincts. " +
+  "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
+  "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
+  "and focus on substance drawn solely from the provided transcript. Ignore typos or accents.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1052,7 +1047,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
   Reward concise, story-driven openings that clearly state the verdict and burden.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "74.1-84.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum of category scores (rounded).`,
+  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
     closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Content & Law Application (38)
   - Structure & Element Walk-through (22)
@@ -1078,7 +1074,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
   Reward closings that explicitly contrast both sides and press for the verdict.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "72.1-82.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
+  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
     direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
@@ -1103,7 +1100,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "73.2-83.2"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
+  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`,
     cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
@@ -1130,7 +1128,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
   Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "71.9-81.9"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`
+  If you land in the 75–80 band, jot a brief note in "midband_justification" explaining the key reasons the score sits there.
+  Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`
   };
 }
 
@@ -3001,67 +3000,51 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   function enforceTenPointRange(payload){
     if(!payload) return;
-    const WIDTH=10;
-    const clampScore=v=>Math.max(0,Math.min(100,v));
+    const clampScore=v=>Math.max(0,Math.min(100,Number(v)));
     const toOneDecimal=v=>Number(clampScore(v).toFixed(1));
-    const totalVal=Number(payload.total);
-    const hasTotal=Number.isFinite(totalVal);
+
     let lowVal=Number(payload.scoreLow);
     let highVal=Number(payload.scoreHigh);
-    if(!Number.isFinite(lowVal)) lowVal=null;
-    if(!Number.isFinite(highVal)) highVal=null;
+    const hasLow=Number.isFinite(lowVal);
+    const hasHigh=Number.isFinite(highVal);
 
-    const applyFromCenter=center=>{
-      center=clampScore(center);
-      let low=toOneDecimal(center-WIDTH/2);
-      let high=toOneDecimal(center+WIDTH/2);
-      if(Number((high-low).toFixed(1))!==WIDTH){
-        if(high>=100){
-          high=100.0;
-          low=toOneDecimal(high-WIDTH);
-        }else if(low<=0){
-          low=0.0;
-          high=toOneDecimal(low+WIDTH);
-        }else{
-          high=toOneDecimal(low+WIDTH);
-        }
+    if(hasLow && hasHigh){
+      if(highVal<lowVal){ const tmp=lowVal; lowVal=highVal; highVal=tmp; }
+      lowVal=toOneDecimal(lowVal);
+      highVal=toOneDecimal(highVal);
+      payload.scoreLow=lowVal;
+      payload.scoreHigh=highVal;
+      payload.range=`${lowVal.toFixed(1)}-${highVal.toFixed(1)}`;
+      if(!Number.isFinite(Number(payload.total))){
+        payload.total=Number(((lowVal+highVal)/2).toFixed(1));
       }
+      return;
+    }
+
+    const totalVal=Number(payload.total);
+    if(Number.isFinite(totalVal)){
+      const center=toOneDecimal(totalVal);
+      const low=toOneDecimal(center-5);
+      const high=toOneDecimal(center+5);
       payload.scoreLow=low;
       payload.scoreHigh=high;
       payload.range=`${low.toFixed(1)}-${high.toFixed(1)}`;
-      if(!hasTotal){
+      payload.total=center;
+      return;
+    }
+
+    if(hasLow || hasHigh){
+      const val=hasLow?toOneDecimal(lowVal):toOneDecimal(highVal);
+      const other=hasLow?toOneDecimal(val+5):toOneDecimal(val-5);
+      const low=Math.min(val,other);
+      const high=Math.max(val,other);
+      payload.scoreLow=low;
+      payload.scoreHigh=high;
+      payload.range=`${low.toFixed(1)}-${high.toFixed(1)}`;
+      if(!Number.isFinite(Number(payload.total))){
         payload.total=Number(((low+high)/2).toFixed(1));
       }
-    };
-
-    if(lowVal!==null && highVal!==null){
-      lowVal=toOneDecimal(lowVal);
-      highVal=toOneDecimal(highVal);
-      if(Number((highVal-lowVal).toFixed(1))===WIDTH){
-        payload.scoreLow=lowVal;
-        payload.scoreHigh=highVal;
-        payload.range=`${lowVal.toFixed(1)}-${highVal.toFixed(1)}`;
-        if(!hasTotal){
-          payload.total=Number(((lowVal+highVal)/2).toFixed(1));
-        }
-        return;
-      }
     }
-
-    let center;
-    if(hasTotal){
-      center=totalVal;
-    }else if(lowVal!==null && highVal!==null){
-      center=(lowVal+highVal)/2;
-    }else if(lowVal!==null){
-      center=lowVal+WIDTH/2;
-    }else if(highVal!==null){
-      center=highVal-WIDTH/2;
-    }else{
-      center=65; // neutral fallback, away from the 75–80 magnet
-    }
-
-    applyFromCenter(center);
   }
 
   // --- Type detector (keyword + structure heuristics) ---
@@ -3309,85 +3292,90 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
         enforceTenPointRange(payload);
 
+        const runStrictChecks = false;
         let attempts = 0;
         let midbandCorrections = 0;
         let categoryCorrections = 0;
         let lastCategoryDelta = null;
         const MAX_ATTEMPTS = 3;
 
-        while(payload && (needsMidbandFix(payload) || needsCategoryFix(payload))){
-          if(attempts >= MAX_ATTEMPTS) break;
-          attempts++;
-          const fixMidband = needsMidbandFix(payload);
-          const fixCategory = needsCategoryFix(payload);
-          if(fixMidband) midbandCorrections++;
-          if(fixCategory) categoryCorrections++;
-          midbandMeta.midbandTriggered = midbandMeta.midbandTriggered || fixMidband;
-          midbandMeta.categoryTriggered = midbandMeta.categoryTriggered || fixCategory;
+        if(runStrictChecks){
+          while(payload && (needsMidbandFix(payload) || needsCategoryFix(payload))){
+            if(attempts >= MAX_ATTEMPTS) break;
+            attempts++;
+            const fixMidband = needsMidbandFix(payload);
+            const fixCategory = needsCategoryFix(payload);
+            if(fixMidband) midbandCorrections++;
+            if(fixCategory) categoryCorrections++;
+            midbandMeta.midbandTriggered = midbandMeta.midbandTriggered || fixMidband;
+            midbandMeta.categoryTriggered = midbandMeta.categoryTriggered || fixCategory;
 
-          const totalVal = Number(payload?.total);
-          const catSum = computeCategorySum(payload);
-          if(fixCategory && Number.isFinite(catSum) && Number.isFinite(totalVal)){
-            lastCategoryDelta = Number((catSum - totalVal).toFixed(1));
-          }
-
-          const issueLines = [];
-          if(fixMidband){
-            const justificationCount = extractJustifications(payload).length;
-            const totalDisplay = Number.isFinite(totalVal) ? totalVal.toFixed(1) : '??';
-            issueLines.push(`• Mid-band total ${totalDisplay} needs at least 2 concrete checklist observations in "midband_justification" (currently ${justificationCount}).`);
-          }
-          if(fixCategory){
-            if(Number.isFinite(catSum) && Number.isFinite(totalVal)){
-              issueLines.push(`• Category weights sum to ${catSum.toFixed(1)} but "total" is ${totalVal.toFixed(1)}.`);
-            } else {
-              issueLines.push('• Unable to verify that "total" equals the weighted category sum. Provide explicit category scores and aligned totals.');
+            const totalVal = Number(payload?.total);
+            const catSum = computeCategorySum(payload);
+            if(fixCategory && Number.isFinite(catSum) && Number.isFinite(totalVal)){
+              lastCategoryDelta = Number((catSum - totalVal).toFixed(1));
             }
-          }
 
-          const ruleLines = [
-            '- Keep the identical JSON schema ("total","range","categories","comments","explanation","notes","midband_justification","decimals_used").',
-            '- Ensure "range" is exactly 10.0 points wide (formatted "low-high") and avoid .0/.8 decimal endpoints.',
-            '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
-          ];
-          if(fixMidband){
-            ruleLines.unshift('- If you remain in 75–80, include at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) in "midband_justification". If fewer than two exist, say so explicitly in the explanation.');
-          }
+            const issueLines = [];
+            if(fixMidband){
+              const justificationCount = extractJustifications(payload).length;
+              const totalDisplay = Number.isFinite(totalVal) ? totalVal.toFixed(1) : '??';
+              issueLines.push(`• Mid-band total ${totalDisplay} needs at least 2 concrete checklist observations in "midband_justification" (currently ${justificationCount}).`);
+            }
+            if(fixCategory){
+              if(Number.isFinite(catSum) && Number.isFinite(totalVal)){
+                issueLines.push(`• Category weights sum to ${catSum.toFixed(1)} but "total" is ${totalVal.toFixed(1)}.`);
+              } else {
+                issueLines.push('• Unable to verify that "total" equals the weighted category sum. Provide explicit category scores and aligned totals.');
+              }
+            }
 
-          const reconsiderMessages = [{
-            role: "user",
-            content:
+            const ruleLines = [
+              '- Keep the identical JSON schema ("total","range","categories","comments","explanation","notes","midband_justification","decimals_used").',
+              '- Ensure "range" is exactly 10.0 points wide (formatted "low-high") and avoid .0/.8 decimal endpoints.',
+              '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
+            ];
+            if(fixMidband){
+              ruleLines.unshift('- If you remain in 75–80, include at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) in "midband_justification". If fewer than two exist, say so explicitly in the explanation.');
+            }
+
+            const reconsiderMessages = [{
+              role: "user",
+              content:
 `Reevaluate your score JSON.
 ${issueLines.join('\n')}
 Rules:
 ${ruleLines.join('\n')}
 Transcript to score (unchanged):
 ${transcript}`
-          }];
+            }];
 
-          try {
-            const reconsiderRaw = await callOpenAIChat({
-              messages: reconsiderMessages,
-              model,
-              maxTokens,
-              json: true
-            });
-            const reconsiderObj = extractFirstJson(reconsiderRaw) || parseChatGPTScoreResponse(reconsiderRaw) || null;
-            if (reconsiderObj) {
-              payload = reconsiderObj;
-              enforceTenPointRange(payload);
+            try {
+              const reconsiderRaw = await callOpenAIChat({
+                messages: reconsiderMessages,
+                model,
+                maxTokens,
+                json: true
+              });
+              const reconsiderObj = extractFirstJson(reconsiderRaw) || parseChatGPTScoreResponse(reconsiderRaw) || null;
+              if (reconsiderObj) {
+                payload = reconsiderObj;
+                enforceTenPointRange(payload);
+              }
+            } catch (_) {
+              break;
             }
-          } catch (_) {
-            break;
           }
         }
 
         const finalJustifications = extractJustifications(payload);
         payload.midband_justification = finalJustifications;
-        const decimalsInfo = ensureDecimalsUsed(payload);
-        midbandMeta.autoFilledDecimals = decimalsInfo.note;
-        const existingDecimals = typeof payload.decimals_used === 'string' ? payload.decimals_used.trim() : '';
-        midbandMeta.decimalsValue = existingDecimals;
+        let decimalsInfo = { note:false, value: typeof payload.decimals_used === 'string' ? payload.decimals_used.trim() : '' };
+        if(runStrictChecks){
+          decimalsInfo = ensureDecimalsUsed(payload);
+        }
+        midbandMeta.autoFilledDecimals = runStrictChecks && decimalsInfo.note;
+        midbandMeta.decimalsValue = decimalsInfo.value;
 
         const finalTotalVal = Number(payload?.total);
         const finalCatSum = computeCategorySum(payload);
@@ -3397,8 +3385,8 @@ ${transcript}`
         if(lastCategoryDelta !== null) midbandMeta.lastCategoryDelta = lastCategoryDelta;
         midbandMeta.finalInBand = Number.isFinite(finalTotalVal) && finalTotalVal >= 75 && finalTotalVal <= 80;
         midbandMeta.justificationCount = finalJustifications.length;
-        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 2;
-        midbandMeta.categoryAligned = !needsCategoryFix(payload);
+        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 1;
+        midbandMeta.categoryAligned = !Number.isFinite(finalCatSum) || !Number.isFinite(finalTotalVal) || Math.abs(finalCatSum - finalTotalVal) <= 2.5;
         if(Number.isFinite(finalCatSum) && Number.isFinite(finalTotalVal)){
           midbandMeta.finalCategoryDelta = Number((finalCatSum - finalTotalVal).toFixed(1));
         }
