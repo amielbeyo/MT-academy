@@ -126,7 +126,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="logo">MT</div>
     <div class="title-block">
         <h1 style="margin:0">MT academy
-        <span id="modeBadge" class="badge-mode" title="Scoring Engine" style="display:none">Mode: Built-in (less accurate)</span>
+        <span id="modeBadge" class="badge-mode" title="Scoring Engine" style="display:none">Mode: ChatGPT (API key required)</span>
       </h1>
       <div class="small">Mock Trial Objection Practice</div>
       <p class="small">Interactive mock trial practice tools, objection drills, rule explanations, and quizzes to help students and coaches sharpen courtroom skills.</p>
@@ -153,7 +153,7 @@ a.inline{color:var(--accent);text-decoration:underline}
   <div id="videoGate" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="videoGateTitle">
     <div class="modal">
       <h2 id="videoGateTitle">Choose how to score your performance</h2>
-      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring or continue with the built-in scorer.</div>
+      <div class="note">Use your own ChatGPT (OpenAI) account for rubric-based scoring. The legacy built-in scorer has been removed.</div>
       <div class="row">
         <div class="choice">
           <h3>Option A — Use my ChatGPT account (recommended)</h3>
@@ -184,10 +184,10 @@ a.inline{color:var(--accent);text-decoration:underline}
           </div>
         </div>
         <div class="choice">
-          <h3>Option B — Built-in scoring (faster, <em>less accurate</em>)</h3>
-          <p class="small">On-device heuristics. Scores structure, delivery, common cues—not as nuanced as a judge.</p>
-          <div class="warn" style="margin:8px 0">Built-in results are less precise than ChatGPT rubric scoring.</div>
-          <button id="btnUseBuiltin" class="btn secondary">Use Built-in Scoring</button>
+          <h3>Option B — Built-in scoring (retired)</h3>
+          <p class="small">The on-device heuristic scorer has been removed. Add your ChatGPT API key to receive rubric-based scores.</p>
+          <div class="warn" style="margin:8px 0">Without an API key, transcripts will not be scored.</div>
+          <button id="btnUseBuiltin" class="btn secondary" disabled title="Built-in scoring is no longer available">Built-in scoring unavailable</button>
         </div>
         <div class="choice">
           <h3>Movement Analysis</h3>
@@ -775,7 +775,7 @@ const ChatGPTScoring = (() => {
 
 Goal: Reward correct, concise, fact-grounded advocacy. Do NOT midpoint-anchor. Start from the category floors below and adjust only as directed.
 Remember that “argumentative” is a Rule 611(a) objection about questions that argue with or harass the witness; do not confuse it with the everyday notion of someone sounding combative.
-If the argument is strong, do not hesitate to award 9 or 10 points (90/100 or 100/100). Use scores below 9 only when notable deficiencies appear, and assign sub-7 scores whenever unchecked rubric items or serious mistakes truly warrant them. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above the rubric and every other guideline, prioritize delivering the same final score a real competition judge would give.
+If the argument is strong, do not hesitate to award 9, 10, or even a perfect 100/100. Any score on the 1–10 scale is fair game when it matches the transcript: let excellent work reach the 90s and 100, keep solid-but-imperfect efforts in the 70–80 band when you can articulate why, and drop into the 60s or lower whenever major issues appear. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above the rubric and every other guideline, prioritize delivering the same final score a real competition judge would give.
 
 CATEGORIES (sum to 10)
 1) Legal Ground Identified (0–3)
@@ -833,7 +833,7 @@ Explicit allowance for brevity stops the model from downgrading concise, correct
 Counter/exception credit boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
 
 const PROMPT_TEMPLATE =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but let the transcript earn whatever it deserves: outstanding work can reach 9, 10, or even 100/100, and weak performances should drop into the 60s or below when the checklist demands it. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -861,7 +861,7 @@ const PROMPT_TEMPLATE =
 `Improvements: <specific, actionable suggestions>`;
 
 const PROMPT_TEMPLATE_RULING =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but if the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
+`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but let the transcript earn whatever it deserves: outstanding work can reach 9, 10, or even 100/100, and weak performances should drop into the 60s or below when the checklist demands it. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
 `Below is a transcript of an argument or discussion.\n\n`+
 `Transcript:\n{transcript}\n\n`+
 `Rating rubric (1–10 scale):\n{rubric}\n\n`+
@@ -892,9 +892,11 @@ const PROMPT_TEMPLATE_RULING =
 
   const PROMPT_PREFIX =
   "Important: You are scoring as a high-school regional judge, but DO NOT midpoint-anchor. " +
-  "If the performance is championship-caliber, award 9–10/10. If it has major gaps, drop below 7/10. " +
-  "Before choosing any score in the 7.5–8.5 band, STOP and verify at least three concrete unchecked rubric items; " +
-  "if you cannot list them explicitly, you MUST score outside that 7.5–8.5 band. " +
+  "If the performance is championship-caliber, award 9–10/10 and feel free to give 100/100 when nothing material is missing. " +
+  "If it has major gaps, drop below 7/10 and do not shy away from the 60s or lower when deserved. " +
+  "Regularly use the full 1–10 scale; strong transcripts should often earn 8+ when they satisfy the checklist. " +
+  "Before choosing any score in the 7.5–8.5 band, pause and verify at least two concrete unchecked rubric items; " +
+  "if you cannot list them explicitly, spell out the strengths that keep the score there or adjust the number accordingly. " +
   "Vary your low/high decimals (avoid .0 and .8), and pick a pair tailored to THIS material (do not reuse prior pairs). " +
   "Score the substance (don’t dock typos/accent), cite precise rules, and base everything only on the provided transcript. " +
   "Above all, give the number a real judge would give today.";
@@ -972,7 +974,7 @@ var CURRENT_STATE='AZ';
 function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
-var EngineState = { mode: 'builtin', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600 };
+var EngineState = { mode: 'chatgpt', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600 };
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -1028,7 +1030,7 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Content & Law/Facts (37)
   - Organization & Roadmap (36)
   - Persuasiveness (12)
@@ -1051,7 +1053,7 @@ function makeRubricMap(stateName, abbr){
   Reward concise, story-driven openings that clearly state the verdict and burden.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "74.1-84.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum of category scores (rounded).`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Content & Law Application (38)
   - Structure & Element Walk-through (22)
   - Refutation & Rebuttal (10)
@@ -1077,7 +1079,7 @@ function makeRubricMap(stateName, abbr){
   Reward closings that explicitly contrast both sides and press for the verdict.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "72.1-82.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
@@ -1102,7 +1104,7 @@ function makeRubricMap(stateName, abbr){
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
   Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "73.2-83.2"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. When you land in the 75–80 band, populate the "midband_justification" list with at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) that explain why the range belongs there; if you genuinely have fewer than two, say so explicitly in the explanation instead of forcing a different number. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
@@ -1134,8 +1136,15 @@ function makeRubricMap(stateName, abbr){
 
 /* Global engine state */
 EngineState = {
-  get mode(){ return load('mtpl.engineMode','builtin') },           // 'builtin' | 'chatgpt'
-  set mode(v){ save('mtpl.engineMode', v); renderModeBadge() },
+  get mode(){
+    const stored = load('mtpl.engineMode','chatgpt');
+    return stored === 'builtin' ? 'chatgpt' : stored;
+  },
+  set mode(v){
+    const sanitized = v === 'builtin' ? 'chatgpt' : v;
+    save('mtpl.engineMode', sanitized);
+    renderModeBadge();
+  },
   get openaiKey(){ return load('mtpl.openaiKey','') },
   set openaiKey(v){ save('mtpl.openaiKey', v||'') },
   get openaiModel(){ return load('mtpl.openaiModel','gpt-4o') },
@@ -1156,8 +1165,8 @@ function renderModeBadge(){
     b.textContent='Mode: ChatGPT (OpenAI API)';
     if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
   } else {
-    b.textContent='Mode: Built-in (less accurate)';
-    if(banner) banner.innerHTML = 'Scoring via <strong>built-in heuristic engine</strong>.';
+    b.textContent='Mode: ChatGPT (API key required)';
+    if(banner) banner.innerHTML = 'Add your OpenAI API key to enable scoring. Built-in scoring has been removed.';
   }
 }
 
@@ -1176,13 +1185,24 @@ document.addEventListener('DOMContentLoaded',()=>{
 /* Gateway wiring */
 function openVideoGate(){ $('videoGate').style.display='flex'; $('openaiKey').value = EngineState.openaiKey||''; $('openaiModel').value=EngineState.openaiModel; $('openaiMaxTokens').value=EngineState.openaiMaxTokens; }
 function closeVideoGate(){ $('videoGate').style.display='none' }
-function maybeShowVideoGate(){ const seen=load('mtpl.videoGateSeen',false); const hasChoice=!!EngineState.mode; if(!seen||!hasChoice){ openVideoGate(); save('mtpl.videoGateSeen',true); } }
+function maybeShowVideoGate(){
+  const seen=load('mtpl.videoGateSeen',false);
+  const hasKey=!!EngineState.openaiKey;
+  if(!seen){
+    openVideoGate();
+    save('mtpl.videoGateSeen',true);
+  } else if(!hasKey){
+    openVideoGate();
+  }
+}
 function attachVideoGateHandlers(){
   $('btnCloseGate').addEventListener('click', closeVideoGate);
-  $('btnUseBuiltin').addEventListener('click', ()=>{
-    EngineState.mode='builtin'; closeVideoGate(); renderModeBadge();
-    $('videoStatus').textContent='Using built-in scoring (less accurate). You can switch engines anytime.';
-  });
+  const builtinBtn=$('btnUseBuiltin');
+  if(builtinBtn){
+    builtinBtn.addEventListener('click', ()=>{
+      alert('Built-in scoring has been retired. Add your ChatGPT API key to continue.');
+    });
+  }
   $('btnUseChatGPT').addEventListener('click', ()=>{
     const key = $('openaiKey').value.trim();
     const model = $('openaiModel').value;
@@ -1198,8 +1218,12 @@ function attachVideoGateHandlers(){
     $('videoStatus').textContent='ChatGPT scoring enabled. Paste or record a transcript, then click Re-score.';
   });
   $('btnForgetKey').addEventListener('click', ()=>{
-    EngineState.openaiKey=''; EngineState.mode='builtin'; renderModeBadge();
-    alert('Removed saved API key. Falling back to built-in scoring.');
+    EngineState.openaiKey='';
+    EngineState.mode='chatgpt';
+    renderModeBadge();
+    save('mtpl.videoGateSeen',false);
+    $('videoStatus').textContent='Add your OpenAI API key to enable scoring.';
+    alert('Removed saved API key. Built-in scoring is no longer available.');
   });
 }
 document.addEventListener('DOMContentLoaded', attachVideoGateHandlers);
@@ -1227,10 +1251,11 @@ function initKeyPage(){
   });
   $('removeOpenAI').addEventListener('click', ()=>{
     EngineState.openaiKey = '';
-    EngineState.mode = 'builtin';
+    EngineState.mode = 'chatgpt';
     openaiInput.value = '';
     renderModeBadge();
-    alert('OpenAI key removed.');
+    save('mtpl.videoGateSeen', false);
+    alert('OpenAI key removed. Built-in scoring is no longer available.');
   });
 }
 document.addEventListener('DOMContentLoaded', initKeyPage);
@@ -2451,9 +2476,9 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
     if(justifications.length){
       const items=justifications.map(j=>`<li>${escHTML(j)}</li>`).join('');
-      html+=`<div class="small" style="margin-top:4px"><strong>Mid-band checklist gaps (${justifications.length}):</strong><ul class="small" style="margin:4px 0 0 18px;">${items}</ul></div>`;
+      html+=`<div class="small" style="margin-top:4px"><strong>Mid-band checklist notes (${justifications.length}):</strong><ul class="small" style="margin:4px 0 0 18px;">${items}</ul></div>`;
     } else if(midbandMeta && result.total>=75 && result.total<=80){
-      html+=`<div class="warn" style="margin-top:6px">Mid-band total lacks the required justification.</div>`;
+      html+=`<div class="warn" style="margin-top:6px">Mid-band total lacks the required observations.</div>`;
     }
     if(midbandMeta){
       const auditParts=[];
@@ -2462,15 +2487,15 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       if(midbandMeta.midbandTriggered){
         if(midbandMeta.finalInBand){
           if(midbandMeta.resolvedMidband){
-            auditParts.push(`Stayed in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} with ${midbandMeta.justificationCount||0} checklist gaps logged.`);
+            auditParts.push(`Stayed in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} with ${midbandMeta.justificationCount||0} checklist observations logged.`);
           } else {
-            auditParts.push(`Warning: remained in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} without 3 concrete gaps.`);
+            auditParts.push(`Warning: remained in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} without 2 concrete observations.`);
             auditWarn=true;
           }
         } else {
           auditParts.push(`Moved outside 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'}.`);
         }
-      } else if(result.total>=75 && result.total<=80 && justifications.length>=3){
+      } else if(result.total>=75 && result.total<=80 && justifications.length>=2){
         auditParts.push('Mid-band total justified without additional reconsideration.');
       }
       if(midbandMeta.categoryTriggered){
@@ -3086,9 +3111,9 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const conf = RUBRICS[type] || { cats: [] };
 
     const eff = effectiveWordCount(transcript);
-    if(eff < 5){
+    if(eff < 8){
       const cats = {}; conf.cats.forEach(c=>{ cats[c.key]=0; });
-      return { total:0, explanation:'Transcript too short to score.', notes:'', categories: cats, comments:{}, qa:[], raw:'' };
+      return { total:0, explanation:'Transcript too short to score (minimum 8 words).', notes:'', categories: cats, comments:{}, qa:[], raw:'' };
     }
 
     const ctrl = new AbortController();
@@ -3245,7 +3270,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         const needsMidbandFix = pl => {
           const totalVal = Number(pl?.total);
           if(!Number.isFinite(totalVal) || totalVal < 75 || totalVal > 80) return false;
-          return extractJustifications(pl).length < 3;
+          return extractJustifications(pl).length < 2;
         };
         const needsCategoryFix = pl => {
           const totalVal = Number(pl?.total);
@@ -3310,7 +3335,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           if(fixMidband){
             const justificationCount = extractJustifications(payload).length;
             const totalDisplay = Number.isFinite(totalVal) ? totalVal.toFixed(1) : '??';
-            issueLines.push(`• Mid-band total ${totalDisplay} lacks 3 concrete checklist deficiencies (currently ${justificationCount}).`);
+            issueLines.push(`• Mid-band total ${totalDisplay} needs at least 2 concrete checklist observations in "midband_justification" (currently ${justificationCount}).`);
           }
           if(fixCategory){
             if(Number.isFinite(catSum) && Number.isFinite(totalVal)){
@@ -3326,7 +3351,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
             '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
           ];
           if(fixMidband){
-            ruleLines.unshift('- If you remain in 75–80, list at least 3 concrete, checklist-tied deficiencies in "midband_justification"; otherwise move the total outside 75–80.');
+            ruleLines.unshift('- If you remain in 75–80, include at least 2 concrete, checklist-tied observations (deficiencies, tradeoffs, or standout strengths) in "midband_justification". If fewer than two exist, say so explicitly in the explanation.');
           }
 
           const reconsiderMessages = [{
@@ -3372,7 +3397,7 @@ ${transcript}`
         if(lastCategoryDelta !== null) midbandMeta.lastCategoryDelta = lastCategoryDelta;
         midbandMeta.finalInBand = Number.isFinite(finalTotalVal) && finalTotalVal >= 75 && finalTotalVal <= 80;
         midbandMeta.justificationCount = finalJustifications.length;
-        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 3;
+        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 2;
         midbandMeta.categoryAligned = !needsCategoryFix(payload);
         if(Number.isFinite(finalCatSum) && Number.isFinite(finalTotalVal)){
           midbandMeta.finalCategoryDelta = Number((finalCatSum - finalTotalVal).toFixed(1));
@@ -3569,65 +3594,64 @@ ${transcript}`
     }
   }
 
-  function scoreWithBuiltin(type, txt, audio){
+  function scoreWithBuiltin(type, txt, audio, reason){
     resetVideoFollowup();
     const transcript=(type==='direct'||type==='cross')?formatTranscriptQA(txt):txt;
-    const engine=score(type,transcript);
-    const result=engine.buildScores();
-    const wpm=result.metrics?.wpm||0;
+    const conf=RUBRICS[type]||{cats:[]};
+    const cats={};
+    (conf.cats||[]).forEach(c=>{ cats[c.key]=0; });
+
+    const metrics={
+      wordCount: effectiveWordCount(transcript),
+      wpm: 0,
+      fillers: 0,
+      signposts: 0,
+      vocabRich: 0
+    };
+
     if(audio){
-      if(!audio.wpm && wpm) audio.wpm=wpm;
+      if(Number.isFinite(audio.wpm)){ metrics.wpm=audio.wpm; }
+      else if(Number.isFinite(audio.estimatedWpm)){ metrics.wpm=audio.estimatedWpm; }
+      if(!audio.wpm && metrics.wpm) audio.wpm=metrics.wpm;
       if(audio.wpm){
         audio.speedRating=audio.wpm<100?'Too slow':audio.wpm>135?'Too fast':'Good';
-        audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
+        audio.tips=(audio.tips||'')+(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
       }
+    }
+
+    const explanationBase='Built-in scoring has been removed. Add your OpenAI API key to generate rubric scores.';
+    const combinedReason=reason?`${reason}${reason.endsWith('.')?'':'.'}`:'';
+    const explanation=combinedReason?`${combinedReason} ${explanationBase}`.trim():explanationBase;
+
+    const result={
+      cats,
+      total:0,
+      metrics,
+      compare:{lexCos:0,biCos:0,mustHits:0,niceHits:0,mustTotal:0,niceTotal:0,struct:0,score:0},
+      comments:{},
+      rating:scoreToRating(0),
+      range:'0-0',
+      explanation,
+      notes:'',
+      qa:[],
+      midband_justification:[],
+      decimals_used:'',
+      midbandMeta:null
+    };
+
+    if(audio){
       result.audio=audio;
     }
-    if(wpm<95||wpm>125){
-      result.total=Math.max(0,result.total-10);
-    }else if(wpm>=100&&wpm<=115){
-      result.total=Math.min(100,result.total+7);
-    }
-    const center=Math.round(result.total);
-    let low=Math.max(0,center-5);
-    let high=low+10;
-    if(high>100){
-      high=100;
-      low=Math.max(0,high-10);
-    }
-    result.range=`${low}-${high}`;
-    result.rating=scoreToRating(result.total);
-    renderReport(type,result);
-    $('videoStatus').textContent='Scored.';
 
-    const summaryText=summarizeVideoResult(type,result);
-    const rawLines=[
-      'Built-in scoring summary (local heuristics).',
-      `Final Rating: ${result.rating || scoreToRating(result.total)}`,
-      `Total Score: ${result.total}`,
-      'Category breakdown:',
-      ...Object.entries(result.cats||{}).map(([k,v])=>`- ${k}: ${v}`)
-    ];
-    if(result.explanation) rawLines.push(`Explanation: ${result.explanation}`);
-    if(result.notes) rawLines.push(`Notes: ${result.notes}`);
-    if(result.qa && result.qa.length){
-      rawLines.push('Question/Answer Highlights:');
-      result.qa.slice(0,3).forEach((qa,i)=>{
-        rawLines.push(`Q${i+1}: ${qa.q||''} | ${qa.qScore??''} - ${qa.qReason||''}`);
-        rawLines.push(`A${i+1}: ${qa.a||''} | ${qa.aScore??''} - ${qa.aReason||''}`);
-      });
+    renderReport(type,result);
+    const statusEl=$('videoStatus');
+    if(statusEl && !statusEl.textContent.trim()){
+      statusEl.textContent='Scoring unavailable without a ChatGPT API key.';
     }
-    if(result.audio){
-      const a=result.audio;
-      const voice=[];
-      if(a.volRating) voice.push(`Volume ${a.volRating}${Number.isFinite(a.avgVolume)?` (${a.avgVolume} dB)`:''}`);
-      if(a.toneRating) voice.push(`Tone ${a.toneRating}${Number.isFinite(a.pitchVar)?` (${a.pitchVar} Hz)`:''}`);
-      if(a.clarityRating) voice.push(`Clarity ${a.clarityRating}`);
-      if(a.speedRating) voice.push(`Speed ${a.speedRating}${Number.isFinite(a.wpm)?` (${a.wpm} WPM)`:''}`);
-      if(voice.length) rawLines.push(`Voice Metrics: ${voice.join('; ')}`);
-      if(a.tips) rawLines.push(`Voice Tips: ${a.tips}`);
-    }
-    prepareVideoFollowup({transcript,type,summaryText,rawText:rawLines.join('\n')});
+    const summaryText=reason||'Built-in scoring disabled. No score generated.';
+    const rawText=combinedReason?`${combinedReason}\n${explanationBase}`:summaryText;
+    prepareVideoFollowup({transcript,type,summaryText,rawText});
+    return result;
   }
   async function scoreNow(){
     const type=$('videoType').value||'opening';
@@ -3639,10 +3663,10 @@ ${transcript}`
     resetVideoFollowup();
 
     const eff = effectiveWordCount(transcript);
-    if(eff < 5){
-      $('videoStatus').textContent='Transcript too short to score.';
-      scoreWithBuiltin(type, raw, audio);
-      showProvenance('Transcript too short; score set to 0.', true);
+    if(eff < 8){
+      $('videoStatus').textContent='Transcript too short to score (minimum 8 words).';
+      scoreWithBuiltin(type, raw, audio, 'Transcript too short to score (minimum 8 words)');
+      showProvenance('Transcript too short; score held at 0.', true);
       return;
     }
 
@@ -3722,22 +3746,22 @@ ${transcript}`
   if(meta && meta.midbandTriggered){
     const passes=meta.attempts||1;
     if(meta.finalInBand){
-      if(meta.resolvedMidband){
-        provenanceMessages.push(`Model remained in 75–80 after ${passes} reconsideration${passes===1?'':'s'} with ${meta.justificationCount||0} checklist gaps logged.`);
-      } else {
-        provenanceMessages.push(`Model stayed in 75–80 without the required mid-band justification after ${passes} reconsideration${passes===1?'':'s'}.`);
-        provenanceWarn=true;
-      }
+        if(meta.resolvedMidband){
+          provenanceMessages.push(`Model remained in 75–80 after ${passes} reconsideration${passes===1?'':'s'} with ${meta.justificationCount||0} checklist observations logged.`);
+        } else {
+          provenanceMessages.push(`Model stayed in 75–80 without the required mid-band justification after ${passes} reconsideration${passes===1?'':'s'}.`);
+          provenanceWarn=true;
+        }
     } else {
       provenanceMessages.push(`Model moved outside 75–80 after ${passes} reconsideration${passes===1?'':'s'}.`);
     }
   } else if(result.total >= 75 && result.total <= 80){
-    if(Array.isArray(justifications) && justifications.length >= 3){
-      provenanceMessages.push('Model selected a mid-band total with sufficient justification.');
-    } else {
-      provenanceMessages.push('Model produced a mid-band total without the required justification.');
-      provenanceWarn=true;
-    }
+      if(Array.isArray(justifications) && justifications.length >= 2){
+        provenanceMessages.push('Model selected a mid-band total with sufficient observations.');
+      } else {
+        provenanceMessages.push('Model produced a mid-band total without the required observations.');
+        provenanceWarn=true;
+      }
   } else {
     provenanceMessages.push('Model finalized score outside 75–80.');
   }
@@ -3762,7 +3786,7 @@ ${transcript}`
   prepareVideoFollowup({transcript, type, summaryText, rawText: scoreData.raw || ''});
 }).catch(err => {
   // Surface precise error info
-  let msg = 'ChatGPT scoring unavailable \u2014 using built-in for this run.';
+  let msg = 'ChatGPT scoring unavailable \u2014 no score generated.';
   if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
   else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'Rate limit on your OpenAI account (429). Try again or switch model.';
   else if (err?.status === 403) msg = 'OpenAI request forbidden (403). Check org/project access for this key.';
@@ -3776,18 +3800,18 @@ ${transcript}`
   $('videoStatus').style.color = '#ef9a9a';
 
   // Do NOT flip engine mode; just fall back this run
-  scoreWithBuiltin(type, raw, audio);
-  showProvenance('Built-in score used (OpenAI error).', true);
+  scoreWithBuiltin(type, raw, audio, 'ChatGPT error prevented scoring');
+  showProvenance('No score generated (ChatGPT error).', true);
 
   const badge = $('modeBadge');
   if (badge && /ChatGPT/i.test(badge.textContent)) {
-    badge.textContent = 'Mode: ChatGPT (temporary built-in fallback used)';
+    badge.textContent = 'Mode: ChatGPT (scoring unavailable)';
   }
 });
       return;
     }
-    scoreWithBuiltin(type, raw, audio);
-    showProvenance('Built-in score used (ChatGPT mode not active).', true);
+    scoreWithBuiltin(type, raw, audio, 'ChatGPT scoring not configured');
+    showProvenance('Scoring unavailable without a ChatGPT API key.', true);
   }
 
   async function testChatGPT(){
