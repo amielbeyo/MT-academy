@@ -1413,7 +1413,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
       if (!r.ok) {
         const t = await r.text().catch(()=> '');
         let msg = 'OpenAI auth/models check failed';
-        try { const j = JSON.parse(t); msg = j?.error?.message || msg; } catch {}
+        try { const j = JSON.parse(t); msg = j?.error?.message || msg; } catch (parseErr) {}
         const e = new Error(msg);
         e.status = r.status;
         throw e;
@@ -1454,7 +1454,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     // Read text first to preserve error detail
     const rawText = await resp.text();
     let data = null;
-    try { data = JSON.parse(rawText); } catch {}
+    try { data = JSON.parse(rawText); } catch (parseErr) {}
 
     if (!resp.ok) {
       const e = new Error(
@@ -3180,7 +3180,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
       function parsePayload(raw){
         let parsed = null;
-        try { parsed = parseChatGPTScoreResponse(raw); } catch {}
+        try { parsed = parseChatGPTScoreResponse(raw); } catch (parseErr) {}
         if (!parsed) {
           const tParsed = ChatGPTScoring.parseScoreResponse(raw);
           let avg = tParsed.scoreLow || 0, rangeStr = '', lowPct=null, highPct=null;
@@ -3963,7 +3963,7 @@ ${transcript}`
     }
     const rawText = await resp.text();
     let data = null;
-    try { data = JSON.parse(rawText); } catch {}
+    try { data = JSON.parse(rawText); } catch (parseErr) {}
     if (!resp.ok) {
       const e = new Error(
         data?.error?.message ||
