@@ -923,18 +923,20 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX_RELAXED =
+const PROMPT_PREFIX_RELAXED =
   "Important: Score as a high-school regional judge who trusts their instincts. " +
   "Prioritize an accurate, rubric-driven result while letting your natural judging voice shine. " +
   "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
   "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
-  "and focus on substance drawn solely from the provided transcript. Ignore typos or accents.";
+  "and share the exact score or range you genuinely believe fits this performance. " +
+  "Focus on substance drawn solely from the provided transcript and ignore typos or accents.";
 
-  const PROMPT_PREFIX =
+const PROMPT_PREFIX =
   "Important: Score as a high-school regional judge who trusts their instincts. " +
   "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
   "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
-  "and focus on substance drawn solely from the provided transcript. Ignore typos or accents.";
+  "and share the exact score or range you genuinely believe fits this performance. " +
+  "Focus on substance drawn solely from the provided transcript and ignore typos or accents.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, options={}){
     const relaxed = Boolean(options && options.relaxed);
@@ -3045,67 +3047,91 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     return obj;
   }
 
-  function enforceTenPointRange(payload){
+  function normalizeScorePayload(payload){
     if(!payload) return;
     const clampScore=v=>Math.max(0,Math.min(100,Number(v)));
     const toOneDecimal=v=>Number(clampScore(v).toFixed(1));
+    const normalizeValue=raw=>{
+      const num=Number(raw);
+      if(!Number.isFinite(num)) return undefined;
+      const scaled=num<=10?num*10:num;
+      return toOneDecimal(scaled);
+    };
 
-    if (Number.isFinite(payload.total) && payload.total <= 10) {
-      payload.total = Number((Number(payload.total) * 10).toFixed(1));
-    }
-    if (Number.isFinite(payload.scoreLow) && payload.scoreLow <= 10) {
-      payload.scoreLow = Number((Number(payload.scoreLow) * 10).toFixed(1));
-    }
-    if (Number.isFinite(payload.scoreHigh) && payload.scoreHigh <= 10) {
-      payload.scoreHigh = Number((Number(payload.scoreHigh) * 10).toFixed(1));
-    }
-    if (typeof payload.range === 'string' && /^\s*\d+(\.\d+)?\s*-\s*\d+(\.\d+)?\s*$/.test(payload.range)) {
-      const [lo, hi] = payload.range.split('-').map(x=>Number(x.trim()));
-      if (lo <= 10 && hi <= 10) {
-        payload.range = `${(lo*10).toFixed(1)}-${(hi*10).toFixed(1)}`;
+    if(Number.isFinite(Number(payload.total))){
+      const normalizedTotal=normalizeValue(payload.total);
+      if(Number.isFinite(normalizedTotal)){
+        payload.total=normalizedTotal;
+      } else {
+        delete payload.total;
       }
     }
 
-    let lowVal=Number(payload.scoreLow);
-    let highVal=Number(payload.scoreHigh);
-    const hasLow=Number.isFinite(lowVal);
-    const hasHigh=Number.isFinite(highVal);
+    let lowVal=normalizeValue(payload.scoreLow);
+    let highVal=normalizeValue(payload.scoreHigh);
 
-    if(hasLow && hasHigh){
-      if(highVal<lowVal){ const tmp=lowVal; lowVal=highVal; highVal=tmp; }
-      lowVal=toOneDecimal(lowVal);
-      highVal=toOneDecimal(highVal);
-      payload.scoreLow=lowVal;
-      payload.scoreHigh=highVal;
-      payload.range=`${lowVal.toFixed(1)}-${highVal.toFixed(1)}`;
-      if(!Number.isFinite(Number(payload.total))){
-        payload.total=Number(((lowVal+highVal)/2).toFixed(1));
+    if(typeof payload.range==='string' && payload.range.trim()){
+      const normalized=payload.range.replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
+      const parts=normalized.split('-').map(part=>Number(part.trim())).filter(n=>!Number.isNaN(n));
+      if(parts.length===2){
+        let [lo,hi]=parts;
+        if(lo<=10 && hi<=10){ lo*=10; hi*=10; }
+        const normLo=toOneDecimal(lo);
+        const normHi=toOneDecimal(hi);
+        if(!Number.isFinite(lowVal)) lowVal=normLo;
+        if(!Number.isFinite(highVal)) highVal=normHi;
+      } else if(parts.length===1){
+        let val=parts[0];
+        if(val<=10) val*=10;
+        const normalizedSingle=toOneDecimal(val);
+        if(!Number.isFinite(lowVal) && !Number.isFinite(highVal)){
+          lowVal=normalizedSingle;
+          highVal=normalizedSingle;
+        }
       }
-      return;
     }
 
-    const totalVal=Number(payload.total);
-    if(Number.isFinite(totalVal)){
-      const center=toOneDecimal(totalVal);
-      const low=toOneDecimal(center-5);
-      const high=toOneDecimal(center+5);
-      payload.scoreLow=low;
-      payload.scoreHigh=high;
-      payload.range=`${low.toFixed(1)}-${high.toFixed(1)}`;
-      payload.total=center;
-      return;
-    }
-
-    if(hasLow || hasHigh){
-      const val=hasLow?toOneDecimal(lowVal):toOneDecimal(highVal);
-      const other=hasLow?toOneDecimal(val+5):toOneDecimal(val-5);
-      const low=Math.min(val,other);
-      const high=Math.max(val,other);
+    if(Number.isFinite(lowVal) && Number.isFinite(highVal)){
+      const low=Math.min(lowVal,highVal);
+      const high=Math.max(lowVal,highVal);
       payload.scoreLow=low;
       payload.scoreHigh=high;
       payload.range=`${low.toFixed(1)}-${high.toFixed(1)}`;
       if(!Number.isFinite(Number(payload.total))){
-        payload.total=Number(((low+high)/2).toFixed(1));
+        payload.total=toOneDecimal((low+high)/2);
+      }
+      return;
+    }
+
+    if(Number.isFinite(lowVal)){
+      payload.scoreLow=toOneDecimal(lowVal);
+      payload.scoreHigh=payload.scoreLow;
+      payload.range=`${payload.scoreLow.toFixed(1)}-${payload.scoreHigh.toFixed(1)}`;
+      if(!Number.isFinite(Number(payload.total))){
+        payload.total=payload.scoreLow;
+      }
+      return;
+    }
+
+    if(Number.isFinite(highVal)){
+      payload.scoreHigh=toOneDecimal(highVal);
+      payload.scoreLow=payload.scoreHigh;
+      payload.range=`${payload.scoreLow.toFixed(1)}-${payload.scoreHigh.toFixed(1)}`;
+      if(!Number.isFinite(Number(payload.total))){
+        payload.total=payload.scoreHigh;
+      }
+      return;
+    }
+
+    if(typeof payload.range==='string' && payload.range.trim()){
+      const single=normalizeValue(payload.range);
+      if(Number.isFinite(single)){
+        payload.scoreLow=single;
+        payload.scoreHigh=single;
+        payload.range=`${single.toFixed(1)}-${single.toFixed(1)}`;
+        if(!Number.isFinite(Number(payload.total))){
+          payload.total=single;
+        }
       }
     }
   }
@@ -3137,13 +3163,34 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   function capScore(payload, cap, reasonNote){
     const c = Math.max(0, Math.min(100, Number(cap)));
     if (!Number.isFinite(c)) return;
-    const low  = Math.max(0, +(c - 5).toFixed(1));
-    const high = Math.min(100, +(c + 5).toFixed(1));
-    payload.total     = +c.toFixed(1);
-    payload.scoreLow  = low;
-    payload.scoreHigh = high;
-    payload.range     = `${low.toFixed(1)}-${high.toFixed(1)}`;
+    const priorTotal = Number(payload.total);
+    const priorLow = Number(payload.scoreLow);
+    const priorHigh = Number(payload.scoreHigh);
+
+    payload.total = Number.isFinite(priorTotal) ? Number(Math.min(priorTotal, c).toFixed(1)) : Number(c.toFixed(1));
+
+    let newLow = Number.isFinite(priorLow) ? Math.min(priorLow, c) : undefined;
+    let newHigh = Number.isFinite(priorHigh) ? Math.min(priorHigh, c) : undefined;
+
+    if (newLow === undefined && newHigh !== undefined) {
+      newLow = newHigh;
+    } else if (newHigh === undefined && newLow !== undefined) {
+      newHigh = newLow;
+    } else if (newLow === undefined && newHigh === undefined) {
+      newLow = payload.total;
+      newHigh = payload.total;
+    }
+
+    if (Number.isFinite(newLow) && Number.isFinite(newHigh)) {
+      const lowVal = Number(Math.min(newLow, newHigh).toFixed(1));
+      const highVal = Number(Math.max(newLow, newHigh).toFixed(1));
+      payload.scoreLow = lowVal;
+      payload.scoreHigh = highVal;
+      payload.range = `${lowVal.toFixed(1)}-${highVal.toFixed(1)}`;
+    }
+
     payload.notes = (payload.notes || '') + `\n(auto-cap: ${reasonNote})`;
+    normalizeScorePayload(payload);
   }
 
   // Backwards-compat alias used by earlier patches
@@ -3299,7 +3346,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
             parsed.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
           }
         }
-        enforceTenPointRange(parsed);
+        normalizeScorePayload(parsed);
         return parsed;
       }
 
@@ -3373,7 +3420,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           return { note:true, value: note };
         };
 
-        enforceTenPointRange(payload);
+        normalizeScorePayload(payload);
 
         const runStrictChecks = false;
         let attempts = 0;
@@ -3407,7 +3454,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
             const ruleLines = [
               '- Keep the identical JSON schema ("total","range","categories","comments","explanation","notes","midband_justification","decimals_used").',
-              '- Ensure "range" is exactly 10.0 points wide (formatted "low-high") and avoid .0/.8 decimal endpoints.',
+              '- Report scores on a 0-100 scale (convert any 1-10 values) and format ranges as "low-high" when you share both bounds.',
+              '- Choose the score or range that genuinely matches the performance—narrow or widen it to reflect your confidence.',
               '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
             ];
 
@@ -3432,7 +3480,7 @@ ${transcript}`
               const reconsiderObj = extractFirstJson(reconsiderRaw) || parseChatGPTScoreResponse(reconsiderRaw) || null;
               if (reconsiderObj) {
                 payload = reconsiderObj;
-                enforceTenPointRange(payload);
+                normalizeScorePayload(payload);
               }
             } catch (_) {
               break;
@@ -3588,7 +3636,7 @@ ${transcript}`
           }
         }
 
-        enforceTenPointRange(payload);
+        normalizeScorePayload(payload);
       }
 
       const cats = {};
@@ -3641,20 +3689,6 @@ ${transcript}`
         detectorVector: typeAudit?.vector || null,
         detectorConfidence: typeAudit?.confidence ?? null
       };
-
-      // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
-      if (typeof result.range === "string" && /^\d+(\.\d)?-\d+(\.\d)?$/.test(result.range)) {
-        const [lo, hi] = result.range.split("-").map(Number);
-        const bad = (x)=> String(x).endsWith(".0") || String(x).endsWith(".8");
-        if (bad(lo) || bad(hi)) {
-          // Shift by 0.1 towards the interior for readability; total stays as-is
-          const adjLo = Number((Math.max(0, lo + 0.1)).toFixed(1));
-          const adjHi = Number((Math.min(100, hi - 0.1)).toFixed(1));
-          if (adjHi - adjLo >= 9.8) {
-            result.range = `${adjLo.toFixed(1)}-${adjHi.toFixed(1)}`;
-          }
-        }
-      }
 
       return result;
     } catch (err) {
@@ -3821,19 +3855,6 @@ ${transcript}`
   result.rating = ratingFromData || scoreToRating(result.total);
   if(scoreData.range){
     result.range = scoreData.range;
-  }
-
-  // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
-  if (typeof result.range === 'string' && /^\d+(\.\d)?-\d+(\.\d)?$/.test(result.range)) {
-    const [lo, hi] = result.range.split('-').map(Number);
-    const bad = x => String(x).endsWith('.0') || String(x).endsWith('.8');
-    if (bad(lo) || bad(hi)) {
-      const adjLo = Number((Math.max(0, lo + 0.1)).toFixed(1));
-      const adjHi = Number((Math.min(100, hi - 0.1)).toFixed(1));
-      if (adjHi - adjLo >= 9.8) {
-        result.range = `${adjLo.toFixed(1)}-${adjHi.toFixed(1)}`;
-      }
-    }
   }
 
   renderReport(usedType, result);
