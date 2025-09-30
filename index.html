@@ -2985,7 +2985,16 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   function buildChatGPTPrompt(type, transcript){
     const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
     const rubric = rubricMap[type] || rubricMap.opening;
-    return ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
+    const typeLabels = {
+      opening: 'OPENING STATEMENT',
+      closing: 'CLOSING ARGUMENT',
+      direct: 'DIRECT EXAMINATION',
+      cross: 'CROSS EXAMINATION'
+    };
+    const selectedLabel = typeLabels[type] || type?.toString().toUpperCase() || 'PERFORMANCE';
+    const basePrompt = ChatGPTScoring.buildScoringPrompt(transcript, false, rubric);
+    const emphasis = `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`;
+    return `${emphasis}\n\n${basePrompt}`;
   }
 
   function buildChatGPTMessages(type, transcript){
@@ -3156,24 +3165,25 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     let usedType = type;
     let secondUsed = false;
     let typeAudit = null;
+    let detectedType = null;
     let mismatch = false;
     let scorerMode = null;
     try {
       const CONF_STRONG = 0.55;
       typeAudit = detectSpeechType(transcript);
-      mismatch = !!(typeAudit.type && typeAudit.type !== type);
+      detectedType = typeAudit?.type || null;
+      mismatch = !!(detectedType && detectedType !== type);
       if (mismatch && typeAudit.confidence >= CONF_STRONG) {
-        usedType = typeAudit.type;
-        secondUsed = true;
-        conf = RUBRICS[usedType] || conf;
+        // Respect the user-selected type but record the detector's suggestion for audit purposes.
+        secondUsed = false;
       }
 
       const scorer = await robustLLMScore({
         model,
         maxTokens,
         transcript,
-        buildPromptJSON: ()=>buildChatGPTPrompt(usedType, transcript),
-        buildPromptText: ()=>buildChatGPTPrompt(usedType, transcript)
+        buildPromptJSON: ()=>buildChatGPTPrompt(type, transcript),
+        buildPromptText: ()=>buildChatGPTPrompt(type, transcript)
       });
       rawText = scorer.raw;
       scorerMode = scorer.mode || null;
@@ -3610,6 +3620,7 @@ ${transcript}`
       result.audit = {
         selectedType: type,
         usedType,
+        detectedType,
         mismatchDetected: !!mismatch,
         detector: typeAudit,
         secondPassUsed: !!secondUsed,
