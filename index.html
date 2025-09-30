@@ -890,7 +890,14 @@ const PROMPT_TEMPLATE_RULING =
 `Assumptions: <assumptions or "None">\n`+
 `Improvements: <specific, actionable suggestions>`;
 
-  const PROMPT_PREFIX = "Important: Score as a high school regional judge who rewards advocates for meeting the rubric. Start by checking each required element in the rubric/checklist. Base the score on how well the transcript satisfies the rubric, avoiding habitual midrange choices. Provide a concrete score with a confidence-based low/high range, and vary both the placement and width to reflect the unique performance — never reuse the same low/high pair across materials or lean on default/suggested spreads. Above everything else — including the rubric, checklist, and guidelines — ensure the final score mirrors what an actual competition judge would award. Precise decimals are welcome. Double-check rule citations and facts, and lower the score only when the record or rubric warrants it, including dropping below 7/10 if the performance truly falls short. Focus on the substance: do not dock points for typos, accent-based word choice, or minor grammar errors when the intended meaning is clear. Brief argumentative detours in an opening should be noted but treated as only a light deduction unless the speech turns into a closing argument.";
+  const PROMPT_PREFIX =
+"Important: You are scoring as a high-school regional judge, but DO NOT midpoint-anchor. " +
+"If the performance is championship-caliber, award 9–10/10. If it has major gaps, drop below 7/10. " +
+"Before choosing any score in the 7.5–8.5 band, STOP and verify at least three concrete unchecked rubric items; " +
+"if you cannot list them explicitly, you MUST score outside that 7.5–8.5 band. " +
+"Vary your low/high decimals (avoid .0 and .8), and pick a pair tailored to THIS material (do not reuse prior pairs). " +
+"Score the substance (don’t dock typos/accent), cite precise rules, and base everything only on the provided transcript. " +
+"Above all, give the number a real judge would give today.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -1021,7 +1028,7 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
+    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
   - Content & Law/Facts (37)
   - Organization & Roadmap (36)
   - Persuasiveness (12)
@@ -1043,8 +1050,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
   Reward concise, story-driven openings that clearly state the verdict and burden.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "74.0-84.0"). Total must equal weighted sum of category scores (rounded).`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
+  Return strict JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "74.1-84.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum of category scores (rounded).`,
+    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
   - Content & Law Application (38)
   - Structure & Element Walk-through (22)
   - Refutation & Rebuttal (10)
@@ -1069,8 +1076,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
   Reward closings that explicitly contrast both sides and press for the verdict.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "72.0-82.0"). Total must equal weighted sum (rounded).`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
+  Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "72.1-82.1"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
+    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
   - Chapters & Story Build (30)
   - Open-Ended Technique (20)
   - Foundation & Exhibits (20)
@@ -1094,8 +1101,8 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
   Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value. Total must equal weighted sum (rounded).`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Categories/weights:
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "73.2-83.2"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`,
+    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. If the material is good, do not hesitate to award a 9 or 10 (90/100 or 100/100). Do not choose a total in the 75–80 band unless you also include a "midband_justification" list with at least 3 concrete, checklist-tied deficiencies. If you cannot do that, choose a score outside 75–80. Categories/weights:
   - Chapters & Damage Theory (30)
   - Leading & Control (25)
   - Impeachment/Admissions (20)
@@ -1121,7 +1128,7 @@ function makeRubricMap(stateName, abbr){
   - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
   Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
   Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n"}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value. Total must equal weighted sum (rounded).`
+  Analyze each question and answer pair; for each pair provide qScore (1-10) with qReason, and aScore (1-10) with aReason. Return JSON: {"total":0-100,"range":"0-100","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Range must be "low-high" with the high value exactly 10.0 points higher than the low value (e.g., "71.9-81.9"). Avoid .0 and .8 as decimals. Total must equal weighted sum (rounded).`
   };
 }
 
@@ -2416,12 +2423,18 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
     const ratingText=result.rating || scoreToRating(result.total);
+    const rangeDisplay=result.range?escHTML(result.range):'N/A';
+    const decimalsNote=typeof result.decimals_used==='string'&&result.decimals_used.trim()?escHTML(result.decimals_used.trim()):'';
+    const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
+    const midbandMeta=result.midbandMeta||null;
     let html=`
       <div><strong>${conf.name} \u2014 Judge Rubric Report</strong></div>
       <table class="table"><thead><tr><th>Category</th><th>Score</th>${hasComments?'<th>Comment</th>':''}</tr></thead><tbody>${rows}</tbody></table>
       <div class="kv" style="margin-top:8px">
         <div>Final Rating</div><div><strong>${ratingText}</strong></div>
         <div>Score</div><div>${result.total} / 100</div>
+        <div>Range</div><div>${rangeDisplay}</div>
+        ${decimalsNote?`<div>Decimals Note</div><div>${decimalsNote}</div>`:''}
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
         <div>Fillers</div><div>${m.fillers}</div>
@@ -2435,6 +2448,53 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
     if(result.notes){
       html+=`<div class="small" style="margin-top:4px"><strong>Notes:</strong> ${escHTML(result.notes)}</div>`;
+    }
+    if(justifications.length){
+      const items=justifications.map(j=>`<li>${escHTML(j)}</li>`).join('');
+      html+=`<div class="small" style="margin-top:4px"><strong>Mid-band checklist gaps (${justifications.length}):</strong><ul class="small" style="margin:4px 0 0 18px;">${items}</ul></div>`;
+    } else if(midbandMeta && result.total>=75 && result.total<=80){
+      html+=`<div class="warn" style="margin-top:6px">Mid-band total lacks the required justification.</div>`;
+    }
+    if(midbandMeta){
+      const auditParts=[];
+      let auditWarn=false;
+      const passes=midbandMeta.attempts||0;
+      if(midbandMeta.midbandTriggered){
+        if(midbandMeta.finalInBand){
+          if(midbandMeta.resolvedMidband){
+            auditParts.push(`Stayed in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} with ${midbandMeta.justificationCount||0} checklist gaps logged.`);
+          } else {
+            auditParts.push(`Warning: remained in 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'} without 3 concrete gaps.`);
+            auditWarn=true;
+          }
+        } else {
+          auditParts.push(`Moved outside 75–80 after ${passes||1} reconsideration${(passes||1)===1?'':'s'}.`);
+        }
+      } else if(result.total>=75 && result.total<=80 && justifications.length>=3){
+        auditParts.push('Mid-band total justified without additional reconsideration.');
+      }
+      if(midbandMeta.categoryTriggered){
+        const delta = typeof midbandMeta.finalCategoryDelta === 'number' && Number.isFinite(midbandMeta.finalCategoryDelta)
+          ? midbandMeta.finalCategoryDelta.toFixed(1)
+          : null;
+        const deltaNote = delta ? ` (delta ${delta})` : '';
+        if(midbandMeta.categoryAligned){
+          auditParts.push(`Category totals realigned to match the reported total${deltaNote}.`);
+        } else {
+          auditParts.push(`Warning: category totals still misaligned with the reported total${deltaNote}.`);
+          auditWarn=true;
+        }
+      }
+      if(midbandMeta.autoFilledDecimals){
+        const note = midbandMeta.decimalsValue ? ` (${midbandMeta.decimalsValue})` : '';
+        auditParts.push(`Decimals note auto-filled${note}.`);
+      }
+      if(auditParts.length){
+        html+=`<div class="small" style="margin-top:4px"><strong>Audit:</strong> ${escHTML(auditParts.join(' '))}</div>`;
+      }
+      if(auditWarn && !(!justifications.length && result.total>=75 && result.total<=80)){
+        html+=`<div class="warn" style="margin-top:6px">Audit flags require follow-up.</div>`;
+      }
     }
     if(result.qa && result.qa.length){
       const qaRows=result.qa.map((qa,i)=>`<tr><td>${i+1}</td><td>${escHTML(qa.q||'')}</td><td>${qa.qScore||''} - ${escHTML(qa.qReason||'')}</td><td>${escHTML(qa.a||'')}</td><td>${qa.aScore||''} - ${escHTML(qa.aReason||'')}</td></tr>`).join('');
@@ -2973,7 +3033,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }else if(highVal!==null){
       center=highVal-WIDTH/2;
     }else{
-      center=75;
+      center=65; // neutral fallback, away from the 75–80 magnet
     }
 
     applyFromCenter(center);
@@ -2984,10 +3044,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(!EngineState.openaiKey) throw new Error("no_key");
     const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
+    const conf = RUBRICS[type] || { cats: [] };
 
     const eff = effectiveWordCount(transcript);
     if(eff < 5){
-      const conf = RUBRICS[type] || {cats:[]};
       const cats = {}; conf.cats.forEach(c=>{ cats[c.key]=0; });
       return { total:0, explanation:'Transcript too short to score.', notes:'', categories: cats, comments:{}, qa:[], raw:'' };
     }
@@ -3089,11 +3149,175 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         }
       }
 
+      let midbandMeta = {
+        attempts: 0,
+        midbandTriggered: false,
+        categoryTriggered: false,
+        midbandCorrections: 0,
+        categoryCorrections: 0,
+        lastCategoryDelta: null,
+        finalCategoryDelta: null,
+        finalInBand: false,
+        justificationCount: 0,
+        resolvedMidband: true,
+        categoryAligned: true,
+        autoFilledDecimals: false,
+        decimalsValue: ''
+      };
+
       if(payload){
+        const extractJustifications = pl => {
+          if(!Array.isArray(pl?.midband_justification)) return [];
+          return pl.midband_justification.map(v=>typeof v === 'string' ? v.trim() : String(v || '')).filter(Boolean);
+        };
+        const computeCategorySum = pl => {
+          if(!pl?.categories || !Array.isArray(conf?.cats)) return null;
+          let sum = 0;
+          for(const cat of conf.cats){
+            const raw = Number(pl.categories?.[cat.key]);
+            if(!Number.isFinite(raw)) return null;
+            const bounded = Math.max(1, Math.min(10, raw));
+            sum += bounded * (cat.w * 10);
+          }
+          return Number(sum.toFixed(1));
+        };
+        const needsMidbandFix = pl => {
+          const totalVal = Number(pl?.total);
+          if(!Number.isFinite(totalVal) || totalVal < 75 || totalVal > 80) return false;
+          return extractJustifications(pl).length < 3;
+        };
+        const needsCategoryFix = pl => {
+          const totalVal = Number(pl?.total);
+          const catSum = computeCategorySum(pl);
+          if(!Number.isFinite(totalVal) || !Number.isFinite(catSum)) return false;
+          return Math.abs(catSum - totalVal) > 0.6;
+        };
+        const ensureDecimalsUsed = pl => {
+          const existing = typeof pl?.decimals_used === 'string' ? pl.decimals_used.trim() : '';
+          if(existing){
+            return { note:false, value: existing };
+          }
+          const decimals = new Set();
+          const addDec = val => {
+            if(!Number.isFinite(val)) return;
+            const fixed = Number(val).toFixed(1);
+            const parts = fixed.split('.');
+            const frac = parts[1] || '0';
+            decimals.add(`.${frac}`);
+          };
+          addDec(Number(pl?.scoreLow));
+          addDec(Number(pl?.scoreHigh));
+          if(typeof pl?.range === 'string'){
+            const pieces = pl.range.split('-').map(str => Number(str.trim()));
+            if(pieces.length === 2){
+              addDec(pieces[0]);
+              addDec(pieces[1]);
+            }
+          }
+          if(!decimals.size) return { note:false, value:'' };
+          const label = Array.from(decimals).join(' & ');
+          const note = `auto: range decimals ${label}`;
+          pl.decimals_used = note;
+          return { note:true, value: note };
+        };
+
         enforceTenPointRange(payload);
+
+        let attempts = 0;
+        let midbandCorrections = 0;
+        let categoryCorrections = 0;
+        let lastCategoryDelta = null;
+        const MAX_ATTEMPTS = 3;
+
+        while(payload && (needsMidbandFix(payload) || needsCategoryFix(payload))){
+          if(attempts >= MAX_ATTEMPTS) break;
+          attempts++;
+          const fixMidband = needsMidbandFix(payload);
+          const fixCategory = needsCategoryFix(payload);
+          if(fixMidband) midbandCorrections++;
+          if(fixCategory) categoryCorrections++;
+          midbandMeta.midbandTriggered = midbandMeta.midbandTriggered || fixMidband;
+          midbandMeta.categoryTriggered = midbandMeta.categoryTriggered || fixCategory;
+
+          const totalVal = Number(payload?.total);
+          const catSum = computeCategorySum(payload);
+          if(fixCategory && Number.isFinite(catSum) && Number.isFinite(totalVal)){
+            lastCategoryDelta = Number((catSum - totalVal).toFixed(1));
+          }
+
+          const issueLines = [];
+          if(fixMidband){
+            const justificationCount = extractJustifications(payload).length;
+            const totalDisplay = Number.isFinite(totalVal) ? totalVal.toFixed(1) : '??';
+            issueLines.push(`• Mid-band total ${totalDisplay} lacks 3 concrete checklist deficiencies (currently ${justificationCount}).`);
+          }
+          if(fixCategory){
+            if(Number.isFinite(catSum) && Number.isFinite(totalVal)){
+              issueLines.push(`• Category weights sum to ${catSum.toFixed(1)} but "total" is ${totalVal.toFixed(1)}.`);
+            } else {
+              issueLines.push('• Unable to verify that "total" equals the weighted category sum. Provide explicit category scores and aligned totals.');
+            }
+          }
+
+          const ruleLines = [
+            '- Keep the identical JSON schema ("total","range","categories","comments","explanation","notes","midband_justification","decimals_used").',
+            '- Ensure "range" is exactly 10.0 points wide (formatted "low-high") and avoid .0/.8 decimal endpoints.',
+            '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
+          ];
+          if(fixMidband){
+            ruleLines.unshift('- If you remain in 75–80, list at least 3 concrete, checklist-tied deficiencies in "midband_justification"; otherwise move the total outside 75–80.');
+          }
+
+          const reconsiderMessages = [{
+            role: "user",
+            content:
+`Reevaluate your score JSON.
+${issueLines.join('\n')}
+Rules:
+${ruleLines.join('\n')}
+Transcript to score (unchanged):
+${transcript}`
+          }];
+
+          try {
+            const reconsiderRaw = await callOpenAIChat({
+              messages: reconsiderMessages,
+              model,
+              maxTokens,
+              json: true
+            });
+            const reconsiderObj = extractFirstJson(reconsiderRaw) || parseChatGPTScoreResponse(reconsiderRaw) || null;
+            if (reconsiderObj) {
+              payload = reconsiderObj;
+              enforceTenPointRange(payload);
+            }
+          } catch (_) {
+            break;
+          }
+        }
+
+        const finalJustifications = extractJustifications(payload);
+        payload.midband_justification = finalJustifications;
+        const decimalsInfo = ensureDecimalsUsed(payload);
+        midbandMeta.autoFilledDecimals = decimalsInfo.note;
+        const existingDecimals = typeof payload.decimals_used === 'string' ? payload.decimals_used.trim() : '';
+        midbandMeta.decimalsValue = existingDecimals;
+
+        const finalTotalVal = Number(payload?.total);
+        const finalCatSum = computeCategorySum(payload);
+        midbandMeta.attempts = attempts;
+        midbandMeta.midbandCorrections = midbandCorrections;
+        midbandMeta.categoryCorrections = categoryCorrections;
+        if(lastCategoryDelta !== null) midbandMeta.lastCategoryDelta = lastCategoryDelta;
+        midbandMeta.finalInBand = Number.isFinite(finalTotalVal) && finalTotalVal >= 75 && finalTotalVal <= 80;
+        midbandMeta.justificationCount = finalJustifications.length;
+        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 3;
+        midbandMeta.categoryAligned = !needsCategoryFix(payload);
+        if(Number.isFinite(finalCatSum) && Number.isFinite(finalTotalVal)){
+          midbandMeta.finalCategoryDelta = Number((finalCatSum - finalTotalVal).toFixed(1));
+        }
       }
 
-      const conf = RUBRICS[type] || { cats: [] };
       const cats = {};
       const comments = {};
       conf.cats.forEach(c=>{
@@ -3112,7 +3336,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         total = Number(bounded.toFixed(1));
       }
 
-      return {
+      const result = {
         total,
         range: payload.range || '',
         rating: scoreToRating(total),
@@ -3123,8 +3347,27 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         categories: cats,
         comments,
         qa: Array.isArray(payload.qa) ? payload.qa : [],
-        raw: rawText
+        midband_justification: Array.isArray(payload.midband_justification) ? payload.midband_justification.filter(v => typeof v === "string" && v.trim()) : [],
+        decimals_used: typeof payload.decimals_used === "string" ? payload.decimals_used.trim() : "",
+        raw: rawText,
+        midbandMeta
       };
+
+      // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
+      if (typeof result.range === "string" && /^\d+(\.\d)?-\d+(\.\d)?$/.test(result.range)) {
+        const [lo, hi] = result.range.split("-").map(Number);
+        const bad = (x)=> String(x).endsWith(".0") || String(x).endsWith(".8");
+        if (bad(lo) || bad(hi)) {
+          // Shift by 0.1 towards the interior for readability; total stays as-is
+          const adjLo = Number((Math.max(0, lo + 0.1)).toFixed(1));
+          const adjHi = Number((Math.min(100, hi - 0.1)).toFixed(1));
+          if (adjHi - adjLo >= 9.8) {
+            result.range = `${adjLo.toFixed(1)}-${adjHi.toFixed(1)}`;
+          }
+        }
+      }
+
+      return result;
     } finally {
       clearTimeout(t);
     }
@@ -3240,7 +3483,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
     effWords: (transcript.trim().match(/\S+/g)||[]).length,
     audio,
-    range: scoreData.range || ''
+    range: scoreData.range || '',
+    midband_justification: Array.isArray(scoreData.midband_justification) ? scoreData.midband_justification.map(j => typeof j === 'string' ? j.trim() : String(j || '')).filter(Boolean) : [],
+    decimals_used: typeof scoreData.decimals_used === 'string' ? scoreData.decimals_used.trim() : '',
+    midbandMeta: scoreData.midbandMeta || null
   };
   if(Number.isFinite(scoreData.scoreLow)) result.scoreLow = Number(scoreData.scoreLow);
   if(Number.isFinite(scoreData.scoreHigh)) result.scoreHigh = Number(scoreData.scoreHigh);
@@ -3258,9 +3504,64 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     result.range = scoreData.range;
   }
 
+  // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
+  if (typeof result.range === 'string' && /^\d+(\.\d)?-\d+(\.\d)?$/.test(result.range)) {
+    const [lo, hi] = result.range.split('-').map(Number);
+    const bad = x => String(x).endsWith('.0') || String(x).endsWith('.8');
+    if (bad(lo) || bad(hi)) {
+      const adjLo = Number((Math.max(0, lo + 0.1)).toFixed(1));
+      const adjHi = Number((Math.min(100, hi - 0.1)).toFixed(1));
+      if (adjHi - adjLo >= 9.8) {
+        result.range = `${adjLo.toFixed(1)}-${adjHi.toFixed(1)}`;
+      }
+    }
+  }
+
   renderReport(type, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
-  showProvenance('LLM-only rubric scoring (no local blend).');
+  const provenanceMessages=['LLM-only rubric scoring (no local blend).'];
+  let provenanceWarn=false;
+  const meta=result.midbandMeta || scoreData.midbandMeta || null;
+  const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
+  if(meta && meta.midbandTriggered){
+    const passes=meta.attempts||1;
+    if(meta.finalInBand){
+      if(meta.resolvedMidband){
+        provenanceMessages.push(`Model remained in 75–80 after ${passes} reconsideration${passes===1?'':'s'} with ${meta.justificationCount||0} checklist gaps logged.`);
+      } else {
+        provenanceMessages.push(`Model stayed in 75–80 without the required mid-band justification after ${passes} reconsideration${passes===1?'':'s'}.`);
+        provenanceWarn=true;
+      }
+    } else {
+      provenanceMessages.push(`Model moved outside 75–80 after ${passes} reconsideration${passes===1?'':'s'}.`);
+    }
+  } else if(result.total >= 75 && result.total <= 80){
+    if(Array.isArray(justifications) && justifications.length >= 3){
+      provenanceMessages.push('Model selected a mid-band total with sufficient justification.');
+    } else {
+      provenanceMessages.push('Model produced a mid-band total without the required justification.');
+      provenanceWarn=true;
+    }
+  } else {
+    provenanceMessages.push('Model finalized score outside 75–80.');
+  }
+  if(meta && meta.categoryTriggered){
+    const finalDelta = typeof meta.finalCategoryDelta === 'number' && Number.isFinite(meta.finalCategoryDelta)
+      ? meta.finalCategoryDelta.toFixed(1)
+      : null;
+    const deltaNote = finalDelta ? ` (delta ${finalDelta})` : '';
+    if(meta.categoryAligned){
+      provenanceMessages.push(`Category totals realigned with the reported total${deltaNote}.`);
+    } else {
+      provenanceMessages.push(`Category totals remain misaligned with the reported total${deltaNote}.`);
+      provenanceWarn=true;
+    }
+  }
+  if(meta && meta.autoFilledDecimals){
+    const note=meta.decimalsValue?` (${meta.decimalsValue})`:'';
+    provenanceMessages.push(`Decimals note auto-filled${note}.`);
+  }
+  showProvenance(provenanceMessages.join('<br>'), provenanceWarn);
   const summaryText = summarizeVideoResult(type, result);
   prepareVideoFollowup({transcript, type, summaryText, rawText: scoreData.raw || ''});
 }).catch(err => {
