@@ -891,13 +891,13 @@ const PROMPT_TEMPLATE_RULING =
 `Improvements: <specific, actionable suggestions>`;
 
   const PROMPT_PREFIX =
-"Important: You are scoring as a high-school regional judge, but DO NOT midpoint-anchor. " +
-"If the performance is championship-caliber, award 9–10/10. If it has major gaps, drop below 7/10. " +
-"Before choosing any score in the 7.5–8.5 band, STOP and verify at least three concrete unchecked rubric items; " +
-"if you cannot list them explicitly, you MUST score outside that 7.5–8.5 band. " +
-"Vary your low/high decimals (avoid .0 and .8), and pick a pair tailored to THIS material (do not reuse prior pairs). " +
-"Score the substance (don’t dock typos/accent), cite precise rules, and base everything only on the provided transcript. " +
-"Above all, give the number a real judge would give today.";
+  "Important: You are scoring as a high-school regional judge, but DO NOT midpoint-anchor. " +
+  "If the performance is championship-caliber, award 9–10/10. If it has major gaps, drop below 7/10. " +
+  "Before choosing any score in the 7.5–8.5 band, STOP and verify at least three concrete unchecked rubric items; " +
+  "if you cannot list them explicitly, you MUST score outside that 7.5–8.5 band. " +
+  "Vary your low/high decimals (avoid .0 and .8), and pick a pair tailored to THIS material (do not reuse prior pairs). " +
+  "Score the substance (don’t dock typos/accent), cite precise rules, and base everything only on the provided transcript. " +
+  "Above all, give the number a real judge would give today.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC){
     let cleaned = transcript.trim();
@@ -3039,6 +3039,45 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     applyFromCenter(center);
   }
 
+  // --- Type detector (keyword + structure heuristics) ---
+  function detectSpeechType(text){
+    const s = (text||'').toLowerCase();
+    const count = (re)=> (s.match(re)||[]).length;
+
+    const openingHits = count(/\b(the evidence will show|you will (hear|see)|our roadmap|theme|story|preponderance|more likely than not|ask you.*verdict)\b/g);
+    const closingHits = count(/\b(the (evidence|record) shows|apply(ing)? the law|element(s)?|instruction(s)?|they (said|claim|argue)|therefore|thus|in (conclusion|closing))\b/g);
+    const directHits  = count(/\b(please introduce yourself|state your name|what did you observe|how do you recognize|fair and accurate|move to admit|what happened next)\b/g);
+    const crossHits   = count(/\b(correct\?|right\?|yes or no|isn'?t it true|you wrote|on page|line \d+|is it true that)\b/g);
+
+    const arr = [
+      ['opening', openingHits],
+      ['closing', closingHits],
+      ['direct',  directHits],
+      ['cross',   crossHits]
+    ].sort((a,b)=>b[1]-a[1]);
+
+    const [best, bestScore] = arr[0];
+    const secondScore = arr[1][1];
+    const confidence = bestScore === 0 ? 0 : (bestScore - secondScore) / Math.max(1, bestScore);
+    return { type: best, confidence, vector:{opening:openingHits,closing:closingHits,direct:directHits,cross:crossHits} };
+  }
+
+  // --- Generic cap helper ---
+  function capScore(payload, cap, reasonNote){
+    const c = Math.max(0, Math.min(100, Number(cap)));
+    if (!Number.isFinite(c)) return;
+    const low  = Math.max(0, +(c - 5).toFixed(1));
+    const high = Math.min(100, +(c + 5).toFixed(1));
+    payload.total     = +c.toFixed(1);
+    payload.scoreLow  = low;
+    payload.scoreHigh = high;
+    payload.range     = `${low.toFixed(1)}-${high.toFixed(1)}`;
+    payload.notes = (payload.notes || '') + `\n(auto-cap: ${reasonNote})`;
+  }
+
+  // Backwards-compat alias used by earlier patches
+  const capOpeningScore = capScore;
+
   // Hardened: timeout + retry + JSON-safe parsing + logs
   async function scoreViaChatGPT(type, transcript){
     if(!EngineState.openaiKey) throw new Error("no_key");
@@ -3052,102 +3091,124 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       return { total:0, explanation:'Transcript too short to score.', notes:'', categories: cats, comments:{}, qa:[], raw:'' };
     }
 
-    const messages = [{ role: "user", content: buildChatGPTPrompt(type, transcript) }];
-
     const ctrl = new AbortController();
     const t = setTimeout(()=>{ try{ ctrl.abort(); }catch(_){} }, 15000);
 
     let rawText='';
+    let payload = null;
+    let usedType = type;
+    let secondUsed = false;
+    let typeAudit = null;
+    let mismatch = false;
     try {
-      // Ask for JSON first; callOpenAIChat falls back to text automatically if needed
-      const raw = await callOpenAIChat({ messages, model, maxTokens, json: true, signal: ctrl.signal });
-      rawText = raw;
+      typeAudit = detectSpeechType(transcript);
+      mismatch = typeAudit.type && typeAudit.type !== type && typeAudit.confidence >= 0.35; // mild confidence
 
-      // Try strict JSON parsing (your helper)
-      let payload = null;
-      try { payload = parseChatGPTScoreResponse(raw); } catch {}
-
-      // If not JSON, parse your "Summary/Score/Explanation" text format
-      if (!payload) {
-        const tParsed = ChatGPTScoring.parseScoreResponse(raw);
-        let avg = tParsed.scoreLow || 0;
-        let rangeStr = '';
-        let scoreLowPct = null;
-        let scoreHighPct = null;
-        if (typeof tParsed.scoreHigh === 'number') {
-          avg = (tParsed.scoreLow + tParsed.scoreHigh) / 2;
-          scoreLowPct = Number((tParsed.scoreLow * 10).toFixed(1));
-          scoreHighPct = Number((tParsed.scoreHigh * 10).toFixed(1));
-          rangeStr = `${scoreLowPct.toFixed(1)}-${scoreHighPct.toFixed(1)}`;
-        }
-        payload = {
-          total: Number((avg * 10).toFixed(1)),
-          range: rangeStr,
-          scoreLow: scoreLowPct,
-          scoreHigh: scoreHighPct,
-          explanation: tParsed.explanation || "",
-          notes: tParsed.improvement || "",
-          categories: {},
-          comments: {},
-          qa: []
-        };
+      // Helper to run one scoring pass for a given rubric type
+      async function runPass(passType){
+        const passPrompt = buildChatGPTPrompt(passType, transcript);
+        const passMessages = [{ role: "user", content: passPrompt }];
+        const raw = await callOpenAIChat({ messages: passMessages, model, maxTokens, json: true, signal: ctrl.signal });
+        return { raw, passType };
       }
 
-      if (payload && !payload.range && typeof payload.total_low === 'number' && typeof payload.total_high === 'number') {
-        const low = Number(payload.total_low);
-        const high = Number(payload.total_high);
-        if (Number.isFinite(low) && Number.isFinite(high)) {
-          payload.range = `${low.toFixed(1)}-${high.toFixed(1)}`;
-          payload.scoreLow = Number(low.toFixed(1));
-          payload.scoreHigh = Number(high.toFixed(1));
-          if (!Number.isFinite(Number(payload.total))) {
-            payload.total = Number(((low + high) / 2).toFixed(1));
+      function parsePayload(raw){
+        let parsed = null;
+        try { parsed = parseChatGPTScoreResponse(raw); } catch {}
+        if (!parsed) {
+          const tParsed = ChatGPTScoring.parseScoreResponse(raw);
+          let avg = tParsed.scoreLow || 0, rangeStr = '', lowPct=null, highPct=null;
+          if (typeof tParsed.scoreHigh === 'number') {
+            avg = (tParsed.scoreLow + tParsed.scoreHigh) / 2;
+            lowPct  = Number((tParsed.scoreLow  * 10).toFixed(1));
+            highPct = Number((tParsed.scoreHigh * 10).toFixed(1));
+            rangeStr = `${lowPct.toFixed(1)}-${highPct.toFixed(1)}`;
+          }
+          parsed = {
+            total: Number((avg * 10).toFixed(1)),
+            range: rangeStr, scoreLow: lowPct, scoreHigh: highPct,
+            explanation: tParsed.explanation || "", notes: tParsed.improvement || "",
+            categories: {}, comments:{}, qa:[]
+          };
+        }
+        if (parsed && !parsed.range && typeof parsed.total_low === 'number' && typeof parsed.total_high === 'number') {
+          const low = Number(parsed.total_low);
+          const high = Number(parsed.total_high);
+          if (Number.isFinite(low) && Number.isFinite(high)) {
+            parsed.range = `${low.toFixed(1)}-${high.toFixed(1)}`;
+            parsed.scoreLow = Number(low.toFixed(1));
+            parsed.scoreHigh = Number(high.toFixed(1));
+            if (!Number.isFinite(Number(parsed.total))) {
+              parsed.total = Number(((low + high) / 2).toFixed(1));
+            }
           }
         }
-      }
-      if (payload && !payload.range) {
-        const low = Number(payload.score_low ?? payload.low ?? payload.range_low ?? payload.scoreLow);
-        const high = Number(payload.score_high ?? payload.high ?? payload.range_high ?? payload.scoreHigh);
-        if (Number.isFinite(low) && Number.isFinite(high)) {
-          let lowVal = low;
-          let highVal = high;
-          if (highVal < lowVal) [lowVal, highVal] = [highVal, lowVal];
-          const unitScale = highVal <= 10 && lowVal <= 10;
-          if (unitScale) {
-            lowVal *= 10;
-            highVal *= 10;
-          }
-          const lowFixed = Number(lowVal.toFixed(1));
-          const highFixed = Number(highVal.toFixed(1));
-          payload.scoreLow = lowFixed;
-          payload.scoreHigh = highFixed;
-          payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
-          if (!Number.isFinite(Number(payload.total))) {
-            payload.total = Number(((lowVal + highVal) / 2).toFixed(1));
+        if (parsed && !parsed.range) {
+          const low = Number(parsed.score_low ?? parsed.low ?? parsed.range_low ?? parsed.scoreLow);
+          const high = Number(parsed.score_high ?? parsed.high ?? parsed.range_high ?? parsed.scoreHigh);
+          if (Number.isFinite(low) && Number.isFinite(high)) {
+            let lowVal = low;
+            let highVal = high;
+            if (highVal < lowVal) [lowVal, highVal] = [highVal, lowVal];
+            const unitScale = highVal <= 10 && lowVal <= 10;
+            if (unitScale) {
+              lowVal *= 10;
+              highVal *= 10;
+            }
+            const lowFixed = Number(lowVal.toFixed(1));
+            const highFixed = Number(highVal.toFixed(1));
+            parsed.scoreLow = lowFixed;
+            parsed.scoreHigh = highFixed;
+            parsed.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
+            if (!Number.isFinite(Number(parsed.total))) {
+              parsed.total = Number(((lowVal + highVal) / 2).toFixed(1));
+            }
           }
         }
+        if (parsed && parsed.range) {
+          const normalizedRange = String(parsed.range).replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
+          const parts = normalizedRange.split('-').map(p=>Number(p.trim()));
+          if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
+            let [low, high] = parts;
+            if (high < low) [low, high] = [high, low];
+            const unitScale = high <= 10 && low <= 10;
+            if (unitScale) {
+              low *= 10;
+              high *= 10;
+            }
+            const lowFixed = Number(low.toFixed(1));
+            const highFixed = Number(high.toFixed(1));
+            parsed.scoreLow = lowFixed;
+            parsed.scoreHigh = highFixed;
+            if (!Number.isFinite(Number(parsed.total))) {
+              parsed.total = Number(((low + high) / 2).toFixed(1));
+            }
+            parsed.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
+          }
+        }
+        enforceTenPointRange(parsed);
+        return parsed;
       }
-      if (payload && payload.range) {
-        const normalizedRange = String(payload.range).replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
-        const parts = normalizedRange.split('-').map(p=>Number(p.trim()));
-        if (parts.length === 2 && parts.every(n=>Number.isFinite(n))) {
-          let [low, high] = parts;
-          if (high < low) [low, high] = [high, low];
-          const unitScale = high <= 10 && low <= 10;
-          if (unitScale) {
-            low *= 10;
-            high *= 10;
-          }
-          const lowFixed = Number(low.toFixed(1));
-          const highFixed = Number(high.toFixed(1));
-          payload.scoreLow = lowFixed;
-          payload.scoreHigh = highFixed;
-          if (!Number.isFinite(Number(payload.total))) {
-            payload.total = Number(((low + high) / 2).toFixed(1));
-          }
-          payload.range = `${lowFixed.toFixed(1)}-${highFixed.toFixed(1)}`;
+
+      const pass1 = await runPass(type);
+      let pass2 = null;
+      if (mismatch) {
+        try { pass2 = await runPass(typeAudit.type); } catch(_){}
+      }
+
+      const payload1 = parsePayload(pass1.raw);
+      const payload2 = pass2 ? parsePayload(pass2.raw) : null;
+
+      payload = payload1;
+      if (payload2 && mismatch) {
+        if (Number(payload2.total) < Number(payload1.total) - 0.1) {
+          payload = payload2;
+          usedType = typeAudit.type;
+          secondUsed = true;
         }
       }
+
+      rawText = secondUsed && pass2 ? pass2.raw : pass1.raw;
 
       let midbandMeta = {
         attempts: 0,
@@ -3316,6 +3377,133 @@ ${transcript}`
         if(Number.isFinite(finalCatSum) && Number.isFinite(finalTotalVal)){
           midbandMeta.finalCategoryDelta = Number((finalCatSum - finalTotalVal).toFixed(1));
         }
+
+        if (usedType === 'opening') {
+          const s = (transcript||'').toLowerCase();
+
+          const hasTheme     = /\b(theme|theory|story)\b/.test(s);
+          const hasPreview   = /\b(the evidence will show|you will (hear|see))\b/.test(s);
+          const hasBurden    = /\b(preponderance|burden|more likely than not)\b/.test(s);
+          const asksVerdict  = /\b(ask (you|the jury)|return a verdict|find for (us|the|our)|rule in (our|my) favor)\b/.test(s);
+          const hasRoadmap   = /\b(first|second|third|to begin|our roadmap|roadmap)\b/.test(s);
+          const coreCount    = [hasTheme,hasPreview,hasBurden,asksVerdict,hasRoadmap].filter(Boolean).length;
+
+          const closingSig   = (s.match(/\b(the (evidence|record) shows|apply(ing)? the law|element(s)?|instruction(s)?|they (said|claim|argue)|therefore|thus|in (conclusion|closing))\b/g)||[]).length;
+          const argumentSig  = (s.match(/\b(under (rule|law)|because element|therefore|thus|as a matter of law|the elements are|by applying (the|this) law)\b/g)||[]).length;
+
+          const hasWitnessPreview = /\byou will (hear|see) (from )?\b/.test(s) || /\bwitness(es)?\b/.test(s);
+
+          if (coreCount <= 1) capScore(payload, 60, `opening checklist ${coreCount}/5`);
+          else if (coreCount === 2 && Number(payload.total) > 70) capScore(payload, 70, `opening checklist ${coreCount}/5`);
+          else if (coreCount === 3 && Number(payload.total) > 80) capScore(payload, 80, `opening checklist ${coreCount}/5`);
+
+          if (closingSig >= 3 && Number(payload.total) > 72) capScore(payload, 72, `closing-style language (${closingSig})`);
+          if (argumentSig >= 2 && Number(payload.total) > 74) capScore(payload, 74, `argumentative/law-analysis (${argumentSig})`);
+          if (hasPreview && !hasWitnessPreview && Number(payload.total) > 76) capScore(payload, 76, 'preview without witness preview');
+          if (coreCount <= 2 && closingSig >= 2 && Number(payload.total) > 65) capScore(payload, 65, `weak opening + closing signals`);
+        }
+
+        if (usedType === 'closing') {
+          const s = (transcript||'').toLowerCase();
+
+          const hasLawToFact = /\b(apply(ing)? the law|element(s)?|instruction(s)?|under (rule|the law)|means (under|by) the law|legal standard)\b/.test(s);
+          const hasRebuttal  = /\b(they (said|claim|argue)|opposing counsel|their (case|argument)|rebut)\b/.test(s);
+          const hasRoadmap   = /\b(roadmap|first|second|third|let's (start|begin)|here's (why|how))\b/.test(s);
+          const hasBurden    = /\b(burden|preponderance|beyond a reasonable doubt|more likely than not)\b/.test(s);
+          const asksVerdict  = /\b(ask (you|the jury)|return a verdict|rule in (our|my) favor|find for (us|the|our)|we (ask|urge) you to)\b/.test(s);
+
+          const recapOnlyHits = (s.match(/\b(witness(es)?|testified|said|we heard|the evidence (showed|was))\b/g)||[]).length;
+
+          let missing = 0;
+          if(!hasLawToFact) missing++;
+          if(!asksVerdict)  missing++;
+          if(!hasRebuttal)  missing++;
+          if(!hasRoadmap)   missing++;
+          if(!hasBurden)    missing++;
+
+          if (missing >= 3 && Number(payload.total) > 70) {
+            capScore(payload, 70, `closing missing ${missing}/5 core items`);
+          } else if (missing === 2 && Number(payload.total) > 76) {
+            capScore(payload, 76, `closing missing ${missing}/5 core items`);
+          }
+
+          if (recapOnlyHits >= 5 && !hasLawToFact && Number(payload.total) > 74) {
+            capScore(payload, 74, 'recap-heavy closing without law-to-fact');
+          }
+
+          if (!hasRebuttal && Number(payload.total) > 78) {
+            capScore(payload, 78, 'no rebuttal of opposing case');
+          }
+        }
+
+        if (usedType === 'direct') {
+          const t = (transcript||'');
+          const lines = t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+          const qs = lines.filter(l=>/^(\s*Q[:;\-]?|Question[:;])/i.test(l) || /\?\s*$/.test(l));
+
+          const isOpen = q => /^\s*(what|why|how|describe|explain|tell(\s+us)?|walk\s+us\s+through|who|where|when|please\s+introduce|state\s+your\s+name)\b/i.test(q);
+          const isLead = q => /\b(correct\?|right\?|yes\s*or\s*no|isn'?t\s+(it|that)\s+true|wouldn'?t\s+you\s+agree|you\s+(agree|admit)|is\s+it\s+true\s+that)\b/i.test(q);
+          const hasFoundationCue = q => /\b(recognize|identify|authenticate|fair\s+and\s+accurate|move\s+to\s+admit|admit\s+(it|this)|publish|marked\s+as\s+exhibit|exhibit\s+\d+)\b/i.test(q);
+          const hasFollow = q => /\b(what\s+happened\s+next|then\s+what|after\s+that|and\s+what\s+did\s+you\s+do)\b/i.test(q);
+
+          const totalQ = qs.length || 1;
+          const openCount = qs.filter(isOpen).length;
+          const leadCount = qs.filter(isLead).length;
+          const foundCount = qs.filter(hasFoundationCue).length;
+          const followCount = qs.filter(hasFollow).length;
+
+          const openRatio = openCount/totalQ;
+          const leadRatio = leadCount/totalQ;
+
+          if (leadRatio >= 0.40 && Number(payload.total) > 68) {
+            capScore(payload, 68, `direct too leading (ratio ${(leadRatio*100).toFixed(0)}%)`);
+          }
+          if (foundCount === 0 && Number(payload.total) > 70) {
+            capScore(payload, 70, 'no foundation/authentication');
+          } else if (foundCount === 1 && Number(payload.total) > 78) {
+            capScore(payload, 78, 'thin foundation/authentication');
+          }
+          if (openRatio < 0.50 && Number(payload.total) > 72) {
+            capScore(payload, 72, `low open-ended ratio (${(openRatio*100).toFixed(0)}%)`);
+          }
+          if (followCount === 0 && Number(payload.total) > 74) {
+            capScore(payload, 74, 'no follow-up questions');
+          }
+        }
+
+        if (usedType === 'cross') {
+          const t = (transcript||'');
+          const lines = t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+          const qs = lines.filter(l=>/^(\s*Q[:;\-]?|Question[:;])/i.test(l) || /\?\s*$/.test(l));
+
+          const isLead = q => /\b(correct\?|right\?|yes\s*or\s*no|isn'?t\s+(it|that)\s+true|wouldn'?t\s+you\s+agree|you\s+(agree|admit)|is\s+it\s+true\s+that)\b/i.test(q);
+          const hasImpeach = q => /\b(page|line|statement|prior\s+statement|affidavit|deposition|in\s+your\s+statement|exhibit(\s+\d+)?)\b/i.test(q);
+          const isCompound = q => /\?[^?]+\?/.test(q) || /\b(and|or)\b[^?]*\?/i.test(q);
+
+          const totalQ = qs.length || 1;
+          const leadCount = qs.filter(isLead).length;
+          const impeachCount = qs.filter(hasImpeach).length;
+          const compoundCount = qs.filter(isCompound).length;
+          const avgTokens = qs.reduce((s,q)=>s+(q.match(/\S+/g)||[]).length,0) / totalQ;
+
+          const leadRatio = leadCount/totalQ;
+          const compoundRate = compoundCount/totalQ;
+
+          if (leadRatio < 0.50 && Number(payload.total) > 74) {
+            capScore(payload, 74, `low leading ratio on cross (${(leadRatio*100).toFixed(0)}%)`);
+          }
+          if (impeachCount === 0 && Number(payload.total) > 76) {
+            capScore(payload, 76, 'no impeachment anchors/admissions');
+          }
+          if (avgTokens > 12 && Number(payload.total) > 75) {
+            capScore(payload, 75, `long questions (avg ${avgTokens.toFixed(0)} tokens)`);
+          }
+          if (compoundRate > 0.20 && Number(payload.total) > 72) {
+            capScore(payload, 72, `compound questions ${(compoundRate*100).toFixed(0)}%`);
+          }
+        }
+
+        enforceTenPointRange(payload);
       }
 
       const cats = {};
@@ -3351,6 +3539,14 @@ ${transcript}`
         decimals_used: typeof payload.decimals_used === "string" ? payload.decimals_used.trim() : "",
         raw: rawText,
         midbandMeta
+      };
+
+      result.audit = {
+        selectedType: type,
+        usedType,
+        mismatchDetected: !!mismatch,
+        detector: typeAudit,
+        secondPassUsed: !!secondUsed
       };
 
       // Cosmetic: discourage ubiquitous ".0/.8" endpoints if the model ignored the instruction
