@@ -2074,7 +2074,7 @@ function wire(){
  return{wire}
 })();
 
-/* Video Coach (ChatGPT integration + fallback) */
+  /* Video Coach (ChatGPT integration) */
 const VideoCoach=(function(){
   let stream=null,rec=null,chunks=[],timer=null,sec=0,recog=null,
       lastVideoBlob=null,lastVideoDuration=0,lastVideoUrl='',currentFacingMode='user',
@@ -3135,6 +3135,62 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     return Number(clamped.toFixed(1));
   }
 
+  function validateScorePayload(payload, conf){
+    const issues=[];
+    if(!payload || typeof payload!=='object'){
+      issues.push('missing payload');
+      return {issues,categories:{},total:null,computed:null,commentCount:0,catUniform:false};
+    }
+
+    const categories={};
+    let computedSum=0;
+    let haveAllCategories=true;
+    const cats=Array.isArray(conf?.cats)?conf.cats:[];
+    for(const cat of cats){
+      const normalized=normalizeCategoryScore(payload?.categories?.[cat.key]);
+      if(!Number.isFinite(normalized)){
+        issues.push(`missing or invalid category "${cat.n||cat.key}"`);
+        haveAllCategories=false;
+      }else{
+        categories[cat.key]=normalized;
+        computedSum+=normalized*(cat.w*10);
+      }
+    }
+
+    const normalizedTotal=normalizeHundredScore(payload?.total);
+    if(normalizedTotal===null){
+      issues.push('missing or invalid total score');
+    }
+
+    const boundedComputed=haveAllCategories
+      ? Number(Math.max(0,Math.min(100,computedSum)).toFixed(1))
+      : null;
+    if(normalizedTotal!==null && boundedComputed!==null){
+      if(Math.abs(boundedComputed-normalizedTotal)>0.6){
+        issues.push('total does not match weighted categories');
+      }
+    }
+
+    const commentCount=payload && payload.comments && typeof payload.comments==='object'
+      ? Object.values(payload.comments).filter(v=>typeof v==='string'&&v.trim()).length
+      : 0;
+    const catValues=Object.values(categories);
+    const catUniform=catValues.length>0 && catValues.every(v=>Math.abs(v-catValues[0])<0.01);
+    const suspiciousTotals=new Set([88.2,88.3]);
+    if(normalizedTotal!==null && suspiciousTotals.has(Number(normalizedTotal)) && (commentCount===0 || catUniform)){
+      issues.push('placeholder-style 88-point total without supporting detail');
+    }
+
+    return {
+      issues,
+      categories,
+      total: normalizedTotal,
+      computed: boundedComputed,
+      commentCount,
+      catUniform
+    };
+  }
+
   // Retry wrapper: chat first (JSON), then chat (plain), then /responses
   async function robustLLMScore({model, maxTokens, transcript, buildPromptJSON, buildPromptText}) {
     try {
@@ -3577,21 +3633,35 @@ ${transcript}`
         normalizeScorePayload(payload);
       }
 
+      const validation = validateScorePayload(payload, conf);
+      if(validation.issues.length){
+        const vErr = new Error('score_validation_failed');
+        vErr.code = 'score_validation_failed';
+        vErr.issues = validation.issues;
+        vErr.raw = rawText;
+        throw vErr;
+      }
+
       const cats = {};
       const comments = {};
       conf.cats.forEach(c=>{
-        const cleaned = normalizeCategoryScore(payload?.categories?.[c.key]);
+        const normalizedCat = validation.categories?.[c.key];
+        const cleaned = Number.isFinite(normalizedCat) ? normalizedCat : normalizeCategoryScore(payload?.categories?.[c.key]);
         cats[c.key] = Number.isFinite(cleaned) ? cleaned : 6;
         if (typeof payload?.comments?.[c.key] === "string") comments[c.key] = payload.comments[c.key];
       });
 
-      const computed = conf.cats.reduce((s,c)=>{
-        const val = Number.isFinite(cats[c.key]) ? cats[c.key] : 6;
-        return s + (Math.max(0, Math.min(10, val)) * (c.w*10));
-      }, 0);
+      const computed = validation.computed !== null
+        ? validation.computed
+        : conf.cats.reduce((s,c)=>{
+            const val = Number.isFinite(cats[c.key]) ? cats[c.key] : 6;
+            return s + (Math.max(0, Math.min(10, val)) * (c.w*10));
+          }, 0);
       const boundedComputed = Math.max(0, Math.min(100, computed));
       let total;
-      if (Number.isFinite(Number(payload.total))) {
+      if (Number.isFinite(validation.total)) {
+        total = Number(validation.total.toFixed(1));
+      } else if (Number.isFinite(Number(payload.total))) {
         const bounded = Math.max(0, Math.min(100, Number(payload.total)));
         total = Number(bounded.toFixed(1));
       } else {
@@ -3619,7 +3689,8 @@ ${transcript}`
         midband_justification: Array.isArray(payload.midband_justification) ? payload.midband_justification.filter(v => typeof v === "string" && v.trim()) : [],
         decimals_used: typeof payload.decimals_used === "string" ? payload.decimals_used.trim() : "",
         raw: rawText,
-        midbandMeta
+        midbandMeta,
+        validation
       };
 
       const totalRounded = Number(total.toFixed(1));
@@ -3698,72 +3769,75 @@ ${transcript}`
     const cmp = compareToExemplar(type, transcript);
     const qM  = questionMetrics(transcript, sec);
 
-    const conf = RUBRICS[type]||{cats:[]};
-    const cats = {};
-    conf.cats.forEach(c=>{ cats[c.key]=6; });
+    const statusEl=$('videoStatus');
+    const reasonText=(reason||'').trim();
+    let statusMessage='Scoring unavailable until ChatGPT scoring is enabled.';
+    let statusColor='#f97316';
+    let explanation='Add your ChatGPT (OpenAI) API key under “API Key / Engine” to unlock rubric-based scoring and narrative feedback.';
 
-    if (type==='opening'){
-      const lower=transcript.toLowerCase();
-      const theme = /\b(theme|theory|story)\b/.test(lower);
-      const ews   = /\bthe evidence will show\b/.test(lower);
-      const burden= /\b(preponderance|burden|more likely than not)\b/.test(lower);
-      const ask   = /\b(ask (you|the jury)|return a verdict|rule in|find for)\b/.test(lower);
-
-      cats.content     = clamp(Math.round(10*(0.35*cmp.score + 0.25*cmp.biCos)) + (theme?1:0)+(ews?1:0)+(burden?1:0),1,10);
-      cats.organization= clamp(4 + (ews?2:0) + (theme?1:0) + (ask?1:0) + Math.min(3, Math.floor(bm.signposts/2)),1,10);
-      cats.persuasion  = clamp(3 + Math.round(3*cmp.lexCos) + (theme?1:0) + (ask?1:0),1,10);
-      cats.delivery    = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
-    } else if (type==='closing'){
-      const lower=transcript.toLowerCase();
-      const rebut = /\b(they (said|claim|argue)|opposing counsel|rebut)\b/.test(lower);
-      cats.content     = clamp(Math.round(10*(0.35*cmp.score + 0.25*cmp.biCos)),1,10);
-      cats.organization= clamp(5 + Math.round(cmp.struct*5),1,10);
-      cats.refutation  = rebut?8:5;
-      cats.persuasion  = clamp(4 + Math.round(3*cmp.lexCos),1,10);
-      cats.delivery    = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
-    } else if (type==='direct'){
-      cats.content    = clamp(5 + Math.round(3*cmp.lexCos),1,10);
-      cats.openq      = qM.qCount? (qM.openRatio>=0.6?8:qM.openRatio>=0.5?7:5) : 5;
-      cats.foundation = qM.foundationCount>=2?8:qM.foundationCount===1?6:4;
-      cats.listening  = qM.followupCount>=2?8:qM.followupCount===1?6:4;
-      cats.delivery   = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
-    } else {
-      cats.content   = clamp(5 + Math.round(3*cmp.lexCos),1,10);
-      cats.leading   = qM.leadRatio>=0.7?9:qM.leadRatio>=0.5?8:6;
-      cats.impeach   = qM.impeachCount>=2?8:qM.impeachCount===1?6:4;
-      cats.brevity   = (qM.avgTokens||0)<=11 ? 8 : (qM.avgTokens<=14?6:4);
-      cats.delivery  = clamp( (bm.wpm>=110&&bm.wpm<=180?8:6) - Math.min(2, Math.floor(bm.fillers/4)),1,10);
+    if(tooShort){
+      const suffix=reasonText?(/[.!?]$/.test(reasonText)?reasonText:`${reasonText}.`):'Transcript too short to score.';
+      statusMessage=reasonText || 'Transcript too short to score. Record a longer performance and try again.';
+      statusColor='#ef4444';
+      explanation=`${suffix} Add more material and re-score to receive full feedback.`;
+    } else if(reasonText){
+      const suffix=/[.!?]$/.test(reasonText)?reasonText:`${reasonText}.`;
+      explanation=`${suffix} Add your ChatGPT (OpenAI) API key under “API Key / Engine” to unlock rubric-based scoring and narrative feedback.`;
     }
 
-    let total=0; conf.cats.forEach(c=>{ total+= clamp(cats[c.key],1,10) * (c.w*10); });
-    total = tooShort ? 0 : Number(total.toFixed(1));
-    const low = Math.max(0, total-5);
-    const high = Math.min(100, total+5);
+    if(statusEl){
+      statusEl.innerHTML=`<strong>${escHTML(statusMessage)}</strong>`;
+      statusEl.style.color=statusColor;
+    }
 
-    const result={
-      cats,
-      total,
-      metrics: bm,
-      compare: cmp,
-      comments:{},
-      rating: scoreToRating(total),
-      range: `${low.toFixed(1)}-${high.toFixed(1)}`,
-      scoreLow: Number(low.toFixed(1)),
-      scoreHigh: Number(high.toFixed(1)),
-      explanation: (tooShort?'Transcript too short to score. ':'') + (reason||'Heuristic fallback score.'),
-      notes:'(Emergency local scorer — add an API key for full rubric + narrative feedback.)',
-      qa:[],
-      midband_justification:[],
-      decimals_used:'',
-      midbandMeta:null
-    };
+    const metricsRows=[
+      ['Words', bm.wordCount],
+      ['WPM', bm.wpm || 'N/A'],
+      ['Fillers', bm.fillers],
+      ['Signposts', bm.signposts],
+      ['Vocab Richness', `${bm.vocabRich.toFixed(1)}/10`],
+      ['Exemplar Similarity (lex)', `${Math.round(cmp.lexCos*100)}%`],
+      ['Exemplar Similarity (bigrams)', `${Math.round(cmp.biCos*100)}%`]
+    ];
 
-    if(audio){ result.audio = audio; }
-    renderReport(type, result);
-    $('videoStatus').textContent = tooShort ? 'Transcript too short.' : 'Scored by emergency fallback.';
-    const summaryText = summarizeVideoResult(type, result);
-    prepareVideoFollowup({transcript, type, summaryText, rawText: result.explanation});
-    return result;
+    if(type==='direct' || type==='cross'){
+      metricsRows.push(['Question Count', qM.qCount]);
+      metricsRows.push(['Open Question %', qM.qCount?`${Math.round(qM.openRatio*100)}%`:'N/A']);
+      metricsRows.push(['Leading Question %', qM.qCount?`${Math.round(qM.leadRatio*100)}%`:'N/A']);
+      metricsRows.push(['Average Question Length', qM.avgTokens ? `${qM.avgTokens.toFixed(1)} words` : 'N/A']);
+    }
+
+    const metricsHTML = metricsRows.map(([label,value])=>`<div>${escHTML(label)}</div><div>${escHTML(String(value))}</div>`).join('');
+
+    let voiceHTML='';
+    if(audio){
+      voiceHTML=`<div class="kv" style="margin-top:8px">
+        <div>Volume</div><div>${escHTML(audio.volRating)}${Number.isFinite(audio.avgVolume)?` (${audio.avgVolume} dB)`:''}</div>
+        <div>Tone</div><div>${escHTML(audio.toneRating)}${Number.isFinite(audio.pitchVar)?` (${audio.pitchVar} Hz)`:''}</div>
+        <div>Clarity</div><div>${escHTML(audio.clarityRating)}</div>
+        <div>Speed</div><div>${escHTML(audio.speedRating)}${Number.isFinite(audio.wpm)?` (${audio.wpm} WPM)`:''}</div>
+      </div>`;
+      if(audio.tips){
+        voiceHTML+=`<div class="small" style="margin-top:4px"><strong>Voice Tips:</strong> ${escHTML(audio.tips)}</div>`;
+      }
+    }
+
+    const warnText = tooShort ? 'No score generated.' : 'Scoring unavailable without ChatGPT.';
+
+    const bodyParts=[
+      `<div class="warn" style="margin-bottom:8px">${escHTML(warnText)}</div>`,
+      `<div class="small" style="margin-bottom:8px"><strong>Explanation:</strong> ${escHTML(explanation)}</div>`,
+      `<div class="kv">${metricsHTML}</div>`
+    ];
+
+    if(voiceHTML){
+      bodyParts.push(voiceHTML);
+    }
+
+    $('videoFeedback').innerHTML=bodyParts.join('');
+    $('videoFeedback').style.display='block';
+
+    return null;
   }
   let _scoreLock = false;
   async function scoreNow(){
@@ -3781,13 +3855,15 @@ ${transcript}`
     if(eff < 8){
       $('videoStatus').textContent='Transcript too short to score (minimum 8 words).';
       scoreWithBuiltin(type, raw, audio, 'Transcript too short to score (minimum 8 words)');
-      showProvenance('Transcript too short; score held at 0.', true);
+      showProvenance('Transcript too short; no score generated.', true);
       _scoreLock = false;
       return;
     }
 
     if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
       $('videoStatus').textContent='Scoring via ChatGPT…';
+      $('videoFeedback').innerHTML='<div class="small">Contacting ChatGPT…</div>';
+      $('videoFeedback').style.display='block';
       scoreViaChatGPT(type, transcript).then(scoreData=>{
   // Use the LLM output AS-IS (no local blending, no WPM/length nudges)
   const usedType = scoreData?.audit?.usedType || type;
@@ -3951,8 +4027,14 @@ ${transcript}`
   prepareVideoFollowup({transcript, type: usedType, summaryText, rawText: scoreData.raw || ''});
 }).catch(err => {
   // Surface precise error info
-  let msg = 'ChatGPT scoring unavailable \u2014 using emergency fallback.';
-  if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
+  let msg = 'ChatGPT scoring unavailable \u2014 scoring skipped.';
+  let provenanceMsg = 'Scoring unavailable due to a ChatGPT error (fallback disabled).';
+  let fallbackReason = 'ChatGPT error prevented scoring';
+  if (err?.code === 'score_validation_failed') {
+    msg = 'ChatGPT returned incomplete scoring data. Please Re-score after a moment.';
+    provenanceMsg = 'ChatGPT scoring failed validation (fallback disabled).';
+    fallbackReason = 'ChatGPT returned incomplete scoring data';
+  } else if (err?.status === 401) msg = 'OpenAI API key invalid/expired (401). Update your key in \u201cAPI Key / Engine\u201d.';
   else if (err?.status === 429 || err?.code === 'rate_limit') msg = 'Rate limit on your OpenAI account (429). Try again or switch model.';
   else if (err?.status === 403) msg = 'OpenAI request forbidden (403). Check org/project access for this key.';
   else if (err?.code === 'insufficient_quota') msg = 'OpenAI quota exhausted. Add billing or change organization.';
@@ -3960,23 +4042,32 @@ ${transcript}`
     msg = 'Network error reaching OpenAI. Check ad blockers / CORS / HTTPS.';
   else if (err?.message) msg = `OpenAI error: ${err.message}`;
 
-  const detail = err?.raw ? (typeof err.raw === 'string' ? err.raw.slice(0, 300) : JSON.stringify(err.raw).slice(0, 300)) : '';
+  const issueText = Array.isArray(err?.issues) && err.issues.length ? err.issues.join(' | ') : '';
+  const rawDetail = err?.raw ? (typeof err.raw === 'string' ? err.raw.slice(0, 300) : JSON.stringify(err.raw).slice(0, 300)) : '';
+  const detailParts = [];
+  if(issueText) detailParts.push(issueText);
+  if(rawDetail) detailParts.push(rawDetail);
+  const detail = detailParts.join(' ');
+
   $('videoStatus').innerHTML = `<strong>${escHTML(msg)}</strong>${detail ? `<div class="small">${escHTML(detail)}</div>` : ''}`;
   $('videoStatus').style.color = '#ef9a9a';
 
-  // Do NOT flip engine mode; just fall back this run
-  scoreWithBuiltin(type, raw, audio, 'ChatGPT error prevented scoring');
-  showProvenance('Emergency fallback score applied (ChatGPT error).', true);
+  // Do NOT flip engine mode; just show that scoring is unavailable for this run
+  const reasonDetail = issueText ? `${fallbackReason} (${issueText})` : fallbackReason;
+  scoreWithBuiltin(type, raw, audio, reasonDetail);
+  showProvenance(provenanceMsg, true);
 
   const badge = $('modeBadge');
   if (badge && /ChatGPT/i.test(badge.textContent)) {
-    badge.textContent = 'Mode: ChatGPT (scoring unavailable)';
+    badge.textContent = err?.code === 'score_validation_failed'
+      ? 'Mode: ChatGPT (validation failed)'
+      : 'Mode: ChatGPT (scoring unavailable)';
   }
 }).finally(()=>{ _scoreLock = false; });
       return;
     }
     scoreWithBuiltin(type, raw, audio, 'ChatGPT scoring not configured');
-    showProvenance('Emergency fallback score used (no ChatGPT API key).', true);
+    showProvenance('Scoring unavailable until ChatGPT scoring is configured.', true);
     _scoreLock = false;
   }
 
