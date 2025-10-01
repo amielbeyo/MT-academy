@@ -3136,6 +3136,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
     let lowVal=normalizeValue(payload.scoreLow);
     let highVal=normalizeValue(payload.scoreHigh);
+    let rangeResolved=false;
 
     if(typeof payload.range==='string' && payload.range.trim()){
       const normalized=payload.range.replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
@@ -3167,30 +3168,28 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       if(!Number.isFinite(Number(payload.total))){
         payload.total=toOneDecimal((low+high)/2);
       }
-      return;
-    }
-
-    if(Number.isFinite(lowVal)){
-      payload.scoreLow=toOneDecimal(lowVal);
-      payload.scoreHigh=payload.scoreLow;
-      payload.range=`${payload.scoreLow.toFixed(1)}-${payload.scoreHigh.toFixed(1)}`;
+      rangeResolved=true;
+    } else if(Number.isFinite(lowVal)){
+      const fixed=toOneDecimal(lowVal);
+      payload.scoreLow=fixed;
+      payload.scoreHigh=fixed;
+      payload.range=`${fixed.toFixed(1)}-${fixed.toFixed(1)}`;
       if(!Number.isFinite(Number(payload.total))){
-        payload.total=payload.scoreLow;
+        payload.total=fixed;
       }
-      return;
-    }
-
-    if(Number.isFinite(highVal)){
-      payload.scoreHigh=toOneDecimal(highVal);
-      payload.scoreLow=payload.scoreHigh;
-      payload.range=`${payload.scoreLow.toFixed(1)}-${payload.scoreHigh.toFixed(1)}`;
+      rangeResolved=true;
+    } else if(Number.isFinite(highVal)){
+      const fixed=toOneDecimal(highVal);
+      payload.scoreHigh=fixed;
+      payload.scoreLow=fixed;
+      payload.range=`${fixed.toFixed(1)}-${fixed.toFixed(1)}`;
       if(!Number.isFinite(Number(payload.total))){
-        payload.total=payload.scoreHigh;
+        payload.total=fixed;
       }
-      return;
+      rangeResolved=true;
     }
 
-    if(typeof payload.range==='string' && payload.range.trim()){
+    if(!rangeResolved && typeof payload.range==='string' && payload.range.trim()){
       const single=normalizeValue(payload.range);
       if(Number.isFinite(single)){
         payload.scoreLow=single;
@@ -3199,7 +3198,25 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         if(!Number.isFinite(Number(payload.total))){
           payload.total=single;
         }
+        rangeResolved=true;
+      } else {
+        delete payload.range;
       }
+    }
+
+    if(!Number.isFinite(payload.scoreLow)) delete payload.scoreLow;
+    if(!Number.isFinite(payload.scoreHigh)) delete payload.scoreHigh;
+
+    if(payload.categories){
+      const categoriesObj=coerceCategoryObject(payload);
+      Object.keys(categoriesObj).forEach(key=>{
+        const normalizedHundred=normalizeCategoryHundred(categoriesObj[key]);
+        if(Number.isFinite(normalizedHundred)){
+          categoriesObj[key]=normalizedHundred;
+        } else {
+          delete categoriesObj[key];
+        }
+      });
     }
   }
 
