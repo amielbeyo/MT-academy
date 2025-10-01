@@ -937,29 +937,6 @@ const PROMPT_PREFIX =
   return { buildScoringPrompt, parseScoreResponse, ARGUMENT_RUBRIC };
 })();
 
-function formatTranscripts(pairs){
-  const combinedLines = [];
-  const questionLines = [];
-  const answerLines = [];
-  pairs.forEach((pair, idx) => {
-    if(!Array.isArray(pair) || pair.length !== 2){
-      throw new Error("Each item in 'pairs' must be a 2-item sequence");
-    }
-    const [qRaw, aRaw] = pair;
-    const q = String(qRaw).trim();
-    const a = String(aRaw).trim();
-    const n = idx + 1;
-    combinedLines.push(`Q${n}: ${q}`);
-    combinedLines.push(`A${n}: ${a}`);
-    questionLines.push(`Question ${n}: ${q}`);
-    answerLines.push(`Answer ${n}: ${a}`);
-  });
-  return [
-    combinedLines.join('\n'),
-    questionLines.join('\n'),
-    answerLines.join('\n')
-  ];
-}
 </script>
 <script>
 var OBJECTION_CHOICES=["Hearsay","Hearsay within Hearsay","Leading","Speculation","Lack of Foundation","Lack of Personal Knowledge","Compound","Improper Character","Improper Opinion","Asked & Answered","Relevance","Argumentative","Vague/Ambiguous","Nonresponsive","Beyond Scope","Assumes Facts Not in Evidence","Narrative","Misstates Evidence","Cumulative","Subsequent Remedial Measures","Compromise/Offers","Medical Payments","Plea Discussions","Insurance"];
@@ -968,6 +945,16 @@ function $(id){return document.getElementById(id);}
 function Q(s){return Array.from(document.querySelectorAll(s));}
 // Predeclare EngineState to avoid reference errors in non-browser environments.
 var EngineState = { mode: 'chatgpt', openaiKey: '', openaiModel: 'gpt-4o', openaiMaxTokens: 600 };
+// Helper to safely read state config even if STATES isn't initialized yet.
+function getStateSafe() {
+  try {
+    return (typeof STATES !== 'undefined' && STATES[CURRENT_STATE])
+      ? STATES[CURRENT_STATE]
+      : { name:'Arizona', abbr:'AZ', judgePrompt:'You are an impartial Arizona High School Mock Trial judge.', rubricMap: makeRubricMap('Arizona','AZ') };
+  } catch (_){
+    return { name:'Arizona', abbr:'AZ', judgePrompt:'You are an impartial Arizona High School Mock Trial judge.', rubricMap: makeRubricMap('Arizona','AZ') };
+  }
+}
 // Ensure the script only runs in a browser environment.
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 /* Debug + provenance */
@@ -1055,26 +1042,27 @@ renderModeBadge();
 
 function renderModeBadge(){
   const b=$('modeBadge'), banner=$('videoModeBanner');
-  if(!b) return;
-  if(EngineState.mode==='chatgpt' && EngineState.openaiKey){
-    b.textContent='Mode: ChatGPT (OpenAI API)';
-    if(banner) banner.innerHTML = 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.';
-  } else {
-    b.textContent='Mode: ChatGPT (API key required)';
-    if(banner) banner.innerHTML = 'Add your OpenAI API key to enable scoring. Built-in scoring has been removed.';
-  }
+  if(!b && !banner) return;
+  const on = (EngineState.mode==='chatgpt' && EngineState.openaiKey);
+  if (b) b.textContent = on ? 'Mode: ChatGPT (OpenAI API)' : 'Mode: ChatGPT (API key required)';
+  if (banner) banner.innerHTML = on
+    ? 'Scoring via <strong>ChatGPT (OpenAI API)</strong>.'
+    : 'Add your OpenAI API key to enable scoring. Built-in scoring has been removed.';
 }
 
 /* Navigation menu links */
 document.addEventListener('DOMContentLoaded',()=>{
   const navMenu=$('navMenu');
-  navMenu.addEventListener('click',e=>{
-    const link=e.target.closest('a.tab');
-    if(link){
-      navMenu.classList.remove('open');
-      $('menuToggle').setAttribute('aria-expanded','false');
-    }
-  });
+  if (navMenu) {
+    navMenu.addEventListener('click',e=>{
+      const link=e.target.closest('a.tab');
+      if(link){
+        navMenu.classList.remove('open');
+        const toggle=$('menuToggle');
+        if (toggle) toggle.setAttribute('aria-expanded','false');
+      }
+    });
+  }
 });
 
 /* Gateway wiring */
@@ -1306,7 +1294,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
         cache: 'no-store',
         keepalive: true,
       });
-      if (!r.ok) {
+      if (!r.ok && r.status !== 0) {
         const t = await r.text().catch(()=> '');
         let msg = 'OpenAI auth/models check failed';
         try { const j = JSON.parse(t); msg = j?.error?.message || msg; } catch (parseErr) {}
@@ -1317,6 +1305,7 @@ async function callOpenAIChat({ messages, model, maxTokens = 600, json = false, 
     } catch (e) {
       // Don’t block if ping fails due to adblockers; only throw on clear auth errors
       if (e?.status === 401 || e?.status === 429 || e?.status === 403) throw e;
+      // Otherwise, ignore ping failure and let the main request decide.
     }
   }
 
@@ -1723,8 +1712,9 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
   let userPrompt=`Generate a ${diff} difficulty objection drill.`;
   if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
   try{
+   const state = getStateSafe();
    const messages=[
-    {role:'system',content:`${STATES[CURRENT_STATE].judgePrompt} Use the ${STATES[CURRENT_STATE].name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
+    {role:'system',content:`${state.judgePrompt} Use the ${state.name} State and Regional Tournament judges rubric. Provide a short fact pattern followed by a single question and answer transcript. Use only these objection names: ${OBJECTION_CHOICES.join(', ')}. Ensure there is exactly one correct objection grounded in the transcript and rules of evidence. Return only JSON with fields fact,q,ans,rule,why.`},
     {role:'user',content:`${userPrompt} Include the brief transcript and follow the rubric precisely.`}
    ];
    const model=EngineState.openaiModel||'gpt-4o';
@@ -1766,7 +1756,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
  const systemMsg = {
   role: 'system',
   content:
-`${STATES[CURRENT_STATE].judgePrompt}
+ `${getStateSafe().judgePrompt}
 You are acting as opposing counsel in a mock trial objection argument.
 Constraints (must follow):
 - Do NOT invent or add any facts, events, injuries, statements, or timelines beyond the SCENARIO block.
@@ -4828,18 +4818,23 @@ document.addEventListener('DOMContentLoaded',()=>{
   safe(()=>{
     envWarnInit();
     renderModeBadge();
-    $('rulesTab').textContent=`${STATES[CURRENT_STATE].abbr} Rules`;
-    $('rulesHeading').textContent=`${STATES[CURRENT_STATE].abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
+    const state = getStateSafe();
+    const abbr = state.abbr || 'AZ';
+    $('rulesTab').textContent=`${abbr} Rules`;
+    $('rulesHeading').textContent=`${abbr} HS Mock Trial Rules of Evidence \u2014 Explorer`;
   });
 
   const sections=Array.from(document.querySelectorAll('section.card'));
   function showSection(id){
-    sections.forEach(sec=>sec.style.display=sec.id===id?'block':'none');
-    document.querySelectorAll('#navMenu .tab').forEach(link=>{
-      if(link.getAttribute('href')===`#${id}`){link.classList.add('active');}
+    sections.forEach(sec=>{ if (sec && sec.style) sec.style.display=sec.id===id?'block':'none'; });
+    const tabs = document.querySelectorAll('#navMenu .tab');
+    tabs.forEach(link=>{
+      const href = link.getAttribute('href')||'';
+      const target = href.startsWith('#') ? href.slice(1) : href;
+      if(target===id){link.classList.add('active');}
       else{link.classList.remove('active');}
     });
-    location.hash=id;
+    if(id) location.hash=id;
     const usesMode = id==='objections' || id==='video' || id==='writing';
     const badge=$('modeBadge');
     if(badge){
@@ -4852,32 +4847,41 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('#navMenu .tab').forEach(link=>{
     link.addEventListener('click',e=>{
       e.preventDefault();
-      showSection(link.getAttribute('href').slice(1));
+      const href = link.getAttribute('href')||'';
+      const id = href.startsWith('#') ? href.slice(1) : href;
+      if (id) showSection(id);
       const nav=$('navMenu');
-      nav.classList.remove('open');
-      $('menuToggle').setAttribute('aria-expanded','false');
+      if (nav) nav.classList.remove('open');
+      const toggle=$('menuToggle');
+      if (toggle) toggle.setAttribute('aria-expanded','false');
     });
   });
 
-  const initialHash=location.hash.slice(1) || 'howto';
-  showSection(initialHash);
+  const initialHash=(location.hash||'').slice(1) || 'howto';
+  if (sections.length) showSection(initialHash);
 
   document.querySelectorAll('a.hidden-link').forEach(link=>{
     link.addEventListener('click',e=>{
       e.preventDefault();
-      showSection(link.getAttribute('href').slice(1));
+      const href = link.getAttribute('href')||'';
+      const id = href.startsWith('#') ? href.slice(1) : href;
+      if (id) showSection(id);
     });
   });
 
-  $('menuToggle').addEventListener('click',()=>{
-    const nav=$('navMenu');
-    const isOpen=nav.classList.toggle('open');
-    $('menuToggle').setAttribute('aria-expanded',isOpen);
-  });
+  const mt=$('menuToggle');
+  if (mt) {
+    mt.addEventListener('click',()=>{
+      const nav=$('navMenu');
+      if (!nav) return;
+      const isOpen=nav.classList.toggle('open');
+      mt.setAttribute('aria-expanded',String(isOpen));
+    });
+  }
   document.addEventListener('click',e=>{
     const nav=$('navMenu');
     const toggle=$('menuToggle');
-    if(nav.classList.contains('open') && !nav.contains(e.target) && !toggle.contains(e.target)){
+    if(nav && toggle && nav.classList.contains('open') && !nav.contains(e.target) && !toggle.contains(e.target)){
       nav.classList.remove('open');
       toggle.setAttribute('aria-expanded','false');
     }
