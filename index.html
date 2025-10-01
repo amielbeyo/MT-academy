@@ -823,10 +823,12 @@ const PROMPT_TEMPLATE_RULING =
 
 const PROMPT_PREFIX_RELAXED =
   "Judge the transcript like a high-school regional mock trial judge. Pick the score the performance truly earned, using decimals when they help." +
+  " Never auto-fill a middle score (like 7/10 or 70/100); double-check every rubric category and the weighted math before locking in the number." +
   " Focus only on what is written and cite the key moments that drove your decision.";
 
 const PROMPT_PREFIX =
   "Judge the transcript like a high-school regional mock trial judge. Select the number the performance genuinely earned." +
+  " Never default to a middling result—audit each category, recompute the weighted total, and make sure it matches before finalizing." +
   " Be specific about decisive facts or rule applications and ignore harmless typos.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, options={}){
@@ -894,7 +896,10 @@ const PROMPT_PREFIX =
             guideLines.push(`  • ${pair.label} (${pair.key}): ${weightLabel}${focusLabel}`);
           }
         }
+        guideLines.push('Report the total and every category on the 0–100 scale (for example, 9.4/10 should be written as 94.0).');
         guideLines.push('Ensure "total" equals the weighted category sum (rounded to the nearest tenth).');
+        guideLines.push('Do not provide placeholder or automatic scores (e.g., 7/10 or 70/100). Recalculate deliberately and double- or triple-check totals before responding.');
+        guideLines.push('Confirm that every category score reflects the transcript and that the weighted math matches the overall score you report.');
         guideLines.push('If the total sits between 75 and 80 inclusive, add at least one "midband_justification" entry quoting or citing the transcript.');
         guideLines.push('Match every "comments" entry to its category and cite transcript cues (quotes, question numbers, or line references).');
         guideLines.push('Fill "decimals_used" with the decimal endings that appear in your scores or range (e.g., ".2 & .7" or "none").');
@@ -2928,10 +2933,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const calibration = 'Video score calibration (0-100 total): 92-100 national champion; 85-91 state finals; 78-84 competitive with notable gaps; 70-77 developing; below 70 major issues or rule breaches.';
     const mismatch = 'If the transcript sounds like a different role, note the mismatch in "notes" and lower the misaligned categories instead of changing the rubric.';
     const commentNote = 'Tie every category comment and summary point to concrete transcript cues—quote phrases, reference question numbers, or cite exhibit names. Do not invent physical actions you cannot infer.';
+    const verification = 'Recompute the weighted total from the category scores before you answer. If the math does not align, fix the categories or the total until it does.';
+    const autop70 = 'Never rely on a default or placeholder like 70/100. Choose the score that the transcript actually earns, even if it lands at an extreme.';
     const extras = [
       `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`,
       calibration,
       categoryLines ? `Category checkpoints:\n${categoryLines}` : '',
+      verification,
+      autop70,
       commentNote,
       mismatch
     ].filter(Boolean).join('\n\n');
@@ -3105,6 +3114,26 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   // Backwards-compat alias used by earlier patches
   const capOpeningScore = capScore;
+
+  function normalizeCategoryScore(raw, fallback=null){
+    const num=Number(raw);
+    if(!Number.isFinite(num)) return fallback;
+    let scaled=num;
+    if(Math.abs(num)>10){
+      scaled=num/10;
+    }
+    const clamped=Math.max(0,Math.min(10,scaled));
+    const fixed=Number(clamped.toFixed(1));
+    return Number.isFinite(fixed)?fixed:fallback;
+  }
+
+  function normalizeHundredScore(raw){
+    const num=Number(raw);
+    if(!Number.isFinite(num)) return null;
+    const scaled=Math.abs(num)<=10?num*10:num;
+    const clamped=Math.max(0,Math.min(100,scaled));
+    return Number(clamped.toFixed(1));
+  }
 
   // Retry wrapper: chat first (JSON), then chat (plain), then /responses
   async function robustLLMScore({model, maxTokens, transcript, buildPromptJSON, buildPromptText}) {
@@ -3288,9 +3317,8 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
           if(!pl?.categories || !Array.isArray(conf?.cats)) return null;
           let sum = 0;
           for(const cat of conf.cats){
-            const raw = Number(pl.categories?.[cat.key]);
-            if(!Number.isFinite(raw)) return null;
-            const bounded = Math.max(1, Math.min(10, raw));
+            const bounded = normalizeCategoryScore(pl.categories?.[cat.key]);
+            if(!Number.isFinite(bounded)) return null;
             sum += bounded * (cat.w * 10);
           }
           return Number(sum.toFixed(1));
@@ -3552,20 +3580,30 @@ ${transcript}`
       const cats = {};
       const comments = {};
       conf.cats.forEach(c=>{
-        const v = Number(payload?.categories?.[c.key]);
-        cats[c.key] = Number.isFinite(v) ? Math.max(1, Math.min(10, v)) : 6;
+        const cleaned = normalizeCategoryScore(payload?.categories?.[c.key]);
+        cats[c.key] = Number.isFinite(cleaned) ? cleaned : 6;
         if (typeof payload?.comments?.[c.key] === "string") comments[c.key] = payload.comments[c.key];
       });
 
+      const computed = conf.cats.reduce((s,c)=>{
+        const val = Number.isFinite(cats[c.key]) ? cats[c.key] : 6;
+        return s + (Math.max(0, Math.min(10, val)) * (c.w*10));
+      }, 0);
+      const boundedComputed = Math.max(0, Math.min(100, computed));
       let total;
       if (Number.isFinite(Number(payload.total))) {
         const bounded = Math.max(0, Math.min(100, Number(payload.total)));
         total = Number(bounded.toFixed(1));
       } else {
-        const computed = conf.cats.reduce((s,c)=> s + (Math.max(1, Math.min(10, cats[c.key])) * (c.w*10)), 0);
-        const bounded = Math.max(0, Math.min(100, computed));
-        total = Number(bounded.toFixed(1));
+        total = Number(boundedComputed.toFixed(1));
       }
+      if (!Number.isFinite(total)) {
+        total = Number(boundedComputed.toFixed(1));
+      }
+      if (Math.abs(total - boundedComputed) > 0.4) {
+        total = Number(boundedComputed.toFixed(1));
+      }
+      payload.total = total;
 
       const result = {
         total,
@@ -3583,6 +3621,42 @@ ${transcript}`
         raw: rawText,
         midbandMeta
       };
+
+      const totalRounded = Number(total.toFixed(1));
+      result.total = totalRounded;
+
+      const hasLow = typeof result.scoreLow === 'number' && Number.isFinite(result.scoreLow);
+      const hasHigh = typeof result.scoreHigh === 'number' && Number.isFinite(result.scoreHigh);
+      const lockRange = `${totalRounded.toFixed(1)}-${totalRounded.toFixed(1)}`;
+
+      if (hasLow && hasHigh) {
+        const lowRounded = Number(result.scoreLow.toFixed(1));
+        const highRounded = Number(result.scoreHigh.toFixed(1));
+        const avg = Number(((lowRounded + highRounded) / 2).toFixed(1));
+        if (Math.abs(avg - totalRounded) > 0.4) {
+          result.scoreLow = totalRounded;
+          result.scoreHigh = totalRounded;
+          result.range = lockRange;
+        } else {
+          result.scoreLow = lowRounded;
+          result.scoreHigh = highRounded;
+          result.range = `${lowRounded.toFixed(1)}-${highRounded.toFixed(1)}`;
+        }
+      } else if (hasLow || hasHigh) {
+        const single = hasLow ? Number(result.scoreLow.toFixed(1)) : Number(result.scoreHigh.toFixed(1));
+        if (Math.abs(single - totalRounded) > 0.4) {
+          result.scoreLow = totalRounded;
+          result.scoreHigh = totalRounded;
+        } else {
+          result.scoreLow = single;
+          result.scoreHigh = single;
+        }
+        result.range = lockRange;
+      } else {
+        result.scoreLow = totalRounded;
+        result.scoreHigh = totalRounded;
+        result.range = lockRange;
+      }
 
       result.audit = {
         selectedType: type,
@@ -3719,12 +3793,23 @@ ${transcript}`
   const usedType = scoreData?.audit?.usedType || type;
   const conf = RUBRICS[usedType] || RUBRICS[type];
 
-  // Categories from the model; default to 6 only if missing
   const cats = {};
+  let categoryAlignedTotal = 0;
+  let categorySumValid = true;
   conf.cats.forEach(c=>{
-    const v = Number(scoreData.categories?.[c.key]);
-    cats[c.key] = (isFinite(v) ? clamp(v,1,10) : 6);
+    const normalized = normalizeCategoryScore(scoreData.categories?.[c.key]);
+    const fallback = 6;
+    const value = Number.isFinite(normalized) ? normalized : fallback;
+    cats[c.key] = value;
+    if(Number.isFinite(normalized)){
+      categoryAlignedTotal += normalized * (c.w * 10);
+    } else {
+      categorySumValid = false;
+    }
   });
+  categoryAlignedTotal = categorySumValid
+    ? Number(Math.max(0, Math.min(100, categoryAlignedTotal)).toFixed(1))
+    : null;
 
   // Display-only metrics/highlights (do not affect scoring)
   const m = baseMetrics(transcript);
@@ -3749,23 +3834,78 @@ ${transcript}`
     range: scoreData.range || '',
     midband_justification: Array.isArray(scoreData.midband_justification) ? scoreData.midband_justification.map(j => typeof j === 'string' ? j.trim() : String(j || '')).filter(Boolean) : [],
     decimals_used: typeof scoreData.decimals_used === 'string' ? scoreData.decimals_used.trim() : '',
-    midbandMeta: scoreData.midbandMeta || null
+    midbandMeta: scoreData.midbandMeta || null,
+    audit: scoreData.audit || null,
+    raw: scoreData.raw || ''
   };
-  if(Number.isFinite(scoreData.scoreLow)) result.scoreLow = Number(scoreData.scoreLow);
-  if(Number.isFinite(scoreData.scoreHigh)) result.scoreHigh = Number(scoreData.scoreHigh);
+  const parseRangePair = str => {
+    if(typeof str !== 'string') return [null,null];
+    const cleaned = str.replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
+    const parts = cleaned.split('-').map(part => part.trim()).filter(Boolean);
+    if(parts.length !== 2) return [null,null];
+    const low = normalizeHundredScore(parts[0]);
+    const high = normalizeHundredScore(parts[1]);
+    return [low, high];
+  };
 
-  // Prefer model total; if absent, compute weighted total from model categories (still LLM-only)
-  let totalFromLLM = Number(scoreData.total);
-  if(!isFinite(totalFromLLM)){
-    totalFromLLM = conf.cats.reduce((sum,c)=> sum + clamp(result.cats[c.key],1,10)*(c.w*10), 0);
+  let scoreLow = normalizeHundredScore(scoreData.scoreLow);
+  let scoreHigh = normalizeHundredScore(scoreData.scoreHigh);
+  if(scoreLow===null || scoreHigh===null){
+    const [parsedLow, parsedHigh] = parseRangePair(scoreData.range);
+    if(scoreLow===null) scoreLow = parsedLow;
+    if(scoreHigh===null) scoreHigh = parsedHigh;
   }
-  const boundedTotal = Math.max(0, Math.min(100, totalFromLLM));
-  result.total = Number(boundedTotal.toFixed(1));
+
+  let llmTotal = normalizeHundredScore(scoreData.total);
+  const computedTotal = Number.isFinite(categoryAlignedTotal) ? categoryAlignedTotal : null;
+  if(llmTotal===null && computedTotal!==null){
+    llmTotal = computedTotal;
+  }
+  let finalTotal = llmTotal ?? 0;
+  let totalAdjusted = false;
+  if(computedTotal!==null){
+    const diff = Math.abs((llmTotal ?? computedTotal) - computedTotal);
+    if(diff > 0.4 || !Number.isFinite(llmTotal)){
+      finalTotal = computedTotal;
+      totalAdjusted = true;
+    }
+  }
+  finalTotal = Number(Math.max(0, Math.min(100, finalTotal)).toFixed(1));
+
+  const reconcileRange = () => {
+    let low = scoreLow;
+    let high = scoreHigh;
+    const fallbackSingle = finalTotal;
+    if(low===null && high===null){
+      low = fallbackSingle;
+      high = fallbackSingle;
+    } else if(low!==null && high!==null){
+      const avg = Number(((low + high)/2).toFixed(1));
+      if(!Number.isFinite(avg) || Math.abs(avg - finalTotal) > 0.6){
+        low = fallbackSingle;
+        high = fallbackSingle;
+      }
+    } else {
+      const single = low!==null ? low : high;
+      if(!Number.isFinite(single) || Math.abs(single - finalTotal) > 0.6){
+        low = fallbackSingle;
+        high = fallbackSingle;
+      } else {
+        low = single;
+        high = single;
+      }
+    }
+    return { low: Number(low.toFixed(1)), high: Number(high.toFixed(1)), adjusted: low!==scoreLow || high!==scoreHigh };
+  };
+
+  const reconciledRange = reconcileRange();
+  result.scoreLow = reconciledRange.low;
+  result.scoreHigh = reconciledRange.high;
+  result.range = `${result.scoreLow.toFixed(1)}-${result.scoreHigh.toFixed(1)}`;
+
+  result.total = finalTotal;
   const ratingFromData = typeof scoreData.rating === 'string' && scoreData.rating.trim() ? scoreData.rating.trim() : null;
   result.rating = ratingFromData || scoreToRating(result.total);
-  if(scoreData.range){
-    result.range = scoreData.range;
-  }
 
   renderReport(usedType, result);
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
@@ -3782,6 +3922,13 @@ ${transcript}`
     }
   } else {
     provenanceMessages.push('Model finalized score outside 75–80.');
+  }
+  if(totalAdjusted){
+    provenanceMessages.push('Guardrail: Weighted categories reset the reported total to match the rubric math.');
+    provenanceWarn = true;
+  }
+  if(reconciledRange.adjusted){
+    provenanceMessages.push('Guardrail: Score range synced with the adjusted total.');
   }
   if(meta && meta.categoryTriggered){
     const finalDelta = typeof meta.finalCategoryDelta === 'number' && Number.isFinite(meta.finalCategoryDelta)
