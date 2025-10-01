@@ -286,6 +286,7 @@ a.inline{color:var(--accent);text-decoration:underline}
       <button id="btnChangeEngine" class="btn secondary" title="Switch scoring engine or update API key">API Key / Engine</button>
       <button id="btnTestChatGPT" class="btn secondary" title="Send a tiny test to ChatGPT">Test ChatGPT</button>
     </div>
+    <div class="warn" style="margin-top:8px">ChatGPT receives strict guardrails to keep the weighted category math exact. If a score ever flags a mismatch, press <strong>Re-score</strong>; the guardrail will keep flagging the result until the rubric totals and categories align.</div>
     <div id="videoFeedback" class="small"></div>
     <div id="videoFollowupWrap" class="controls small" style="margin-top:8px;flex-direction:column;gap:6px;display:none">
       <textarea id="videoFollowup" placeholder="Ask the judge a follow-up question about this score (Enter to send, Shift+Enter for newline)" style="width:100%;min-height:64px" disabled></textarea>
@@ -824,11 +825,14 @@ const PROMPT_TEMPLATE_RULING =
 const PROMPT_PREFIX_RELAXED =
   "Judge the transcript like a high-school regional mock trial judge. Pick the score the performance truly earned, using decimals when they help." +
   " Never auto-fill a middle score (like 7/10 or 70/100); double-check every rubric category and the weighted math before locking in the number." +
+  " The platform audits your weighted math—if any category or the total disagrees, fix it before you reply; mismatches are rejected." +
+  " Cross-check every rubric checkpoint and lower the specific category when the transcript misses an item, explaining the deduction." +
   " Focus only on what is written and cite the key moments that drove your decision.";
 
 const PROMPT_PREFIX =
   "Judge the transcript like a high-school regional mock trial judge. Select the number the performance genuinely earned." +
   " Never default to a middling result—audit each category, recompute the weighted total, and make sure it matches before finalizing." +
+  " The platform audits your weighted math—correct any mismatch before responding or the score will be rejected." +
   " Be specific about decisive facts or rule applications and ignore harmless typos.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, options={}){
@@ -896,10 +900,11 @@ const PROMPT_PREFIX =
             guideLines.push(`  • ${pair.label} (${pair.key}): ${weightLabel}${focusLabel}`);
           }
         }
+        guideLines.push('Do not respond until every listed category has an explicit 0–100 score with one decimal place.');
         guideLines.push('Report the total and every category on the 0–100 scale (for example, 9.4/10 should be written as 94.0).');
         guideLines.push('Ensure "total" equals the weighted category sum (rounded to the nearest tenth).');
         guideLines.push('Do not provide placeholder or automatic scores (e.g., 7/10 or 70/100). Recalculate deliberately and double- or triple-check totals before responding.');
-        guideLines.push('Confirm that every category score reflects the transcript and that the weighted math matches the overall score you report.');
+        guideLines.push('Confirm that every category score reflects the transcript and that the weighted math matches the overall score you report. If anything is off, fix it before you send the response.');
         guideLines.push('If the total sits between 75 and 80 inclusive, add at least one "midband_justification" entry quoting or citing the transcript.');
         guideLines.push('Match every "comments" entry to its category and cite transcript cues (quotes, question numbers, or line references).');
         guideLines.push('Fill "decimals_used" with the decimal endings that appear in your scores or range (e.g., ".2 & .7" or "none").');
@@ -2933,13 +2938,17 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const calibration = 'Video score calibration (0-100 total): 92-100 national champion; 85-91 state finals; 78-84 competitive with notable gaps; 70-77 developing; below 70 major issues or rule breaches.';
     const mismatch = 'If the transcript sounds like a different role, note the mismatch in "notes" and lower the misaligned categories instead of changing the rubric.';
     const commentNote = 'Tie every category comment and summary point to concrete transcript cues—quote phrases, reference question numbers, or cite exhibit names. Do not invent physical actions you cannot infer.';
-    const verification = 'Recompute the weighted total from the category scores before you answer. If the math does not align, fix the categories or the total until it does.';
+    const verification = 'Recompute the weighted total from the category scores before you answer. If the math does not align, revise the categories or total—misaligned math is rejected and you must correct it before replying.';
+    const rubricDiscipline = 'Walk the rubric checkpoint by checkpoint; when the transcript misses one, lower the precise category and cite the gap in your comments.';
+    const mathDiscipline = 'Do not submit until every required category has a deliberate 0–100 score with one decimal and the weighted sum equals your "total" field.';
     const autop70 = 'Never rely on a default or placeholder like 70/100. Choose the score that the transcript actually earns, even if it lands at an extreme.';
     const extras = [
       `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`,
       calibration,
       categoryLines ? `Category checkpoints:\n${categoryLines}` : '',
+      rubricDiscipline,
       verification,
+      mathDiscipline,
       autop70,
       commentNote,
       mismatch
@@ -3139,7 +3148,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const issues=[];
     if(!payload || typeof payload!=='object'){
       issues.push('missing payload');
-      return {issues,categories:{},total:null,computed:null,commentCount:0,catUniform:false};
+      return {issues,categories:{},total:null,computed:null,commentCount:0,catUniform:false,categoryAligned:false,categoryDelta:null};
     }
 
     const categories={};
@@ -3165,9 +3174,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const boundedComputed=haveAllCategories
       ? Number(Math.max(0,Math.min(100,computedSum)).toFixed(1))
       : null;
+    let categoryAligned=true;
+    let categoryDelta=null;
     if(normalizedTotal!==null && boundedComputed!==null){
-      if(Math.abs(boundedComputed-normalizedTotal)>0.6){
-        issues.push('total does not match weighted categories');
+      const delta=Number((boundedComputed-normalizedTotal).toFixed(1));
+      if(Number.isFinite(delta) && Math.abs(delta)>0.6){
+        categoryAligned=false;
+        categoryDelta=delta;
       }
     }
 
@@ -3187,7 +3200,9 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       total: normalizedTotal,
       computed: boundedComputed,
       commentCount,
-      catUniform
+      catUniform,
+      categoryAligned,
+      categoryDelta
     };
   }
 
@@ -3642,6 +3657,14 @@ ${transcript}`
         throw vErr;
       }
 
+      if(validation.categoryAligned === false){
+        midbandMeta = midbandMeta || {};
+        midbandMeta.categoryTriggered = true;
+        if(typeof validation.categoryDelta === 'number' && Number.isFinite(validation.categoryDelta)){
+          midbandMeta.finalCategoryDelta = Number(validation.categoryDelta.toFixed(1));
+        }
+      }
+
       const cats = {};
       const comments = {};
       conf.cats.forEach(c=>{
@@ -3984,10 +4007,22 @@ ${transcript}`
   result.rating = ratingFromData || scoreToRating(result.total);
 
   renderReport(usedType, result);
-  $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   const provenanceMessages=['LLM-only rubric scoring (no local blend).'];
   let provenanceWarn=false;
   const meta=result.midbandMeta || scoreData.midbandMeta || null;
+  const statusEl=$('videoStatus');
+  if(statusEl){
+    if(meta && meta.categoryTriggered && meta.categoryAligned === false){
+      statusEl.textContent='Guardrail: categories ≠ total. Press Re-score so ChatGPT recalculates with the rubric.';
+      statusEl.style.color='#ef9a9a';
+    } else if(totalAdjusted){
+      statusEl.textContent='Scored by ChatGPT—guardrail realigned the weighted total before publishing.';
+      statusEl.style.color='#facc15';
+    } else {
+      statusEl.textContent='Scored by ChatGPT (LLM-only). Weighted totals verified.';
+      statusEl.style.color='#9aa4b2';
+    }
+  }
   const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
   if(result.total >= 75 && result.total <= 80){
     const count = Array.isArray(justifications) ? justifications.length : 0;
@@ -4015,6 +4050,7 @@ ${transcript}`
       provenanceMessages.push(`Category totals realigned with the reported total${deltaNote}.`);
     } else {
       provenanceMessages.push(`Category totals remain misaligned with the reported total${deltaNote}.`);
+      provenanceMessages.push('Action required: press Re-score so ChatGPT recomputes the rubric math until every category and the total match.');
       provenanceWarn=true;
     }
   }
