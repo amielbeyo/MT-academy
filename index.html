@@ -3989,7 +3989,7 @@ ${transcript}`
   $('videoStatus').textContent = 'Scored by ChatGPT (LLM-only).';
   const provenanceMessages=['LLM-only rubric scoring (no local blend).'];
   let provenanceWarn=false;
-  const meta=result.midbandMeta || scoreData.midbandMeta || null;
+  const finalMeta=result.midbandMeta || scoreData.midbandMeta || null;
   const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
   if(result.total >= 75 && result.total <= 80){
     const count = Array.isArray(justifications) ? justifications.length : 0;
@@ -4001,20 +4001,20 @@ ${transcript}`
   } else {
     provenanceMessages.push('Model finalized score outside 75–80.');
   }
-  if(meta && meta.categoryTriggered){
-    const finalDelta = typeof meta.finalCategoryDelta === 'number' && Number.isFinite(meta.finalCategoryDelta)
-      ? meta.finalCategoryDelta.toFixed(1)
+  if(finalMeta && finalMeta.categoryTriggered){
+    const finalDelta = typeof finalMeta.finalCategoryDelta === 'number' && Number.isFinite(finalMeta.finalCategoryDelta)
+      ? finalMeta.finalCategoryDelta.toFixed(1)
       : null;
     const deltaNote = finalDelta ? ` (delta ${finalDelta})` : '';
-    if(meta.categoryAligned){
+    if(finalMeta.categoryAligned){
       provenanceMessages.push(`Category totals realigned with the reported total${deltaNote}.`);
     } else {
       provenanceMessages.push(`Category totals remain misaligned with the reported total${deltaNote}.`);
       provenanceWarn=true;
     }
   }
-  if(meta && meta.autoFilledDecimals){
-    const note=meta.decimalsValue?` (${meta.decimalsValue})`:'';
+  if(finalMeta && finalMeta.autoFilledDecimals){
+    const note=finalMeta.decimalsValue?` (${finalMeta.decimalsValue})`:'';
     provenanceMessages.push(`Decimals note auto-filled${note}.`);
   }
   showProvenance(provenanceMessages.join('<br>'), provenanceWarn);
