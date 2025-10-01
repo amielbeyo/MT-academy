@@ -759,187 +759,83 @@ const ChatGPTScoring = (() => {
     /^idk$/i,
   ];
 
-  const RATING_RUBRIC = `1 — Off task, inaccurate, or admits no answer; offers no meaningful value.\n`
-    + `2 — Attempts a response but remains largely incorrect, confused, or unsupported.\n`
-    + `3 — Shows partial understanding yet misses most core ideas or misstates key facts.\n`
-    + `4 — Spots at least one relevant point but leaves major gaps, contradictions, or rule errors.\n`
-    + `5 — Addresses the prompt but is thin, unfocused, or omits several checklist items.\n`
-    + `6 — Solid core with generally correct info, yet multiple rubric items lack depth or citation.\n`
-    + `7 — Strong foundation but at least one significant checklist box is unchecked or weakly supported.\n`
-    + `8 — High performing: satisfies nearly every rubric expectation with persuasive structure and only minor polish fixes.\n`
-    + `9 — Finalist level: meets every checklist item, ties arguments to the record/law, anticipates counters, and stays precise.\n`
-    + `10 — Championship caliber: complete, strategic, and polished throughout; nothing material to improve.\n`
-    + `Note: Ignore typos, misspellings, or minor grammar slips if the meaning is clear.`;
+  const RATING_RUBRIC = `Score on a 1–10 scale (decimals welcome) that reflects how a real high-school regional judge would rate the performance.
 
-  const ARGUMENT_RUBRIC = `Mock Trial Objection & Argument Rubric — High-Confidence Scoring (10 pts total)
+Anchor the number using these bands:
+1–2  Serious errors or no meaningful response.
+3–4  Understands the task but misstates key rules or facts.
+5–6  Competent but missing multiple checklist items or strategic moments.
+7–8  Competition ready with only minor gaps.
+9–10 Final-round quality: precise law, strong record use, confident delivery.
 
-Goal: Reward correct, concise, fact-grounded advocacy.
-Remember that “argumentative” is a Rule 611(a) objection about questions that argue with or harass the witness; do not confuse it with the everyday notion of someone sounding combative.
-If the argument is strong, do not hesitate to award 9, 10, or even a perfect 100/100. Any score on the 1–10 scale is fair game when it matches the transcript: let excellent work reach the 90s and 100, keep solid-but-imperfect efforts in the 70–80 band when you can articulate why, and drop into the 60s or lower whenever major issues appear. Competition-ready arguments should normally earn above 7/10, while performances with major gaps should fall below that mark. Above the rubric and every other guideline, prioritize delivering the same final score a real competition judge would give.
+Judge each performance on four checkpoints:
+• Accuracy: correct rules, burdens, and remedies.
+• Record use: specific facts or testimony that support the point.
+• Structure: organized, easy-to-follow roadmap with clear asks.
+• Delivery: professional tone and control over pacing.
 
-CATEGORIES (sum to 10)
-1) Legal Ground Identified (0–3)
-   0 – Wrong/irrelevant rule.
-   1 – Vague area only (e.g., “objection, hearsay-ish”).
-   2 – Correct category but incomplete (no standard or mislabels subsection).
-   3 – Correct, precise ground; cites rule number (e.g., 611(c), 602, 801/802) or a clearly equivalent standard.
+Reward clear references to the record and deductions that are tied to the rubric. Ignore spelling or transcription quirks when the meaning is clear.`;
 
-2) Rule Application to Record Facts (0–4)
-   0 – No tie to facts.
-   1 – Generic tie (“this is hearsay”) without pointing to the record.
-   2 – Ties the rule to at least one concrete fact but misses a key element/condition.
-   3 – Clear, specific tie: quotes/paraphrases the actual line(s) and walks the rule element(s).
-   4 – Surgical fit: pinpoints exact language (“the declarant is not testifying,” “offered for truth”), shows each element satisfied, and anticipates the best counter (e.g., not offered for effect on listener).
+  const ARGUMENT_RUBRIC = `Mock Trial Objection Rubric (10 total points).
 
-3) Exceptions / Standards / 403 Framing (0–1.5)
-   0 – Omits governing standards/exceptions.
-   0.5 – Mentions the right standard (e.g., “offered for truth,” “personal knowledge,” “leading on direct”) or a likely exception/limiting instruction.
-   1.0 – Correctly disposes of the opponent’s strongest pivot (e.g., non-hearsay purpose, 801(d)(2), 803(2), habit vs. character).
-   1.5 – As above + offers the right remedy (limit/sustain/strike/curative limiting instruction) succinctly.
+Evaluate only the advocate’s objection argument or response:
+• Rule Ground (0–3): Identify the correct rule or standard and state it plainly.
+• Application (0–4): Tie the rule to the testimony with concrete citations.
+• Exceptions & Remedy (0–2): Address the best counter and request the right ruling.
+• Professionalism (0–1): Concise, confident delivery that sounds like open court.
 
-4) Rebuttal / Turn (0–1.5)
-   0 – Ignores the opponent.
-   0.5 – Addresses opponent but generic.
-   1.0 – Direct refutation using the record (“Counsel claims present-sense impression, but no contemporaneity is shown.”).
-   1.5 – Turns their argument to your advantage (e.g., even if admissible for non-truth, request limiting instruction; otherwise it confuses under 403).
-
-5) Structure & Professionalism (0–0.5)
-   0 – Rambling/disorganized or improper tone.
-   0.5 – Tight 1–3 sentence structure, plain English, professional.
-
-SCORING NOTES
-• Reward concise, surgical arguments when the rubric elements are satisfied.
-• Disregard new facts or hypotheticals that are not in the transcript when scoring.
-• Extremely short transcripts or explicit admissions of “I don’t know” should be treated as non-answers.
-
-FORMAT TO RETURN
-Provide:
-Summary: cite at least 3 specific quotes or paraphrases from different parts of the transcript.
-Score Range: two numbers from 1–10 with at least one decimal place. Make the spread reflect your confidence (narrow if you are certain, wider if you are unsure), tailor the pair to this material alone, and ensure it matches what a real high school regional judge would award.
-Explanation: 2–4 sentences with one actionable fix (e.g., “name 801(d)(2) and request limiting instruction”).
-
-CHECKLIST THE JUDGE MUST APPLY (internally)
-□ Correct ground named? □ Rule number/standard cited? □ Exact record line(s) referenced?
-□ Exception/alternative purpose considered? □ Remedy requested (sustain/overrule/limit/strike)?
-□ Concise and professional?
-
-Why this fixes the “5 for a 10” problem
-
-Heavier weight on application (4 pts) mirrors how real judges reward fact-tight arguments.
-
-Explicit allowance for brevity stops the model from downgrading concise, correct takes.
-
-Counter/exception credit boosts top-end scores when you neutralize the opponent’s pivot and ask for the right remedy.`;
+Translate the final score to the 1–10 scale and use decimals when helpful. A razor-sharp, well-supported objection should land near 9–10; thin or inaccurate work belongs in the lower bands.`;
 
 const PROMPT_TEMPLATE_RELAXED =
-`You are a neutral mock trial high school judge. Read the transcript, apply the rubric, and let the performance earn the score it deserves. Prioritize an accurate, competition-calibrated result grounded in what you observe—outstanding advocacy can earn top marks, while weak efforts should land lower.\n\n`+
+`You are a neutral mock trial high school judge. Read the transcript and score it exactly as you would in a live round. Let the words on the page decide the result.\n\n`+
 `Transcript:\n{transcript}\n\n`+
-`Rating rubric (1–10 scale):\n{rubric}\n\n`+
-`Your approach:\n`+
-`• Review the transcript with the rubric in mind and rely on your judging instincts.\n`+
-`• Summarize the key moments that influenced your decision.\n`+
-`• Assign a single score or a range between 1 and 10 that reflects the performance.\n`+
-`• Explain the reasoning behind the score and offer any helpful improvements.\n`+
-`• Note assumptions only if they affected your evaluation.\n\n`+
-`Format your response as:\n`+
-`Summary: <concise overview>\n`+
-`Score: <number or range from 1–10>\n`+
-`Explanation: <why the score fits the transcript and rubric>\n`+
-`Assumptions: <list or "None">\n`+
-`Improvements: <actionable advice>`;
+`Rubric:\n{rubric}\n\n`+
+`{jsonGuide}`;
 
 const PROMPT_TEMPLATE_RULING_RELAXED =
-`You are a neutral mock trial high school judge. Read the transcript, apply the rubric, and let the performance earn the result it deserves. Stay grounded in the record and reach the same outcome you would deliver in a live round.\n\n`+
+`You are a neutral mock trial high school judge. Decide the objection exactly as you would in court, then rate the advocate using the rubric. Stay grounded in the transcript.\n\n`+
 `Transcript:\n{transcript}\n\n`+
-`Rating rubric (1–10 scale):\n{rubric}\n\n`+
-`Your approach:\n`+
-`• Decide whether the objection should be sustained or overruled.\n`+
-`• Summarize the key exchanges that shaped your ruling and score.\n`+
-`• Assign a score from 1 to 10 (single number or range) that reflects the rubric and transcript.\n`+
-`• Explain your reasoning, share useful improvements, and only mention assumptions if they mattered.\n\n`+
-`Format your response as:\n`+
-`Ruling: <Sustained or Overruled>\n`+
-`Summary: <concise overview>\n`+
-`Score: <number or range from 1–10>\n`+
-`Explanation: <why the ruling and score fit the transcript and rubric>\n`+
-`Assumptions: <list or "None">\n`+
-`Improvements: <actionable advice>`;
+`Rubric:\n{rubric}\n\n`+
+`{jsonGuide}`;
 
 const PROMPT_TEMPLATE =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but let the transcript earn whatever it deserves: outstanding work can reach 9, 10, or even 100/100, and weak performances should drop into the 60s or below when the checklist demands it. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
-`Below is a transcript of an argument or discussion.\n\n`+
+`You are a neutral mock trial high school judge. Read the transcript and score it exactly as you would in a live round. Base every comment on the words provided.\n\n`+
 `Transcript:\n{transcript}\n\n`+
-`Rating rubric (1–10 scale):\n{rubric}\n\n`+
-`Your task:\n`+
-`1. Read the entire transcript carefully from start to finish.\n`+
-`2. Summarize the transcript in detail, citing at least three direct quotes \n`+
-`   or paraphrased references from different parts of the transcript to \n`+
-`   demonstrate you read all of it.\n`+
-`3. Assign a score between 1 and 10 using the rubric above (rate “I don't know” or non-answers as 1). You may report either a single value or a low/high range—choose numbers that reflect your confidence and the actual performance.\n`+
-`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
-`   should reflect the transcript.\n`+
-`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
-`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`8. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`9. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n`+
-`10. State any assumptions you made.\n\n`+
-`Format your response as:\n`+
-`Summary: <detailed summary with references>\n`+
-`Score: <either a single number from 1 to 10 or a low-high range. Use decimals when helpful and let confidence dictate the spread.>\n`+
-`Explanation: <short paragraph explaining the score>\n`+
-`Assumptions: <assumptions or "None">\n`+
-`Improvements: <specific, actionable suggestions>`;
+`Rubric:\n{rubric}\n\n`+
+`Respond using this format:\n`+
+`Summary: <2–3 sentences highlighting the decisive moments>\n`+
+`Score: <single number or low-high range on the 1–10 scale>\n`+
+`Explanation: <why the score matches the rubric>\n`+
+`Improvements: <two concrete suggestions>\n`+
+`Assumptions: <assumptions or "None">`;
 
 const PROMPT_TEMPLATE_RULING =
-`You are a neutral evaluator acting as a mock trial high school judge. Calibrate the overall score to match typical results at high school regional tournaments, but let the transcript earn whatever it deserves: outstanding work can reach 9, 10, or even 100/100, and weak performances should drop into the 60s or below when the checklist demands it. Ensure your analysis is precise, cites correct rules, and relies solely on the provided transcript.\n\n`+
-`Below is a transcript of an argument or discussion.\n\n`+
+`You are a neutral mock trial high school judge. Decide the objection exactly as you would in court, then rate the advocate using the rubric. Ground every statement in the transcript.\n\n`+
 `Transcript:\n{transcript}\n\n`+
-`Rating rubric (1–10 scale):\n{rubric}\n\n`+
-`Your task:\n`+
-`1. Read the entire transcript carefully from start to finish.\n`+
-`2. Summarize the transcript in detail, citing at least three direct quotes \n`+
-`   or paraphrased references from different parts of the transcript to \n`+
-`   demonstrate you read all of it.\n`+
-`3. Assign a score between 1 and 10 using the rubric above (rate “I don't know” or non-answers as 1). You may report either a single value or a low/high range—choose numbers that reflect your confidence and the actual performance.\n`+
-`4. Consider coherence, evidence, clarity, and persuasiveness. The rating \n`+
-`   should reflect the transcript.\n`+
-`5. Base all judgments strictly on explicit content from the transcript. Do not guess or assume facts not in evidence; if information is missing, treat it as a deficiency and score accordingly.\n`+
-`6. Treat typos, misspellings, or minor grammar issues as inconsequential when the intended meaning is clear; score the substance instead of surface mistakes.\n`+
-`7. If no rule of evidence is cited, deduct up to 0.5 points (minor deduction).\n`+
-`8. Decide whether the objection should be sustained or overruled.\n`+
-`9. Provide a brief explanation for why you chose that score, referring to \n`+
-`   the referenced sections of the transcript and noting where the participant can improve or what they should have done differently, pointing out specific lines or phrases to revise.\n`+
-`10. List specific improvement suggestions, quoting exact words or phrases \n`+
-`   from the transcript and offering concrete alternative wording or steps.\n`+
-`11. State any assumptions you made.\n\n`+
-`Format your response as:\n`+
+`Rubric:\n{rubric}\n\n`+
+`Respond using this format:\n`+
 `Ruling: <Sustained or Overruled>\n`+
-`Summary: <detailed summary with references>\n`+
-`Score: <either a single number from 1 to 10 or a low-high range. Use decimals when helpful and let confidence dictate the spread.>\n`+
-`Explanation: <short paragraph explaining the score>\n`+
-`Assumptions: <assumptions or "None">\n`+
-`Improvements: <specific, actionable suggestions>`;
+`Summary: <2–3 sentences highlighting the decisive moments>\n`+
+`Score: <single number or low-high range on the 1–10 scale>\n`+
+`Explanation: <why the score matches the rubric>\n`+
+`Improvements: <two concrete suggestions>\n`+
+`Assumptions: <assumptions or "None">`;
 
 const PROMPT_PREFIX_RELAXED =
-  "Important: Score as a high-school regional judge who trusts their instincts. " +
-  "Prioritize an accurate, rubric-driven result while letting your natural judging voice shine. " +
-  "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
-  "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
-  "and share the exact score or range you genuinely believe fits this performance. " +
-  "Focus on substance drawn solely from the provided transcript and ignore typos or accents.";
+  "Judge the transcript like a high-school regional mock trial judge. Pick the score the performance truly earned, using decimals when they help." +
+  " Focus only on what is written and cite the key moments that drove your decision.";
 
 const PROMPT_PREFIX =
-  "Important: Score as a high-school regional judge who trusts their instincts. " +
-  "Let excellent performances earn the top of the scale and allow weak ones to fall as low as the rubric demands. " +
-  "Use whichever decimals or ranges feel natural, explain why the transcript deserves the number you choose, " +
-  "and share the exact score or range you genuinely believe fits this performance. " +
-  "Focus on substance drawn solely from the provided transcript and ignore typos or accents.";
+  "Judge the transcript like a high-school regional mock trial judge. Select the number the performance genuinely earned." +
+  " Be specific about decisive facts or rule applications and ignore harmless typos.";
 
   function buildScoringPrompt(transcript, includeRuling=false, rubric=RATING_RUBRIC, options={}){
     const relaxed = Boolean(options && options.relaxed);
+    const isVideo = options?.mode === 'video';
+    const catKeys = Array.isArray(options?.catKeys) ? options.catKeys.filter(Boolean) : [];
+    const catLabels = Array.isArray(options?.catLabels) ? options.catLabels : [];
+    const catWeights = Array.isArray(options?.catWeights) ? options.catWeights : [];
+    const catFocus = Array.isArray(options?.catFocus) ? options.catFocus : [];
     let cleaned = transcript.trim();
     const lowered = cleaned.toLowerCase();
     if (NON_ANSWER_PATTERNS.some(r => r.test(lowered))) {
@@ -957,11 +853,63 @@ const PROMPT_PREFIX =
         cleaned += '\n\n[Note: This transcript is quite brief. If you lower the score, tie the deduction to specific unchecked checklist items rather than the length alone.]';
       }
     }
+
+    let jsonGuide = '';
+    if (relaxed) {
+      const catPairs = catKeys.map((key, idx) => ({ key, label: catLabels[idx] || key }));
+      const categoriesExample = catPairs.length
+        ? `{ ${catPairs.map(p => `"${p.key}": 0-100`).join(', ')} }`
+        : '{}';
+      const commentsExample = catPairs.length
+        ? `{ ${catPairs.map(p => `"${p.key}": "feedback on ${p.label}"`).join(', ')} }`
+        : '{}';
+      const guideLines = [
+        'Return valid JSON with this structure (numbers on a 0–100 scale with one decimal; convert any 1–10 scores by multiplying by 10):',
+        '{',
+        includeRuling ? '  "ruling": "Sustained" or "Overruled",' : null,
+        '  "summary": "2-3 sentences referencing decisive facts",',
+        '  "total": number,',
+        '  "range": "low-high" or "",',
+        '  "scoreLow": number or null,',
+        '  "scoreHigh": number or null,',
+        `  "categories": ${categoriesExample},`,
+        `  "comments": ${commentsExample},`,
+        '  "explanation": "brief reason tying the rubric to the score",',
+        '  "notes": "two improvement tips separated by \n",',
+        '  "midband_justification": [],',
+        '  "decimals_used": "",',
+        '  "qa": []',
+        '}',
+        'Only include details that appear in the transcript.'
+      ].filter(Boolean);
+      if (isVideo) {
+        if (catPairs.length) {
+          guideLines.push('Category calibration (0–100 total):');
+          for (let idx = 0; idx < catPairs.length; idx++) {
+            const pair = catPairs[idx];
+            const weightVal = Number.isFinite(Number(catWeights[idx])) ? Number(catWeights[idx]) : null;
+            const focusText = (catFocus[idx] || '').trim();
+            const weightLabel = weightVal !== null ? `weight ${weightVal}` : 'weight ?';
+            const focusLabel = focusText ? ` – ${focusText}` : '';
+            guideLines.push(`  • ${pair.label} (${pair.key}): ${weightLabel}${focusLabel}`);
+          }
+        }
+        guideLines.push('Ensure "total" equals the weighted category sum (rounded to the nearest tenth).');
+        guideLines.push('If the total sits between 75 and 80 inclusive, add at least one "midband_justification" entry quoting or citing the transcript.');
+        guideLines.push('Match every "comments" entry to its category and cite transcript cues (quotes, question numbers, or line references).');
+        guideLines.push('Fill "decimals_used" with the decimal endings that appear in your scores or range (e.g., ".2 & .7" or "none").');
+      }
+      jsonGuide = guideLines.join('\n');
+    }
+
     const tmpl = includeRuling
       ? (relaxed ? PROMPT_TEMPLATE_RULING_RELAXED : PROMPT_TEMPLATE_RULING)
       : (relaxed ? PROMPT_TEMPLATE_RELAXED : PROMPT_TEMPLATE);
     const prefix = relaxed ? PROMPT_PREFIX_RELAXED : PROMPT_PREFIX;
-    return tmpl.replace('{transcript}', cleaned).replace('{rubric}', prefix + "\n\n" + rubric);
+    return tmpl
+      .replace('{transcript}', cleaned)
+      .replace('{rubric}', prefix + "\n\n" + rubric)
+      .replace('{jsonGuide}', jsonGuide);
   }
 
   function parseScoreResponse(text){
@@ -1075,110 +1023,12 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Rate a ${stateName} High School Mock Trial OPENING STATEMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. Categories/weights:
-  - Content & Law/Facts (37)
-  - Organization & Roadmap (36)
-  - Persuasiveness (12)
-  - Delivery (15)
-  Rules: No new facts. The opening should not analyze the law or facts, draw conclusions, or otherwise argue; treat any brief argumentative phrasing as a minor issue (note it and deduct no more than about 0.5 unless the speech truly becomes a closing). Consider ${abbr} rules and HS norms. Look for theme, "the evidence will show", roadmap, burden (preponderance), elements (duty/breach/causation/damages), and a clear ask. Reward higher scores when the statement explicitly mentions the verdict sought, discusses the burden, previews expected witnesses, and articulates a theme. Openings should begin with a theme and brief story, clearly state the side represented, explain the burden of proof, preview key witnesses and evidence, and end with the verdict requested. Ignore spelling or grammar slips so long as the meaning is clear and the checklist is satisfied.
-  Evaluate using this checklist:
-  \u25a1 Provided a case overview and story
-  \u25a1 The theme/theory of the case was identified
-  \u25a1 Mentioned the key witnesses
-  \u25a1 Provided a clear and concise description of their team\u2019s evidence and side of the case
-  \u25a1 Stated the relief or verdict requested
-  \u25a1 Discussed the burden of proof
-  \u25a1 Presentation was non-argumentative; did not analyze law or facts, draw conclusions, assume facts not in evidence, or otherwise argue
-  \u25a1 Spoke naturally and clearly
-  Scoring guidance (total out of 100):
-  - Championship caliber: Every checklist box is satisfied with specific facts, a cohesive theme, explicit burden language, and a confident ask; finalist-level polish.
-  - Tournament ready: Core boxes covered but one element lacks depth (e.g., thin witness preview or muted storytelling); still strong and persuasive.
-  - Developing: Noticeable omissions, unclear roadmap, or weak theme reduce clarity; improvement needed before competition-ready.
-  - Needs rebuild: Multiple checklist failures, argumentative tone, or missing burden/story fundamentals.
-  Reward concise, story-driven openings that clearly state the verdict and burden.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
-    closing:`Rate a CLOSING ARGUMENT using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. Categories/weights:
-  - Content & Law Application (38)
-  - Structure & Element Walk-through (22)
-  - Refutation & Rebuttal (10)
-  - Persuasiveness (15)
-  - Delivery (15)
-  A strong closing should follow this organization:\n1. Introduction \u2013 start with a story or hook tying the theme to the case.\n2. Burden \u2013 state the burden of proof.\n3. Roadmap \u2013 highlight the evidence the fact-finder must focus on to see the case is proven.\n4. Witnesses \u2013 explain what each witness did and link it to the evidence and theme.\n5. Rebuttal \u2013 address opposing counsel\u2019s main points.\n6. Verdict Request \u2013 ask the jury or judge to rule in your favor.\n  Closings must apply the law to the facts and address the opponent ("they said..."). Deduct points if the argument omits or poorly organizes these elements or merely summarizes without analysis.\n  Evaluate using this checklist:
-  \u25a1 Theme/theory reiterated in closing argument
-  \u25a1 Summarized the evidence
-  \u25a1 Emphasized the supporting points of their own case and mistakes and weaknesses of the opponent\u2019s case
-  \u25a1 Concentrated on the important, not the trivial
-  \u25a1 Applied the relevant law and tied it to the facts, urging the requested verdict
-  \u25a1 Discussed burden of proof
-  \u25a1 Did not discuss evidence that was not included in the trial presentation
-  \u25a1 Overall, the closing statement was persuasive
-  \u25a1 Use of notes was minimal, effective, and purposeful
-  \u25a1 Contained spontaneous elements that reflect unanticipated outcomes of this specific trial
-  \u25a1 Spoke naturally and clearly
-  Scoring guidance (total out of 100):
-  - Championship caliber: All checklist items satisfied with sharp law-to-fact weaving, targeted rebuttals, and a compelling final ask; ready for trophies.
-  - Tournament ready: Persuasive and well-structured with only minor lapses (e.g., light rebuttal coverage or slight delivery dip).
-  - Developing: Several elements present but law application, roadmap, or rebuttal is underdeveloped.
-  - Needs rebuild: Major omissions, reliance on recap over analysis, or missing burden/theme.
-  Reward closings that explicitly contrast both sides and press for the verdict.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"organization":1-10,"refutation":1-10,"persuasion":1-10,"delivery":1-10},"comments":{"content":"","organization":"","refutation":"","persuasion":"","delivery":""},"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. Use whatever range width matches your confidence.`,
-    direct:`Rate a DIRECT EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. Categories/weights:
-  - Chapters & Story Build (30)
-  - Open-Ended Technique (20)
-  - Foundation & Exhibits (20)
-  - Listening & Follow-ups (15)
-  - Delivery/Presence (15)
-  Penalize leading/compound. Credit foundation/authentication/follow-ups.
-  Evaluate using this checklist:
-  \u25a1 Properly phrased and effective questions
-  \u25a1 Examination was organized effectively to make points clearly; questions had clear purpose
-  \u25a1 Used proper courtroom procedures
-  \u25a1 Handled objections appropriately and effectively
-  \u25a1 Did not overuse objections
-  \u25a1 Did not ask questions that called for an unfair extrapolation from the witness
-  \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
-  \u25a1 Handled physical evidence appropriately and effectively
-  \u25a1 Spoke confidently and clearly
-  Scoring guidance (total out of 100):
-  - Championship caliber: Organized chapters, non-leading storytelling, complete foundations, and responsive follow-ups; ready for elimination rounds.
-  - Tournament ready: Strong chapters with one area light (e.g., sparse follow-ups or missing one exhibit detail) but overall persuasive.
-  - Developing: Multiple checklist items thin—overly leading, weak foundations, or inconsistent listening.
-  - Needs rebuild: Major structural issues, frequent leading/compound questions, or absent foundations.
-  Reward directs that stay conversational yet thorough. Concise examinations that authenticate and follow up should land high, not midrange.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"openq":1-10,"foundation":1-10,"listening":1-10,"delivery":1-10},"comments":{"content":"","openq":"","foundation":"","listening":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`,
-    cross:`Rate a CROSS EXAMINATION using the ${stateName} State and Regional Tournament judges rubric. Score it as a judge would at a regional tournament. Let the material dictate the score: strong work can earn 9, 10, or even 100/100, while weaker showings should fall wherever the rubric points, including the 60s or below. Categories/weights:
-  - Chapters & Damage Theory (30)
-  - Leading & Control (25)
-  - Impeachment/Admissions (20)
-  - Brevity & Question Craft (15)
-  - Delivery/Presence (10)
-  Credit short leading Qs; anchors (page/line); admissions. Penalize compound/argumentative.
-  Evaluate using this checklist:
-  \u25a1 Properly phrased and effective questions
-  \u25a1 Examination was organized effectively to make points clearly; questions had clear purpose
-  \u25a1 Used proper courtroom procedures
-  \u25a1 Handled objections appropriately and effectively
-  \u25a1 Did not overuse objections
-  \u25a1 Did not ask questions that called for an unfair extrapolation from the witness
-  \u25a1 Used various techniques, as necessary, to handle a non-responsive witness
-  \u25a1 Properly impeached witnesses
-  \u25a1 Demonstrated an understanding of the Modified Federal Rules of Evidence
-  \u25a1 Handled physical evidence appropriately and effectively
-  \u25a1 Spoke confidently and clearly
-  Scoring guidance (total out of 100):
-  - Championship caliber: Tight chapters with relentless leading control, clean impeachment anchors, and purposeful brevity; elite cross.
-  - Tournament ready: Persuasive control with slight softness (e.g., one missed follow-up or lighter impeachment tie-in).
-  - Developing: Core skills present but inconsistent control, unclear damage theory, or thin impeachment use.
-  - Needs rebuild: Major checklist gaps, argumentative tone, or lack of admissions/follow-through.
-  Reward crosses that stay short, leading, and fact-anchored. Do not penalize concise, surgical sequences that check every box.
-  Calibrate totals so that competition-ready transcripts usually land above 70/100 (7/10). When major checklist gaps, inaccurate law, or other serious problems appear, do not hesitate to score below 70/100. Above the rubric and every other guideline, ensure the final score mirrors what a real competition judge would award.
-  Share question/answer insights when helpful. Return JSON: {"total":0-100,"range":"optional","categories":{"content":1-10,"leading":1-10,"impeach":1-10,"brevity":1-10,"delivery":1-10},"comments":{"content":"","leading":"","impeach":"","brevity":"","delivery":""},"qa":[{"q":"","a":"","qScore":1-10,"qReason":"","aScore":1-10,"aReason":""}],"explanation":"2-3 sentences noting strengths and weaknesses","notes":"at least two actionable tips separated by \n","midband_justification":[],"decimals_used":""}. Provide scoreLow/scoreHigh if you use a range; otherwise leave them blank. The qa list is optional—include entries only when you have concrete feedback for specific exchanges.`
+    opening:`Evaluate a ${stateName} high-school mock trial OPENING STATEMENT. Score on a 0–100 scale (multiply the 1–10 result by 10) using these weights: Content & Law/Facts 37, Organization & Roadmap 36, Persuasiveness 12, Delivery 15. Checklist: clear theme/story, identifies the side and burden (preponderance), previews key witnesses/evidence, states the verdict request, and stays non-argumentative while sounding confident. Reward concise openings that hit every checklist item; deduct when the burden, roadmap, or ask is missing.`,
+    closing:`Evaluate a ${stateName} high-school mock trial CLOSING ARGUMENT. Weights (total 100): Content & Law Application 38, Structure & Element Walk-through 22, Refutation 10, Persuasiveness 15, Delivery 15. Checklist: restate theme, walk the law through the record, answer the opponent’s major points, emphasize the burden, and finish with a clear verdict ask. Reward closings that compare both cases and analyze evidence; deduct when it merely recaps testimony or ignores the opposition.`,
+    direct:`Evaluate a ${stateName} high-school mock trial DIRECT EXAMINATION. Weights: Chapters & Story 30, Open-Ended Technique 20, Foundation & Exhibits 20, Listening & Follow-ups 15, Delivery 15. Look for conversational, non-leading chapters that build the narrative, proper foundations/authentication, responsive follow-ups, and confident courtroom manner. Deduct for leading/compound questions or missing foundations; reward directs that feel like a guided story.`,
+    cross:`Evaluate a ${stateName} high-school mock trial CROSS EXAMINATION. Weights: Chapters & Damage Theory 30, Leading & Control 25, Impeachment/Admissions 20, Brevity & Question Craft 15, Delivery 10. Checklist: tight leading questions, strategic admissions or impeachments, clear chapter purpose, and professional tone. Reward surgical, fact-anchored control; deduct when questions ramble, invite narrative answers, or miss obvious impeachments.`
   };
 }
-
 /* Global engine state */
 EngineState = {
   get mode(){
@@ -2301,6 +2151,36 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
   };
 
+  const VIDEO_CATEGORY_FOCUS={
+    opening:{
+      content:'Tie each chapter to a clear theme, cite witnesses/exhibits you will call, and highlight the burden.',
+      organization:'Deliver a crisp roadmap (first/second/third), finish with the verdict ask, and keep transitions obvious.',
+      persuasion:'Sound confident yet non-argumentative; hook the jury with vivid but fair language.',
+      delivery:'Project a poised stance, purposeful gestures, and courtroom-ready tone drawn from the transcript cues.'
+    },
+    closing:{
+      content:'Walk element-by-element through the law and facts and synthesize exhibits and testimony.',
+      organization:'Structure the argument with clear chapters that revisit the theme and lead to the ask.',
+      refutation:'Answer the opponent’s best points or preempt them with specific record citations.',
+      persuasion:'Drive a compelling narrative while staying within the record and law.',
+      delivery:'Maintain command, pacing, and confident courtroom demeanor that matches the transcript.'
+    },
+    direct:{
+      content:'Build chapters that tell the story in order, signposting what each witness fact proves.',
+      openq:'Use conversational, open questions; flag any leading or compound slip-ups.',
+      foundation:'Lay proper foundations for exhibits and expertise before moving to substance.',
+      listening:'Reward tight follow-ups and clarifying responses when the witness goes off script.',
+      delivery:'Coach purposeful posture, eye contact, and vocal warmth implied by the phrasing.'
+    },
+    cross:{
+      content:'Organize chapters around damaging concessions tied to the theory.',
+      leading:'Keep questions tight, leading, and in control—penalize narrative prompts.',
+      impeach:'Use prior statements/exhibits to lock in admissions or impeach wobbly answers.',
+      brevity:'Stay surgical—no filler, no double-barreled questions.',
+      delivery:'Maintain professional edge, pacing, and command consistent with the transcript.'
+    }
+  };
+
   function baseMetrics(text){
     const words=(text||'').trim().split(/\s+/).filter(Boolean);
     const wordCount=words.length;
@@ -3022,6 +2902,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   function buildChatGPTPrompt(type, transcript){
+    const conf = RUBRICS[type] || { cats: [] };
     const rubricMap = STATES[CURRENT_STATE]?.rubricMap || {};
     const rubric = rubricMap[type] || rubricMap.opening;
     const typeLabels = {
@@ -3031,9 +2912,38 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       cross: 'CROSS EXAMINATION'
     };
     const selectedLabel = typeLabels[type] || type?.toString().toUpperCase() || 'PERFORMANCE';
-    const basePrompt = ChatGPTScoring.buildScoringPrompt(transcript, false, rubric, { relaxed: true, mode: 'video' });
-    const emphasis = `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`;
-    return `${emphasis}\n\n${basePrompt}`;
+    const cats = Array.isArray(conf.cats) ? conf.cats : [];
+    const catKeys = cats.map(c => c.key);
+    const catLabels = cats.map(c => c.n || c.key);
+    const catWeights = cats.map(c => Math.round(c.w * 100));
+    const focusMap = VIDEO_CATEGORY_FOCUS[type] || {};
+    const catFocus = cats.map(c => focusMap?.[c.key] || '');
+    const categoryLines = cats.length
+      ? cats.map((c, idx) => {
+          const weight = Number.isFinite(catWeights[idx]) ? catWeights[idx] : Math.round((c.w || 0) * 100);
+          const focus = catFocus[idx] ? ` – ${catFocus[idx]}` : '';
+          return `• ${c.n} (${c.key}): weight ${weight}${focus}`;
+        }).join('\n')
+      : '';
+    const calibration = 'Video score calibration (0-100 total): 92-100 national champion; 85-91 state finals; 78-84 competitive with notable gaps; 70-77 developing; below 70 major issues or rule breaches.';
+    const mismatch = 'If the transcript sounds like a different role, note the mismatch in "notes" and lower the misaligned categories instead of changing the rubric.';
+    const commentNote = 'Tie every category comment and summary point to concrete transcript cues—quote phrases, reference question numbers, or cite exhibit names. Do not invent physical actions you cannot infer.';
+    const extras = [
+      `The competitor explicitly selected this performance as a ${selectedLabel}. Score it strictly as a ${selectedLabel} using the provided rubric, even if the transcript resembles another format.`,
+      calibration,
+      categoryLines ? `Category checkpoints:\n${categoryLines}` : '',
+      commentNote,
+      mismatch
+    ].filter(Boolean).join('\n\n');
+    const basePrompt = ChatGPTScoring.buildScoringPrompt(transcript, false, rubric, {
+      relaxed: true,
+      mode: 'video',
+      catKeys,
+      catLabels,
+      catWeights,
+      catFocus
+    });
+    return `${extras}\n\n${basePrompt}`;
   }
 
   function buildChatGPTMessages(type, transcript){
