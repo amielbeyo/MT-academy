@@ -10,9 +10,8 @@
     gtag('config', 'G-3QMGWMD9KZ');
   </script>
   <meta charset="utf-8">
-  <meta http-equiv="refresh" content="0; url=./#howto">
   <title>How to Use MT academy</title>
-  <meta name="description" content="Step-by-step guide for Objections, Video Coach, Writing, Rules, Rules Quiz, and setting up OpenAI API keys for ChatGPT scoring and movement analysis.">
+  <meta name="description" content="Step-by-step instructions for every MT academy practice tool, including Objections, Video Coach, Writing, Rules, Rules Quiz, and OpenAI API key setup for ChatGPT scoring and movement analysis.">
   <meta name="keywords" content="mock trial, mock trial practice, mock trial resources, mock trial quizzes, high school mock trial, mock trial coaching, mock trial competition, MT academy">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://mocktrialacademy.com/howto.html">
@@ -21,18 +20,213 @@
   <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml">
   <meta property="og:image" content="https://mocktrialacademy.com/favicon.svg">
   <meta property="og:title" content="How to Use MT academy">
-  <meta property="og:description" content="Step-by-step guide for Objections, Video Coach, Writing, Rules, Rules Quiz, and setting up OpenAI API keys for ChatGPT scoring and movement analysis.">
+  <meta property="og:description" content="Step-by-step instructions for every MT academy practice tool, including Objections, Video Coach, Writing, Rules, Rules Quiz, and OpenAI API key setup for ChatGPT scoring and movement analysis.">
   <meta property="og:url" content="https://mocktrialacademy.com/howto.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="MT academy">
   <meta property="og:locale" content="en_US">
+  <style>
+    :root {
+      --bg: linear-gradient(135deg, #0f172a 55%, #1d4ed8);
+      --surface: rgba(15, 23, 42, 0.92);
+      --card: rgba(15, 23, 42, 0.88);
+      --border: rgba(56, 189, 248, 0.65);
+      --text: #f8fafc;
+      --muted: #cbd5f5;
+      --accent: #38bdf8;
+      --shadow: 0 25px 60px rgba(15, 23, 42, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    a:hover,
+    a:focus {
+      color: #7dd3fc;
+    }
+
+    .page-shell {
+      position: relative;
+      width: min(1100px, 92vw);
+      padding: clamp(2.5rem, 6vw, 4rem) clamp(1.5rem, 4vw, 3rem) 3rem;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(2rem, 5vw, 3rem);
+    }
+
+    .glow {
+      position: absolute;
+      inset: clamp(1rem, 3vw, 2.5rem);
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(14, 165, 233, 0.03));
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      backdrop-filter: blur(22px);
+      pointer-events: none;
+    }
+
+    .hero,
+    .content,
+    .footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(14, 165, 233, 0.08));
+      border-radius: 24px;
+      padding: clamp(1.8rem, 5vw, 2.75rem);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 5vw, 3rem);
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 60ch;
+    }
+
+    .eyebrow {
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #bae6fd;
+      font-weight: 600;
+    }
+
+    .anchor-nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .anchor-nav a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(15, 23, 42, 0.6);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .anchor-nav a:hover,
+    .anchor-nav a:focus {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(56, 189, 248, 0.25);
+      background: rgba(56, 189, 248, 0.2);
+      outline: none;
+    }
+
+    .content {
+      display: grid;
+      gap: clamp(1.5rem, 4vw, 2.5rem);
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: clamp(1.6rem, 4vw, 2.4rem);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      font-size: clamp(1.45rem, 3vw, 1.85rem);
+      letter-spacing: -0.01em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+    }
+
+    .card h2::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    }
+
+    .card p,
+    .card ol {
+      color: var(--muted);
+    }
+
+    .card ol {
+      margin: 0;
+      padding-left: 1.1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .card li {
+      line-height: 1.6;
+    }
+
+    .highlight {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(37, 99, 235, 0.22));
+      border: 1px solid rgba(56, 189, 248, 0.45);
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .footer a {
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      .page-shell {
+        padding: 1.75rem 1.1rem 2.5rem;
+      }
+
+      .card {
+        padding: 1.5rem;
+      }
+    }
+  </style>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebPage",
     "name": "How to Use MT academy",
     "url": "https://mocktrialacademy.com/howto.html",
-    "description": "Step-by-step guide for Objections, Video Coach, Writing, Rules, Rules Quiz, and setting up OpenAI API keys for ChatGPT scoring and movement analysis.",
+    "description": "Step-by-step instructions for every MT academy practice tool, including Objections, Video Coach, Writing, Rules, Rules Quiz, and OpenAI API key setup for ChatGPT scoring and movement analysis.",
     "keywords": [
       "mock trial",
       "mock trial practice",
@@ -47,9 +241,98 @@
   </script>
 </head>
 <body>
-  <h1>How to Use</h1>
-  <p>Quick tips for MT academy's practice tools and API key setup. OpenAI keys need funds on the account so ChatGPT can score, analyze movement, and draft materials.</p>
-  <p>See the full instructions on the <a href="./#howto">main page</a>.</p>
-  <p>The Video Coach reports a final rating (Terrible, Bad, Medium, Good, or Amazing) instead of a numeric score range so competitors instantly know how their performance landed.</p>
+  <div class="page-shell">
+    <div class="glow" aria-hidden="true"></div>
+    <header class="hero">
+      <span class="eyebrow">MT academy Playbook</span>
+      <h1>How to Use MT academy</h1>
+      <p>Every MT academy tool shares the same goal: make it easier to prepare for mock trial. Use this guide for a quick refresher or to share setup steps with teammates.</p>
+      <nav class="anchor-nav" aria-label="Page sections">
+        <ul>
+          <li><a href="#overview">Quick Start</a></li>
+          <li><a href="#objections">Objections Drill</a></li>
+          <li><a href="#video-coach">Video Coach</a></li>
+          <li><a href="#writing">Writing Lab</a></li>
+          <li><a href="#rules">Rules Library</a></li>
+          <li><a href="#quiz">Rules Quiz</a></li>
+          <li><a href="#api">OpenAI API Keys</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main class="content">
+      <section id="overview" class="card highlight">
+        <h2>Quick Start</h2>
+        <p>Pick a tool from the navigation bar or the homepage. Each one opens in its own tab so you can practice, review answers, and come back later without losing progress.</p>
+        <p>If you plan to use ChatGPT scoring, drafting, or movement analysis, create your own OpenAI API key before jumping into drills (see <a href="#api">API Keys</a> below).</p>
+      </section>
+
+    <section id="objections" class="card">
+      <h2>Objections Drill</h2>
+      <ol>
+        <li>Select a topic, difficulty, and whether you want a built-in scenario or a new ChatGPT-generated prompt.</li>
+        <li>Read the short fact pattern and choose the objection you would raise.</li>
+        <li>Click <em>Check</em> to compare your answer with the expected objection.</li>
+        <li>Use <em>ChatGPT Argue</em> to practice explaining your reasoning in real time.</li>
+        <li>Press <em>Score</em> to receive detailed feedback from ChatGPT on the strength of your argument.</li>
+      </ol>
+    </section>
+
+    <section id="video-coach" class="card">
+      <h2>Video Coach</h2>
+      <ol>
+        <li>Choose the speech type you want to rehearse, then hit <em>Start Recording</em>.</li>
+        <li>After finishing, click <em>Stop</em> and review using <em>Play</em> or <em>Download</em>.</li>
+        <li>Select <em>Re-score</em> for updated delivery notes and <em>Show Voice</em> to review the transcript.</li>
+        <li>Use <em>Movement (ChatGPT)</em> for posture and gesture analysis; if the request is too large the tool falls back to transcript feedback automatically.</li>
+        <li>Confirm your API configuration anytime with <em>Test ChatGPT</em>.</li>
+        <li>Final results appear as a rating (Terrible, Bad, Medium, Good, or Amazing) so you instantly know where you landed.</li>
+      </ol>
+    </section>
+
+    <section id="writing" class="card">
+      <h2>Writing Lab</h2>
+      <ol>
+        <li>Pick a document type (opening, closing, cross, etc.) and jot down the facts or themes you want to highlight.</li>
+        <li>Click <em>Ask ChatGPT to Draft</em> to generate a sample passage tailored to your notes.</li>
+        <li>Edit the draft directly in the browser and copy it into your preferred editor or team folder.</li>
+      </ol>
+    </section>
+
+    <section id="rules" class="card">
+      <h2>Rules Library</h2>
+      <ol>
+        <li>Search by rule number, keyword, or topic. Results update instantly.</li>
+        <li>Select a rule to read the full text along with a short explanation.</li>
+        <li>Use <em>Clear</em> to reset your search or open the <em>Official PDF</em> for the complete rulebook.</li>
+      </ol>
+    </section>
+
+    <section id="quiz" class="card">
+      <h2>Rules Quiz</h2>
+      <ol>
+        <li>Choose a mode (standard or lightning), the rule sets you want to review, question count, and difficulty.</li>
+        <li>Press <em>Start Quiz</em> to begin. Each question appears one at a time—answer, then click <em>Next</em>.</li>
+        <li>Track your accuracy with the live score display and revisit tricky rules with the review links.</li>
+      </ol>
+    </section>
+
+    <section id="api" class="card">
+      <h2>OpenAI API Keys</h2>
+      <ol>
+        <li>Log in at <a href="https://platform.openai.com/">platform.openai.com</a> using your own account.</li>
+        <li>Navigate to <strong>Billing</strong> → <strong>Add payment method</strong>, then deposit funds so ChatGPT requests can process.</li>
+        <li>Open <strong>API keys</strong> and click <strong>Create new secret key</strong>.</li>
+        <li>Copy the key into MT academy's API Key page, choose a model, and hit <em>Save ChatGPT Key</em>.</li>
+        <li>Return to any tool and click <em>Test ChatGPT</em> (or the equivalent button) to confirm everything works.</li>
+      </ol>
+      <p>Keep your key private. You can remove it at any time with the <em>Remove</em> button on the API Keys page.</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Back to the <a href="index.html#howto">main How to section</a> or explore other tools from the <a href="index.html">home page</a>.</p>
+    </footer>
+  </div>
 </body>
 </html>
