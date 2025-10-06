@@ -41,6 +41,10 @@
       box-sizing: border-box;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
       margin: 0;
       font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -178,6 +182,56 @@
       outline: none;
     }
 
+    .anchor-nav a.active {
+      background: rgba(56, 189, 248, 0.32);
+      box-shadow: 0 16px 36px rgba(14, 165, 233, 0.24);
+      color: #f0f9ff;
+    }
+
+    .section-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      padding: 0.5rem 0 0;
+    }
+
+    .section-chip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.85rem;
+      border-radius: 14px;
+      background: rgba(15, 23, 42, 0.72);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      transition: transform 0.2s ease, background 0.2s ease, border 0.2s ease;
+    }
+
+    .section-chip span {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.45rem;
+      height: 1.45rem;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.18);
+      color: #bae6fd;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .section-chip:hover,
+    .section-chip:focus-visible {
+      transform: translateY(-1px);
+      background: rgba(56, 189, 248, 0.18);
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #f8fafc;
+      outline: none;
+    }
+
     .content {
       display: grid;
       gap: clamp(1.5rem, 4vw, 2.5rem);
@@ -189,6 +243,8 @@
       padding: clamp(1.6rem, 4vw, 2.4rem);
       border: 1px solid rgba(148, 163, 184, 0.18);
       box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
     }
 
     .card h2 {
@@ -207,6 +263,21 @@
       border-radius: 999px;
       background: var(--accent);
       box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(120% 140% at 100% 0%, rgba(56, 189, 248, 0.18), transparent 55%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .card:hover::after,
+    .card:focus-within::after {
+      opacity: 1;
     }
 
     .card p,
@@ -232,42 +303,97 @@
 
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.15rem;
       margin-top: 1.35rem;
-    }
-
-    .info-grid a {
-      text-decoration: none;
     }
 
     .info-tile {
       border-radius: 18px;
       border: 1px solid rgba(125, 211, 252, 0.35);
       background: rgba(8, 47, 73, 0.4);
-      padding: 1.1rem 1.2rem;
+      padding: 1.2rem 1.35rem;
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      gap: 0.85rem;
       min-height: 100%;
-    }
-
-    .info-tile strong {
-      font-size: 1.05rem;
-      color: var(--text);
-    }
-
-    .info-tile span {
-      color: rgba(226, 232, 240, 0.8);
-      font-size: 0.9rem;
-      line-height: 1.4;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease;
     }
 
     .info-tile:hover,
-    .info-tile:focus-visible {
-      transform: translateY(-3px);
-      box-shadow: 0 18px 40px rgba(14, 165, 233, 0.28);
+    .info-tile:focus-within {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 46px rgba(14, 165, 233, 0.32);
+      border-color: rgba(56, 189, 248, 0.55);
+    }
+
+    .info-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .info-header strong {
+      font-size: 1.05rem;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .info-summary {
+      color: rgba(226, 232, 240, 0.8);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .info-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .info-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    .info-link svg {
+      width: 0.85rem;
+      height: 0.85rem;
+    }
+
+    .info-link--howto {
+      background: rgba(56, 189, 248, 0.18);
+      color: #e0f2fe;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .info-link--howto:hover,
+    .info-link--howto:focus-visible {
+      background: rgba(56, 189, 248, 0.3);
+      color: #f8fafc;
+      outline: none;
+    }
+
+    .info-link--launch {
+      background: rgba(15, 23, 42, 0.7);
+      color: rgba(191, 219, 254, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+    }
+
+    .info-link--launch:hover,
+    .info-link--launch:focus-visible {
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border-color: rgba(191, 219, 254, 0.6);
       outline: none;
     }
 
@@ -319,6 +445,19 @@
       .card {
         padding: 1.5rem;
       }
+
+      .info-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .info-actions {
+        width: 100%;
+      }
+
+      .info-link {
+        width: fit-content;
+      }
     }
   </style>
   <script type="application/ld+json">
@@ -360,38 +499,101 @@
           <li><a href="#api">OpenAI API Keys</a></li>
         </ul>
       </nav>
+      <div class="section-chips" role="list" aria-label="Jump to sections">
+        <a class="section-chip" href="#overview" role="listitem"><span>01</span> Quick Start</a>
+        <a class="section-chip" href="#objections" role="listitem"><span>02</span> Objections</a>
+        <a class="section-chip" href="#video-coach" role="listitem"><span>03</span> Video Coach</a>
+        <a class="section-chip" href="#writing" role="listitem"><span>04</span> Writing Lab</a>
+        <a class="section-chip" href="#rules" role="listitem"><span>05</span> Rules Library</a>
+        <a class="section-chip" href="#quiz" role="listitem"><span>06</span> Rules Quiz</a>
+        <a class="section-chip" href="#api" role="listitem"><span>07</span> API Keys</a>
+      </div>
     </header>
 
     <main class="content">
       <section id="overview" class="card highlight">
         <h2>Quick Start</h2>
         <p>Decide what skill you want to sharpen, then launch the matching tool. You can move between apps freely—your progress and generated drafts stay in their tabs until you clear them.</p>
-        <p>If you plan to use ChatGPT scoring, drafting, or movement analysis, create your own OpenAI API key before jumping into drills (see <a href="#api">API Keys</a> below).</p>
+        <p>If you plan to use ChatGPT scoring, drafting, or movement analysis, create your own OpenAI API key before jumping into drills (see <a href="#api">API Keys</a> below). Each tile includes a shortcut to its how-to section and a direct launch link.</p>
         <div class="info-grid" aria-label="Tool shortcuts">
-          <a class="info-tile" href="objections.html">
-            <strong>Objections Drill</strong>
-            <span>Practice fast objections with built-in fact patterns or AI-generated prompts.</span>
-          </a>
-          <a class="info-tile" href="video-coach.html">
-            <strong>Video Coach</strong>
-            <span>Record and score speeches with movement analysis plus delivery feedback.</span>
-          </a>
-          <a class="info-tile" href="writing.html">
-            <strong>Writing Lab</strong>
-            <span>Draft openings, closings, and crosses using your notes and ChatGPT assists.</span>
-          </a>
-          <a class="info-tile" href="rules.html">
-            <strong>Rules Library</strong>
-            <span>Search the NCHSAA rules instantly and save citations for competition.</span>
-          </a>
-          <a class="info-tile" href="quiz.html">
-            <strong>Rules Quiz</strong>
-            <span>Challenge yourself or teammates with custom quizzes and lightning rounds.</span>
-          </a>
-          <a class="info-tile" href="api-keys.html">
-            <strong>API Keys Portal</strong>
-            <span>Securely store, test, or remove the OpenAI keys used across every tool.</span>
-          </a>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>Objections Drill</strong>
+              <a class="info-link info-link--howto" href="#objections" aria-label="Read how to use the Objections Drill">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Practice fast objections with built-in fact patterns or AI-generated prompts.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="objections.html">Launch tool</a>
+            </div>
+          </article>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>Video Coach</strong>
+              <a class="info-link info-link--howto" href="#video-coach" aria-label="Read how to use the Video Coach">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Record and score speeches with movement analysis plus delivery feedback.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="video-coach.html">Launch tool</a>
+            </div>
+          </article>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>Writing Lab</strong>
+              <a class="info-link info-link--howto" href="#writing" aria-label="Read how to use the Writing Lab">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Draft openings, closings, and crosses using your notes and ChatGPT assists.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="writing.html">Launch tool</a>
+            </div>
+          </article>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>Rules Library</strong>
+              <a class="info-link info-link--howto" href="#rules" aria-label="Read how to use the Rules Library">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Search the NCHSAA rules instantly and save citations for competition.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="rules.html">Launch tool</a>
+            </div>
+          </article>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>Rules Quiz</strong>
+              <a class="info-link info-link--howto" href="#quiz" aria-label="Read how to use the Rules Quiz">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Challenge yourself or teammates with custom quizzes and lightning rounds.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="quiz.html">Launch tool</a>
+            </div>
+          </article>
+          <article class="info-tile">
+            <div class="info-header">
+              <strong>API Keys Portal</strong>
+              <a class="info-link info-link--howto" href="#api" aria-label="Read how to set up API keys">
+                <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                How-to
+              </a>
+            </div>
+            <p class="info-summary">Securely store, test, or remove the OpenAI keys used across every tool.</p>
+            <div class="info-actions">
+              <a class="info-link info-link--launch" href="api-keys.html">Launch tool</a>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -471,5 +673,38 @@
       <p>Back to the <a href="index.html#howto">main How to section</a> or explore other tools from the <a href="index.html">home page</a>. Want rules at a glance? Jump into the <a href="rules.html">Rules Library</a>, and when you're ready to practice live, start a <a href="video-coach.html">Video Coach</a> session.</p>
     </footer>
   </div>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const navLinks = Array.from(document.querySelectorAll('.anchor-nav a'));
+      const sections = navLinks
+        .map((link) => document.querySelector(link.getAttribute('href')))
+        .filter(Boolean);
+
+      const activateLink = (id) => {
+        navLinks.forEach((link) => {
+          const isActive = link.getAttribute('href') === `#${id}`;
+          link.classList.toggle('active', isActive);
+        });
+      };
+
+      if (sections.length) {
+        activateLink(sections[0].id);
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries
+              .filter((entry) => entry.isIntersecting)
+              .forEach((entry) => activateLink(entry.target.id));
+          },
+          {
+            rootMargin: '-45% 0px -45% 0px',
+            threshold: 0.1,
+          }
+        );
+
+        sections.forEach((section) => observer.observe(section));
+      }
+    });
+  </script>
 </body>
 </html>
