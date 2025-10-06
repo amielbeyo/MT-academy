@@ -1032,10 +1032,10 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Evaluate a ${stateName} high-school mock trial OPENING STATEMENT. Score on a 0–100 scale (multiply the 1–10 result by 10) using these weights: Content & Law/Facts 37, Organization & Roadmap 36, Persuasiveness 12, Delivery 15. Checklist: clear theme/story, identifies the side and burden (preponderance), previews key witnesses/evidence, states the verdict request, and stays non-argumentative while sounding confident. Reward concise openings that hit every checklist item; deduct when the burden, roadmap, or ask is missing.`,
-    closing:`Evaluate a ${stateName} high-school mock trial CLOSING ARGUMENT. Weights (total 100): Content & Law Application 38, Structure & Element Walk-through 22, Refutation 10, Persuasiveness 15, Delivery 15. Checklist: restate theme, walk the law through the record, answer the opponent’s major points, emphasize the burden, and finish with a clear verdict ask. Reward closings that compare both cases and analyze evidence; deduct when it merely recaps testimony or ignores the opposition.`,
-    direct:`Evaluate a ${stateName} high-school mock trial DIRECT EXAMINATION. Weights: Chapters & Story 30, Open-Ended Technique 20, Foundation & Exhibits 20, Listening & Follow-ups 15, Delivery 15. Look for conversational, non-leading chapters that build the narrative, proper foundations/authentication, responsive follow-ups, and confident courtroom manner. Deduct for leading/compound questions or missing foundations; reward directs that feel like a guided story.`,
-    cross:`Evaluate a ${stateName} high-school mock trial CROSS EXAMINATION. Weights: Chapters & Damage Theory 30, Leading & Control 25, Impeachment/Admissions 20, Brevity & Question Craft 15, Delivery 10. Checklist: tight leading questions, strategic admissions or impeachments, clear chapter purpose, and professional tone. Reward surgical, fact-anchored control; deduct when questions ramble, invite narrative answers, or miss obvious impeachments.`
+    opening:`Evaluate a ${stateName} high-school mock trial OPENING STATEMENT. Score on a 0–100 scale (multiply the 1–10 result by 10) using these weights: Case Theory & Record Integration 40, Roadmap & Structural Clarity 28, Theme Engagement & Momentum 17, Delivery & Courtroom Presence 15. Checklist: state the theme and burden, forecast the witnesses/exhibits that prove each chapter, preview the requested verdict, and stay confident without becoming argumentative. Reward concise openings that connect promises to specific record anchors; deduct when the theory, roadmap, or ask is vague or missing.`,
+    closing:`Evaluate a ${stateName} high-school mock trial CLOSING ARGUMENT. Weights (total 100): Law & Fact Application 32, Structure & Chapter Flow 18, Refutation & Defense of Record 22, Narrative Drive & Ask 14, Delivery & Command 14. Checklist: restate the theme, walk element-by-element through the record, answer the opponent’s best points, emphasize the burden, and finish with a direct verdict ask. Reward closings that compare both cases with citations; deduct when it merely recaps testimony or ignores defense arguments.`,
+    direct:`Evaluate a ${stateName} high-school mock trial DIRECT EXAMINATION. Weights: Chapters & Theory Advancement 24, Open Question Technique 24, Foundation & Exhibits 20, Listening & Follow-up Control 22, Delivery & Witness Connection 10. Look for conversational, non-leading chapters that advance the theory, proper foundations/authentication, responsive follow-ups, and confident courtroom manner. Deduct for leading/compound questions, missing foundations, or ignored witness drift; reward directs that feel like a guided story built on record facts.`,
+    cross:`Evaluate a ${stateName} high-school mock trial CROSS EXAMINATION. Weights: Chapter Goals & Theory Impact 22, Leading Control & Pace 28, Impeachment & Admissions 25, Brevity & Question Craft 15, Delivery & Courtroom Presence 10. Checklist: tight leading questions, strategic admissions or impeachments, clear chapter purpose, and professional tone. Reward surgical, fact-anchored control; deduct when questions ramble, invite narrative answers, or skip obvious impeachment opportunities.`
   };
 }
 /* Global engine state */
@@ -2157,39 +2157,62 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
   }
 
   const RUBRICS={
-    opening:{name:'Opening',cats:[{key:'content',n:'Content & Case Theory',w:0.37},{key:'organization',n:'Organization & Roadmap',w:0.36},{key:'persuasion',n:'Persuasiveness',w:0.12},{key:'delivery',n:'Delivery (Voice/Cadence)',w:0.15}]},
-    closing:{name:'Closing',cats:[{key:'content',n:'Content & Law Application',w:0.38},{key:'organization',n:'Structure & Element Walk-through',w:0.22},{key:'refutation',n:'Refutation & Rebuttal',w:0.10},{key:'persuasion',n:'Persuasiveness',w:0.15},{key:'delivery',n:'Delivery',w:0.15}]},
-    direct:{name:'Direct',cats:[{key:'content',n:'Chapters & Story Build',w:0.30},{key:'openq',n:'Open-Ended Technique',w:0.20},{key:'foundation',n:'Foundation & Exhibits',w:0.20},{key:'listening',n:'Listening & Follow-ups',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.15}]},
-    cross:{name:'Cross',cats:[{key:'content',n:'Chapters & Damage Theory',w:0.30},{key:'leading',n:'Leading & Control',w:0.25},{key:'impeach',n:'Impeachment/Admissions',w:0.20},{key:'brevity',n:'Brevity & Question Craft',w:0.15},{key:'delivery',n:'Delivery/Presence',w:0.10}]}
+    opening:{name:'Opening',cats:[
+      {key:'content',n:'Theory & Record Integration',w:0.36},
+      {key:'organization',n:'Roadmap & Signposting',w:0.26},
+      {key:'persuasion',n:'Theme & Momentum',w:0.22},
+      {key:'delivery',n:'Delivery & Presence',w:0.16}
+    ]},
+    closing:{name:'Closing',cats:[
+      {key:'content',n:'Law & Element Analysis',w:0.30},
+      {key:'organization',n:'Structure & Story Arc',w:0.18},
+      {key:'refutation',n:'Refutation & Case Defense',w:0.24},
+      {key:'persuasion',n:'Ask & Impact',w:0.14},
+      {key:'delivery',n:'Delivery & Command',w:0.14}
+    ]},
+    direct:{name:'Direct',cats:[
+      {key:'content',n:'Chapters & Theory Advancement',w:0.26},
+      {key:'openq',n:'Question Craft & Tone',w:0.22},
+      {key:'foundation',n:'Foundations & Exhibits',w:0.20},
+      {key:'listening',n:'Witness Listening & Follow-ups',w:0.22},
+      {key:'delivery',n:'Witness Connection & Delivery',w:0.10}
+    ]},
+    cross:{name:'Cross',cats:[
+      {key:'content',n:'Chapter Targets & Theory Impact',w:0.24},
+      {key:'leading',n:'Leading Control & Tempo',w:0.26},
+      {key:'impeach',n:'Impeachments & Admissions',w:0.26},
+      {key:'brevity',n:'Precision & Efficiency',w:0.14},
+      {key:'delivery',n:'Delivery & Presence',w:0.10}
+    ]}
   };
 
   const VIDEO_CATEGORY_FOCUS={
     opening:{
-      content:'Tie each chapter to a clear theme, cite witnesses/exhibits you will call, and highlight the burden.',
-      organization:'Deliver a crisp roadmap (first/second/third), finish with the verdict ask, and keep transitions obvious.',
-      persuasion:'Sound confident yet non-argumentative; hook the jury with vivid but fair language.',
-      delivery:'Project a poised stance, purposeful gestures, and courtroom-ready tone drawn from the transcript cues.'
+      content:'Prove the theory with cited facts and burdens so the judge knows exactly what you will deliver.',
+      organization:'Lay out a crisp roadmap with strong signposts and transitions from promise to promise.',
+      persuasion:'Build narrative momentum with theme callbacks and purposeful word choice that never over-argues.',
+      delivery:'Stand grounded, gesture with intent, and keep vocal control aligned with the transcript’s pace.'
     },
     closing:{
-      content:'Walk element-by-element through the law and facts and synthesize exhibits and testimony.',
-      organization:'Structure the argument with clear chapters that revisit the theme and lead to the ask.',
-      refutation:'Answer the opponent’s best points or preempt them with specific record citations.',
-      persuasion:'Drive a compelling narrative while staying within the record and law.',
-      delivery:'Maintain command, pacing, and confident courtroom demeanor that matches the transcript.'
+      content:'March element-by-element through the law, citing the record for every conclusion you ask the judge to adopt.',
+      organization:'Sequence the chapters so the story escalates naturally toward the close while echoing the theme.',
+      refutation:'Directly answer the opponent’s strongest arguments with receipts from the transcript or exhibits.',
+      persuasion:'Make the ask inevitable by tying impact, burden, and relief into a unified finish.',
+      delivery:'Project confident command—eye contact, pacing, and tone that show you own the room.'
     },
     direct:{
-      content:'Build chapters that tell the story in order, signposting what each witness fact proves.',
-      openq:'Use conversational, open questions; flag any leading or compound slip-ups.',
-      foundation:'Lay proper foundations for exhibits and expertise before moving to substance.',
-      listening:'Reward tight follow-ups and clarifying responses when the witness goes off script.',
-      delivery:'Coach purposeful posture, eye contact, and vocal warmth implied by the phrasing.'
+      content:'Map the theory chapter-by-chapter so every fact advances a clear purpose for the witness.',
+      openq:'Keep questions open, short, and responsive—penalize leading or double-barreled phrases.',
+      foundation:'Lay solid exhibit and expertise foundations before introducing the proof you need.',
+      listening:'Drill follow-ups that rescue drift, clarify confusions, and highlight the answer the judge should hear.',
+      delivery:'Encourage an invitational tone, steady posture, and connection that spotlights the witness.'
     },
     cross:{
-      content:'Organize chapters around damaging concessions tied to the theory.',
-      leading:'Keep questions tight, leading, and in control—penalize narrative prompts.',
-      impeach:'Use prior statements/exhibits to lock in admissions or impeach wobbly answers.',
-      brevity:'Stay surgical—no filler, no double-barreled questions.',
-      delivery:'Maintain professional edge, pacing, and command consistent with the transcript.'
+      content:'Aim each chapter at a theory-critical concession so the scorecard moves in your favor.',
+      leading:'Maintain relentless leading control and tempo that keeps the witness to “yes” or “no.”',
+      impeach:'Capitalize on prior statements or exhibits to cement admissions and punish contradictions.',
+      brevity:'Stay surgical—short, precise questions with no filler or stacking.',
+      delivery:'Show poised aggression: courtroom professionalism with clear voice, posture, and eye contact.'
     }
   };
 
