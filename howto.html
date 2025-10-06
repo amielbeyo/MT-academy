@@ -25,6 +25,9 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="MT academy">
   <meta property="og:locale" content="en_US">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: linear-gradient(135deg, #0f172a 55%, #1d4ed8);
@@ -44,11 +47,102 @@
     body {
       margin: 0;
       font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: var(--bg);
+      background: #020617;
       color: var(--text);
       min-height: 100vh;
       display: flex;
       justify-content: center;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    .background {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bg-grid {
+      position: absolute;
+      inset: -50vh;
+      background:
+        radial-gradient(circle at top left, rgba(14, 116, 144, 0.45), transparent 55%),
+        radial-gradient(circle at 80% 20%, rgba(56, 189, 248, 0.25), transparent 50%),
+        linear-gradient(135deg, rgba(56, 189, 248, 0.08), transparent 60%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.85), rgba(2, 6, 23, 0.85));
+      transform: rotateX(55deg) scale(1.3);
+      transform-origin: center;
+      opacity: 0.9;
+      filter: blur(0px);
+    }
+
+    .bg-grid::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(56, 189, 248, 0.15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.12) 1px, transparent 1px);
+      background-size: 120px 120px;
+      mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 70%);
+      animation: pulse 10s ease-in-out infinite;
+    }
+
+    .bg-orb {
+      position: absolute;
+      width: clamp(340px, 45vw, 540px);
+      height: clamp(340px, 45vw, 540px);
+      background: radial-gradient(circle at 30% 30%, rgba(56, 189, 248, 0.45), rgba(14, 165, 233, 0));
+      filter: blur(0px);
+      mix-blend-mode: screen;
+      opacity: 0.5;
+      animation: drift 28s ease-in-out infinite;
+    }
+
+    .bg-orb.two {
+      width: clamp(260px, 35vw, 420px);
+      height: clamp(260px, 35vw, 420px);
+      background: radial-gradient(circle at 70% 70%, rgba(94, 234, 212, 0.32), rgba(8, 145, 178, 0));
+      animation-duration: 36s;
+      animation-direction: reverse;
+    }
+
+    .bg-orb.three {
+      width: clamp(400px, 50vw, 560px);
+      height: clamp(400px, 50vw, 560px);
+      background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.2), rgba(15, 23, 42, 0));
+      animation-duration: 42s;
+      mix-blend-mode: lighten;
+      opacity: 0.35;
+    }
+
+    .bg-orb.one {
+      top: -18vh;
+      left: -12vw;
+    }
+
+    .bg-orb.two {
+      bottom: -22vh;
+      right: -15vw;
+    }
+
+    .bg-orb.three {
+      top: 40%;
+      right: -20vw;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.45;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.04);
+      }
     }
 
     a {
@@ -67,6 +161,7 @@
       display: flex;
       flex-direction: column;
       gap: clamp(2rem, 5vw, 3rem);
+      z-index: 1;
     }
 
     .glow {
@@ -101,12 +196,19 @@
       margin: 0;
       font-size: clamp(2.2rem, 5vw, 3rem);
       letter-spacing: -0.02em;
+      font-family: "Orbitron", "Inter", sans-serif;
     }
 
     .hero p {
       margin: 0;
       color: var(--muted);
       max-width: 60ch;
+    }
+
+    .hero p + p {
+      font-size: 0.95rem;
+      max-width: 65ch;
+      opacity: 0.9;
     }
 
     .eyebrow {
@@ -168,6 +270,7 @@
       display: inline-flex;
       align-items: center;
       gap: 0.55rem;
+      font-family: "Orbitron", "Inter", sans-serif;
     }
 
     .card h2::before {
@@ -195,9 +298,84 @@
       line-height: 1.6;
     }
 
+    .card strong {
+      color: #e0f2fe;
+    }
+
     .highlight {
       background: linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(37, 99, 235, 0.22));
       border: 1px solid rgba(56, 189, 248, 0.45);
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1.35rem;
+    }
+
+    .info-grid a {
+      text-decoration: none;
+    }
+
+    .info-tile {
+      border-radius: 18px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: rgba(8, 47, 73, 0.4);
+      padding: 1.1rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      min-height: 100%;
+    }
+
+    .info-tile strong {
+      font-size: 1.05rem;
+      color: var(--text);
+    }
+
+    .info-tile span {
+      color: rgba(226, 232, 240, 0.8);
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .info-tile:hover,
+    .info-tile:focus-visible {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 40px rgba(14, 165, 233, 0.28);
+      outline: none;
+    }
+
+    .callout {
+      border-radius: 18px;
+      border: 1px dashed rgba(125, 211, 252, 0.4);
+      background: rgba(15, 118, 110, 0.18);
+      padding: 1.1rem 1.3rem;
+      color: #ccfbf1;
+      font-size: 0.95rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .callout strong {
+      color: #5eead4;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 0.75rem;
+    }
+
+    @keyframes drift {
+      0% {
+        transform: translate3d(-6%, -4%, 0) scale(1);
+      }
+      50% {
+        transform: translate3d(6%, 4%, 0) scale(1.05);
+      }
+      100% {
+        transform: translate3d(-6%, -4%, 0) scale(1);
+      }
     }
 
     .footer {
@@ -241,12 +419,19 @@
   </script>
 </head>
 <body>
+  <div class="background" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-orb one"></div>
+    <div class="bg-orb two"></div>
+    <div class="bg-orb three"></div>
+  </div>
   <div class="page-shell">
     <div class="glow" aria-hidden="true"></div>
     <header class="hero">
       <span class="eyebrow">MT academy Playbook</span>
       <h1>How to Use MT academy</h1>
-      <p>Every MT academy tool shares the same goal: make it easier to prepare for mock trial. Use this guide for a quick refresher or to share setup steps with teammates.</p>
+      <p>Every MT academy tool shares the same goal: make it easier to prepare for mock trial. Use this guide for a quick refresher, to onboard teammates, or to map out your next practice session.</p>
+      <p>Browse the highlights below or jump straight to the full apps using the shortcut tiles. Each practice space opens in its own tab so you can experiment without losing progress.</p>
       <nav class="anchor-nav" aria-label="Page sections">
         <ul>
           <li><a href="#overview">Quick Start</a></li>
@@ -263,18 +448,45 @@
     <main class="content">
       <section id="overview" class="card highlight">
         <h2>Quick Start</h2>
-        <p>Pick a tool from the navigation bar or the homepage. Each one opens in its own tab so you can practice, review answers, and come back later without losing progress.</p>
+        <p>Decide what skill you want to sharpen, then launch the matching tool. You can move between apps freely—your progress and generated drafts stay in their tabs until you clear them.</p>
         <p>If you plan to use ChatGPT scoring, drafting, or movement analysis, create your own OpenAI API key before jumping into drills (see <a href="#api">API Keys</a> below).</p>
+        <div class="info-grid" aria-label="Tool shortcuts">
+          <a class="info-tile" href="objections.html">
+            <strong>Objections Drill</strong>
+            <span>Practice fast objections with built-in fact patterns or AI-generated prompts.</span>
+          </a>
+          <a class="info-tile" href="video-coach.html">
+            <strong>Video Coach</strong>
+            <span>Record and score speeches with movement analysis plus delivery feedback.</span>
+          </a>
+          <a class="info-tile" href="writing.html">
+            <strong>Writing Lab</strong>
+            <span>Draft openings, closings, and crosses using your notes and ChatGPT assists.</span>
+          </a>
+          <a class="info-tile" href="rules.html">
+            <strong>Rules Library</strong>
+            <span>Search the NCHSAA rules instantly and save citations for competition.</span>
+          </a>
+          <a class="info-tile" href="quiz.html">
+            <strong>Rules Quiz</strong>
+            <span>Challenge yourself or teammates with custom quizzes and lightning rounds.</span>
+          </a>
+          <a class="info-tile" href="api-keys.html">
+            <strong>API Keys Portal</strong>
+            <span>Securely store, test, or remove the OpenAI keys used across every tool.</span>
+          </a>
+        </div>
       </section>
 
     <section id="objections" class="card">
       <h2>Objections Drill</h2>
       <ol>
-        <li>Select a topic, difficulty, and whether you want a built-in scenario or a new ChatGPT-generated prompt.</li>
-        <li>Read the short fact pattern and choose the objection you would raise.</li>
-        <li>Click <em>Check</em> to compare your answer with the expected objection.</li>
+        <li>Set the topic, difficulty, and prompt style (built-in scenario or fresh AI prompt).</li>
+        <li>Read the fact pattern, select the best objection, and note the supporting rule.</li>
+        <li>Click <em>Check</em> to compare your answer with the expected objection and rule citation.</li>
         <li>Use <em>ChatGPT Argue</em> to practice explaining your reasoning in real time.</li>
         <li>Press <em>Score</em> to receive detailed feedback from ChatGPT on the strength of your argument.</li>
+        <li>Need a refresher on objection lists? Open the <a href="rules.html">Rules Library</a> in another tab.</li>
       </ol>
     </section>
 
@@ -282,11 +494,12 @@
       <h2>Video Coach</h2>
       <ol>
         <li>Choose the speech type you want to rehearse, then hit <em>Start Recording</em>.</li>
-        <li>After finishing, click <em>Stop</em> and review using <em>Play</em> or <em>Download</em>.</li>
+        <li>After finishing, click <em>Stop</em>, then review or download your video.</li>
         <li>Select <em>Re-score</em> for updated delivery notes and <em>Show Voice</em> to review the transcript.</li>
-        <li>Use <em>Movement (ChatGPT)</em> for posture and gesture analysis; if the request is too large the tool falls back to transcript feedback automatically.</li>
-        <li>Confirm your API configuration anytime with <em>Test ChatGPT</em>.</li>
-        <li>Final results appear as a rating (Terrible, Bad, Medium, Good, or Amazing) so you instantly know where you landed.</li>
+        <li>Use <em>Movement (ChatGPT)</em> for posture and gesture analysis—large uploads automatically fall back to transcript coaching.</li>
+        <li>Confirm your API configuration anytime with <em>Test ChatGPT</em> in the toolbar.</li>
+        <li>Final results appear as a rating (Terrible → Amazing) with specific action items to try in your next run.</li>
+        <li>Want to benchmark progress? Log each rehearsal in your team tracker or share the download with coaches.</li>
       </ol>
     </section>
 
@@ -295,7 +508,8 @@
       <ol>
         <li>Pick a document type (opening, closing, cross, etc.) and jot down the facts or themes you want to highlight.</li>
         <li>Click <em>Ask ChatGPT to Draft</em> to generate a sample passage tailored to your notes.</li>
-        <li>Edit the draft directly in the browser and copy it into your preferred editor or team folder.</li>
+        <li>Edit the draft directly in the browser, then copy it into your preferred editor or team folder.</li>
+        <li>Pair your draft with a <a href="rules.html">rule citation</a> or <a href="objections.html">objection drill</a> to stress-test your argument.</li>
       </ol>
     </section>
 
@@ -305,6 +519,7 @@
         <li>Search by rule number, keyword, or topic. Results update instantly.</li>
         <li>Select a rule to read the full text along with a short explanation.</li>
         <li>Use <em>Clear</em> to reset your search or open the <em>Official PDF</em> for the complete rulebook.</li>
+        <li>Need a pop quiz on what you just read? Jump to the <a href="quiz.html">Rules Quiz</a> without leaving your browser.</li>
       </ol>
     </section>
 
@@ -314,6 +529,7 @@
         <li>Choose a mode (standard or lightning), the rule sets you want to review, question count, and difficulty.</li>
         <li>Press <em>Start Quiz</em> to begin. Each question appears one at a time—answer, then click <em>Next</em>.</li>
         <li>Track your accuracy with the live score display and revisit tricky rules with the review links.</li>
+        <li>Run a rematch after reviewing the <a href="rules.html">Rules Library</a> to lock in those citations.</li>
       </ol>
     </section>
 
@@ -321,17 +537,21 @@
       <h2>OpenAI API Keys</h2>
       <ol>
         <li>Log in at <a href="https://platform.openai.com/">platform.openai.com</a> using your own account.</li>
-        <li>Navigate to <strong>Billing</strong> → <strong>Add payment method</strong>, then deposit funds so ChatGPT requests can process.</li>
-        <li>Open <strong>API keys</strong> and click <strong>Create new secret key</strong>.</li>
-        <li>Copy the key into MT academy's API Key page, choose a model, and hit <em>Save ChatGPT Key</em>.</li>
+        <li>Visit the <a href="https://platform.openai.com/account/billing/overview">Billing dashboard</a> and add a payment method so ChatGPT requests can process.</li>
+        <li>Open the <a href="https://platform.openai.com/api-keys">API Keys page</a> and click <strong>Create new secret key</strong>.</li>
+        <li>Copy the key into MT academy's <a href="api-keys.html">API Key portal</a>, choose a model, and hit <em>Save ChatGPT Key</em>.</li>
         <li>Return to any tool and click <em>Test ChatGPT</em> (or the equivalent button) to confirm everything works.</li>
       </ol>
       <p>Keep your key private. You can remove it at any time with the <em>Remove</em> button on the API Keys page.</p>
+      <div class="callout" role="note">
+        <strong>Need help?</strong>
+        <span>OpenAI bills by usage. You can monitor spending on the <a href="https://platform.openai.com/account/usage">Usage dashboard</a> and set alerts there. For MT academy-specific questions, reach out through the <a href="contact.html">contact form</a>.</span>
+      </div>
       </section>
     </main>
 
     <footer class="footer">
-      <p>Back to the <a href="index.html#howto">main How to section</a> or explore other tools from the <a href="index.html">home page</a>.</p>
+      <p>Back to the <a href="index.html#howto">main How to section</a> or explore other tools from the <a href="index.html">home page</a>. Want rules at a glance? Jump into the <a href="rules.html">Rules Library</a>, and when you're ready to practice live, start a <a href="video-coach.html">Video Coach</a> session.</p>
     </footer>
   </div>
 </body>
