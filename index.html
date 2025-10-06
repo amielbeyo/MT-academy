@@ -1575,9 +1575,12 @@ function appendJudgeDecision(res){
   sum.innerHTML=`<strong>Summary:</strong> ${escHTML(res.summary)}`;
   div.appendChild(sum);
  }
- const score=document.createElement('div');
- score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
- div.appendChild(score);
+ if(res.score){
+  const score=document.createElement('div');
+  score.hidden=true;
+  score.innerHTML=`<strong>Score Range:</strong> ${escHTML(res.score)}`;
+  div.appendChild(score);
+ }
  const explain=document.createElement('div');
  explain.innerHTML=`<strong>Explanation:</strong> ${escHTML(res.explanation)}`;
  div.appendChild(explain);
