@@ -2589,7 +2589,13 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
 
-  function scorebar(val){const pct=clamp(Math.round((val/10)*100),0,100);return `<div>${val}/10<div class="scorebar"><span style="width:${pct}%"></span></div></div>`}
+  function scorebar(val){
+    if(!Number.isFinite(val)){
+      return '<div>N/A<div class="scorebar"><span style="width:0%"></span></div></div>';
+    }
+    const pct=clamp(Math.round((val/10)*100),0,100);
+    return `<div>${val}/10<div class="scorebar"><span style="width:${pct}%"></span></div></div>`;
+  }
 
   function renderReport(type, result){
     const conf=RUBRICS[type], pack=result.cats, m=result.metrics, cmp=result.compare;
@@ -3468,7 +3474,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     if(!EngineState.openaiKey) throw new Error("no_key");
     const model = EngineState.openaiModel || "gpt-4o";
     const maxTokens = Math.max(200, Math.min(2000, Number(EngineState.openaiMaxTokens)||600));
-    let conf = RUBRICS[type] || { cats: [] };
+    const conf = RUBRICS[type] || { cats: [] };
 
     const eff = effectiveWordCount(transcript);
     if(eff < 8){
@@ -3477,22 +3483,17 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     }
 
     let rawText='';
-    let payload = null;
-    let usedType = type;
-    let secondUsed = false;
-    let typeAudit = null;
-    let detectedType = null;
-    let mismatch = false;
-    let scorerMode = null;
+    let payload=null;
+    let scorerMode=null;
+    let typeAudit=null;
+    let detectedType=null;
+    let mismatch=false;
+
     try {
       const CONF_STRONG = 0.55;
       typeAudit = detectSpeechType(transcript);
       detectedType = typeAudit?.type || null;
       mismatch = !!(detectedType && detectedType !== type);
-      if (mismatch && typeAudit.confidence >= CONF_STRONG) {
-        // Respect the user-selected type but record the detector's suggestion for audit purposes.
-        secondUsed = false;
-      }
 
       const scorer = await robustLLMScore({
         model,
@@ -3585,409 +3586,71 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       payload = parsePayload(rawText);
       if (!payload) throw new Error('empty_payload');
 
-      let midbandMeta = {
-        attempts: 0,
-        midbandTriggered: false,
-        categoryTriggered: false,
-        midbandCorrections: 0,
-        categoryCorrections: 0,
-        lastCategoryDelta: null,
-        finalCategoryDelta: null,
-        finalInBand: false,
-        justificationCount: 0,
-        resolvedMidband: true,
-        categoryAligned: true,
-        autoFilledDecimals: false,
-        decimalsValue: ''
-      };
+      normalizeScorePayload(payload);
 
-      if(payload){
-        const extractJustifications = pl => {
-          if(!Array.isArray(pl?.midband_justification)) return [];
-          return pl.midband_justification.map(v=>typeof v === 'string' ? v.trim() : String(v || '')).filter(Boolean);
-        };
-        const computeCategorySum = pl => {
-          if(!pl?.categories || !Array.isArray(conf?.cats)) return null;
-          let sum = 0;
-          for(const cat of conf.cats){
-            const bounded = normalizeCategoryScore(pl.categories?.[cat.key]);
-            if(!Number.isFinite(bounded)) return null;
-            sum += bounded * (cat.w * 10);
-          }
-          return Number(sum.toFixed(1));
-        };
-        const needsCategoryFix = pl => {
-          const totalVal = Number(pl?.total);
-          const catSum = computeCategorySum(pl);
-          if(!Number.isFinite(totalVal) || !Number.isFinite(catSum)) return false;
-          return Math.abs(catSum - totalVal) > 0.6;
-        };
-        const ensureDecimalsUsed = pl => {
-          const existing = typeof pl?.decimals_used === 'string' ? pl.decimals_used.trim() : '';
-          if(existing){
-            return { note:false, value: existing };
-          }
-          const decimals = new Set();
-          const addDec = val => {
-            if(!Number.isFinite(val)) return;
-            const fixed = Number(val).toFixed(1);
-            const parts = fixed.split('.');
-            const frac = parts[1] || '0';
-            decimals.add(`.${frac}`);
-          };
-          addDec(Number(pl?.scoreLow));
-          addDec(Number(pl?.scoreHigh));
-          if(typeof pl?.range === 'string'){
-            const pieces = pl.range.split('-').map(str => Number(str.trim()));
-            if(pieces.length === 2){
-              addDec(pieces[0]);
-              addDec(pieces[1]);
-            }
-          }
-          if(!decimals.size) return { note:false, value:'' };
-          const label = Array.from(decimals).join(' & ');
-          const note = `auto: range decimals ${label}`;
-          pl.decimals_used = note;
-          return { note:true, value: note };
-        };
-
-        normalizeScorePayload(payload);
-
-        const runStrictChecks = false;
-        let attempts = 0;
-        let midbandCorrections = 0;
-        let categoryCorrections = 0;
-        let lastCategoryDelta = null;
-        const MAX_ATTEMPTS = 3;
-
-        if(runStrictChecks){
-          while(payload && needsCategoryFix(payload)){
-            if(attempts >= MAX_ATTEMPTS) break;
-            attempts++;
-            const fixCategory = needsCategoryFix(payload);
-            if(fixCategory) categoryCorrections++;
-            midbandMeta.categoryTriggered = midbandMeta.categoryTriggered || fixCategory;
-
-            const totalVal = Number(payload?.total);
-            const catSum = computeCategorySum(payload);
-            if(fixCategory && Number.isFinite(catSum) && Number.isFinite(totalVal)){
-              lastCategoryDelta = Number((catSum - totalVal).toFixed(1));
-            }
-
-            const issueLines = [];
-            if(fixCategory){
-              if(Number.isFinite(catSum) && Number.isFinite(totalVal)){
-                issueLines.push(`• Category weights sum to ${catSum.toFixed(1)} but "total" is ${totalVal.toFixed(1)}.`);
-              } else {
-                issueLines.push('• Unable to verify that "total" equals the weighted category sum. Provide explicit category scores and aligned totals.');
-              }
-            }
-
-            const ruleLines = [
-              '- Keep the identical JSON schema ("total","range","categories","comments","explanation","notes","midband_justification","decimals_used").',
-              '- Report scores on a 0-100 scale (convert any 1-10 values) and format ranges as "low-high" when you share both bounds.',
-              '- Choose the score or range that genuinely matches the performance—narrow or widen it to reflect your confidence.',
-              '- Make the "total" equal the weighted category sum (rounded to the nearest tenth).'
-            ];
-
-            const reconsiderMessages = [{
-              role: "user",
-              content:
-`Reevaluate your score JSON.
-${issueLines.join('\n')}
-Rules:
-${ruleLines.join('\n')}
-Transcript to score (unchanged):
-${transcript}`
-            }];
-
-            try {
-              const reconsiderRaw = await callOpenAIChat({
-                messages: reconsiderMessages,
-                model,
-                maxTokens,
-                json: true
-              });
-              const reconsiderObj = extractFirstJson(reconsiderRaw) || parseChatGPTScoreResponse(reconsiderRaw) || null;
-              if (reconsiderObj) {
-                payload = reconsiderObj;
-                normalizeScorePayload(payload);
-              }
-            } catch (_) {
-              break;
-            }
-          }
-        }
-
-        const finalJustifications = extractJustifications(payload);
-        payload.midband_justification = finalJustifications;
-        let decimalsInfo = { note:false, value: typeof payload.decimals_used === 'string' ? payload.decimals_used.trim() : '' };
-        if(runStrictChecks){
-          decimalsInfo = ensureDecimalsUsed(payload);
-        }
-        midbandMeta.autoFilledDecimals = runStrictChecks && decimalsInfo.note;
-        midbandMeta.decimalsValue = decimalsInfo.value;
-
-        const finalTotalVal = Number(payload?.total);
-        const finalCatSum = computeCategorySum(payload);
-        midbandMeta.attempts = attempts;
-        midbandMeta.midbandCorrections = midbandCorrections;
-        midbandMeta.categoryCorrections = categoryCorrections;
-        if(lastCategoryDelta !== null) midbandMeta.lastCategoryDelta = lastCategoryDelta;
-        midbandMeta.finalInBand = Number.isFinite(finalTotalVal) && finalTotalVal >= 75 && finalTotalVal <= 80;
-        midbandMeta.justificationCount = finalJustifications.length;
-        midbandMeta.resolvedMidband = !midbandMeta.finalInBand || finalJustifications.length >= 1;
-        midbandMeta.categoryAligned = !Number.isFinite(finalCatSum) || !Number.isFinite(finalTotalVal) || Math.abs(finalCatSum - finalTotalVal) <= 2.5;
-        if(Number.isFinite(finalCatSum) && Number.isFinite(finalTotalVal)){
-          midbandMeta.finalCategoryDelta = Number((finalCatSum - finalTotalVal).toFixed(1));
-        }
-
-        if (usedType === 'opening') {
-          const s = (transcript||'').toLowerCase();
-
-          const hasTheme     = /\b(theme|theory|story)\b/.test(s);
-          const hasPreview   = /\b(the evidence will show|you will (hear|see))\b/.test(s);
-          const hasBurden    = /\b(preponderance|burden|more likely than not)\b/.test(s);
-          const asksVerdict  = /\b(ask (you|the jury)|return a verdict|find for (us|the|our)|rule in (our|my) favor)\b/.test(s);
-          const hasRoadmap   = /\b(first|second|third|to begin|our roadmap|roadmap)\b/.test(s);
-          const coreCount    = [hasTheme,hasPreview,hasBurden,asksVerdict,hasRoadmap].filter(Boolean).length;
-
-          const closingSig   = (s.match(/\b(the (evidence|record) shows|apply(ing)? the law|element(s)?|instruction(s)?|they (said|claim|argue)|therefore|thus|in (conclusion|closing))\b/g)||[]).length;
-          const argumentSig  = (s.match(/\b(under (rule|law)|because element|therefore|thus|as a matter of law|the elements are|by applying (the|this) law)\b/g)||[]).length;
-
-          const hasWitnessPreview = /\byou will (hear|see) (from )?\b/.test(s) || /\bwitness(es)?\b/.test(s);
-
-          if (coreCount <= 1) capScore(payload, 60, `opening checklist ${coreCount}/5`);
-          else if (coreCount === 2 && Number(payload.total) > 70) capScore(payload, 70, `opening checklist ${coreCount}/5`);
-          else if (coreCount === 3 && Number(payload.total) > 80) capScore(payload, 80, `opening checklist ${coreCount}/5`);
-
-          if (closingSig >= 3 && Number(payload.total) > 72) capScore(payload, 72, `closing-style language (${closingSig})`);
-          if (argumentSig >= 2 && Number(payload.total) > 74) capScore(payload, 74, `argumentative/law-analysis (${argumentSig})`);
-          if (hasPreview && !hasWitnessPreview && Number(payload.total) > 76) capScore(payload, 76, 'preview without witness preview');
-          if (coreCount <= 2 && closingSig >= 2 && Number(payload.total) > 65) capScore(payload, 65, `weak opening + closing signals`);
-        }
-
-        if (usedType === 'closing') {
-          const s = (transcript||'').toLowerCase();
-
-          const hasLawToFact = /\b(apply(ing)? the law|element(s)?|instruction(s)?|under (rule|the law)|means (under|by) the law|legal standard)\b/.test(s);
-          const hasRebuttal  = /\b(they (said|claim|argue)|opposing counsel|their (case|argument)|rebut)\b/.test(s);
-          const hasRoadmap   = /\b(roadmap|first|second|third|let's (start|begin)|here's (why|how))\b/.test(s);
-          const hasBurden    = /\b(burden|preponderance|beyond a reasonable doubt|more likely than not)\b/.test(s);
-          const asksVerdict  = /\b(ask (you|the jury)|return a verdict|rule in (our|my) favor|find for (us|the|our)|we (ask|urge) you to)\b/.test(s);
-
-          const recapOnlyHits = (s.match(/\b(witness(es)?|testified|said|we heard|the evidence (showed|was))\b/g)||[]).length;
-
-          let missing = 0;
-          if(!hasLawToFact) missing++;
-          if(!asksVerdict)  missing++;
-          if(!hasRebuttal)  missing++;
-          if(!hasRoadmap)   missing++;
-          if(!hasBurden)    missing++;
-
-          if (missing >= 3 && Number(payload.total) > 70) {
-            capScore(payload, 70, `closing missing ${missing}/5 core items`);
-          } else if (missing === 2 && Number(payload.total) > 76) {
-            capScore(payload, 76, `closing missing ${missing}/5 core items`);
-          }
-
-          if (recapOnlyHits >= 5 && !hasLawToFact && Number(payload.total) > 74) {
-            capScore(payload, 74, 'recap-heavy closing without law-to-fact');
-          }
-
-          if (!hasRebuttal && Number(payload.total) > 78) {
-            capScore(payload, 78, 'no rebuttal of opposing case');
-          }
-        }
-
-        if (usedType === 'direct') {
-          const t = (transcript||'');
-          const lines = t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
-          const qs = lines.filter(l=>/^(\s*Q[:;\-]?|Question[:;])/i.test(l) || /\?\s*$/.test(l));
-
-          const isOpen = q => /^\s*(what|why|how|describe|explain|tell(\s+us)?|walk\s+us\s+through|who|where|when|please\s+introduce|state\s+your\s+name)\b/i.test(q);
-          const isLead = q => /\b(correct\?|right\?|yes\s*or\s*no|isn'?t\s+(it|that)\s+true|wouldn'?t\s+you\s+agree|you\s+(agree|admit)|is\s+it\s+true\s+that)\b/i.test(q);
-          const hasFoundationCue = q => /\b(recognize|identify|authenticate|fair\s+and\s+accurate|move\s+to\s+admit|admit\s+(it|this)|publish|marked\s+as\s+exhibit|exhibit\s+\d+)\b/i.test(q);
-          const hasFollow = q => /\b(what\s+happened\s+next|then\s+what|after\s+that|and\s+what\s+did\s+you\s+do)\b/i.test(q);
-
-          const totalQ = qs.length || 1;
-          const openCount = qs.filter(isOpen).length;
-          const leadCount = qs.filter(isLead).length;
-          const foundCount = qs.filter(hasFoundationCue).length;
-          const followCount = qs.filter(hasFollow).length;
-
-          const openRatio = openCount/totalQ;
-          const leadRatio = leadCount/totalQ;
-
-          if (leadRatio >= 0.40 && Number(payload.total) > 68) {
-            capScore(payload, 68, `direct too leading (ratio ${(leadRatio*100).toFixed(0)}%)`);
-          }
-          if (foundCount === 0 && Number(payload.total) > 70) {
-            capScore(payload, 70, 'no foundation/authentication');
-          } else if (foundCount === 1 && Number(payload.total) > 78) {
-            capScore(payload, 78, 'thin foundation/authentication');
-          }
-          if (openRatio < 0.50 && Number(payload.total) > 72) {
-            capScore(payload, 72, `low open-ended ratio (${(openRatio*100).toFixed(0)}%)`);
-          }
-          if (followCount === 0 && Number(payload.total) > 74) {
-            capScore(payload, 74, 'no follow-up questions');
-          }
-        }
-
-        if (usedType === 'cross') {
-          const t = (transcript||'');
-          const lines = t.split(/\n+/).map(x=>x.trim()).filter(Boolean);
-          const qs = lines.filter(l=>/^(\s*Q[:;\-]?|Question[:;])/i.test(l) || /\?\s*$/.test(l));
-
-          const isLead = q => /\b(correct\?|right\?|yes\s*or\s*no|isn'?t\s+(it|that)\s+true|wouldn'?t\s+you\s+agree|you\s+(agree|admit)|is\s+it\s+true\s+that)\b/i.test(q);
-          const hasImpeach = q => /\b(page|line|statement|prior\s+statement|affidavit|deposition|in\s+your\s+statement|exhibit(\s+\d+)?)\b/i.test(q);
-          const isCompound = q => /\?[^?]+\?/.test(q) || /\b(and|or)\b[^?]*\?/i.test(q);
-
-          const totalQ = qs.length || 1;
-          const leadCount = qs.filter(isLead).length;
-          const impeachCount = qs.filter(hasImpeach).length;
-          const compoundCount = qs.filter(isCompound).length;
-          const avgTokens = qs.reduce((s,q)=>s+(q.match(/\S+/g)||[]).length,0) / totalQ;
-
-          const leadRatio = leadCount/totalQ;
-          const compoundRate = compoundCount/totalQ;
-
-          if (leadRatio < 0.50 && Number(payload.total) > 74) {
-            capScore(payload, 74, `low leading ratio on cross (${(leadRatio*100).toFixed(0)}%)`);
-          }
-          if (impeachCount === 0 && Number(payload.total) > 76) {
-            capScore(payload, 76, 'no impeachment anchors/admissions');
-          }
-          if (avgTokens > 12 && Number(payload.total) > 75) {
-            capScore(payload, 75, `long questions (avg ${avgTokens.toFixed(0)} tokens)`);
-          }
-          if (compoundRate > 0.20 && Number(payload.total) > 72) {
-            capScore(payload, 72, `compound questions ${(compoundRate*100).toFixed(0)}%`);
-          }
-        }
-
-        normalizeScorePayload(payload);
-      }
-
-      const validation = validateScorePayload(payload, conf);
-      if(validation.issues.length){
-        const vErr = new Error('score_validation_failed');
-        vErr.code = 'score_validation_failed';
-        vErr.issues = validation.issues;
-        vErr.raw = rawText;
-        throw vErr;
-      }
-
-      if(validation.categoryAligned === false){
-        midbandMeta = midbandMeta || {};
-        midbandMeta.categoryTriggered = true;
-        if(typeof validation.categoryDelta === 'number' && Number.isFinite(validation.categoryDelta)){
-          midbandMeta.finalCategoryDelta = Number(validation.categoryDelta.toFixed(1));
-        }
-      }
-
-      const cats = {};
+      const categories = {};
       const comments = {};
-      conf.cats.forEach(c=>{
-        const normalizedCat = validation.categories?.[c.key];
-        const cleaned = Number.isFinite(normalizedCat) ? normalizedCat : normalizeCategoryScore(payload?.categories?.[c.key]);
-        cats[c.key] = Number.isFinite(cleaned) ? cleaned : 6;
-        if (typeof payload?.comments?.[c.key] === "string") comments[c.key] = payload.comments[c.key];
+      conf.cats.forEach(cat=>{
+        const normalized = normalizeCategoryScore(payload?.categories?.[cat.key], null);
+        categories[cat.key] = Number.isFinite(normalized) ? normalized : null;
+        if (typeof payload?.comments?.[cat.key] === 'string') {
+          comments[cat.key] = payload.comments[cat.key];
+        }
       });
 
-      const computed = validation.computed !== null
-        ? validation.computed
-        : conf.cats.reduce((s,c)=>{
-            const val = Number.isFinite(cats[c.key]) ? cats[c.key] : 6;
-            return s + (Math.max(0, Math.min(10, val)) * (c.w*10));
-          }, 0);
-      const boundedComputed = Math.max(0, Math.min(100, computed));
-      let total;
-      if (Number.isFinite(validation.total)) {
-        total = Number(validation.total.toFixed(1));
-      } else if (Number.isFinite(Number(payload.total))) {
-        const bounded = Math.max(0, Math.min(100, Number(payload.total)));
-        total = Number(bounded.toFixed(1));
+      const total = normalizeHundredScore(payload.total);
+      if(!Number.isFinite(total)){
+        const err = new Error('score_validation_failed');
+        err.code = 'score_validation_failed';
+        err.issues = ['missing or invalid total score'];
+        err.raw = rawText;
+        throw err;
+      }
+
+      const low = normalizeHundredScore(payload.scoreLow);
+      const high = normalizeHundredScore(payload.scoreHigh);
+      const resolvedLow = Number.isFinite(low) ? low : total;
+      const resolvedHigh = Number.isFinite(high) ? high : total;
+
+      let range = '';
+      if(typeof payload.range === 'string' && payload.range.trim()){
+        range = payload.range.trim();
       } else {
-        total = Number(boundedComputed.toFixed(1));
+        const lowFixed = resolvedLow.toFixed(1);
+        const highFixed = resolvedHigh.toFixed(1);
+        range = `${lowFixed}-${highFixed}`;
       }
-      if (!Number.isFinite(total)) {
-        total = Number(boundedComputed.toFixed(1));
-      }
-      if (Math.abs(total - boundedComputed) > 0.4) {
-        total = Number(boundedComputed.toFixed(1));
-      }
-      payload.total = total;
 
       const result = {
-        total,
-        range: payload.range || '',
-        rating: scoreToRating(total),
-        scoreLow: Number.isFinite(payload.scoreLow) ? payload.scoreLow : null,
-        scoreHigh: Number.isFinite(payload.scoreHigh) ? payload.scoreHigh : null,
-        explanation: payload.explanation || "",
-        notes: payload.notes || "",
-        categories: cats,
+        total: Number(total.toFixed(1)),
+        range,
+        rating: typeof payload.rating === 'string' && payload.rating.trim()
+          ? payload.rating.trim()
+          : scoreToRating(total),
+        scoreLow: Number(resolvedLow.toFixed(1)),
+        scoreHigh: Number(resolvedHigh.toFixed(1)),
+        explanation: typeof payload.explanation === 'string' ? payload.explanation : '',
+        notes: typeof payload.notes === 'string' ? payload.notes : '',
+        categories,
         comments,
         qa: Array.isArray(payload.qa) ? payload.qa : [],
-        midband_justification: Array.isArray(payload.midband_justification) ? payload.midband_justification.filter(v => typeof v === "string" && v.trim()) : [],
-        decimals_used: typeof payload.decimals_used === "string" ? payload.decimals_used.trim() : "",
+        midband_justification: Array.isArray(payload.midband_justification)
+          ? payload.midband_justification.map(v=>typeof v === 'string' ? v.trim() : String(v ?? '')).filter(Boolean)
+          : [],
+        decimals_used: typeof payload.decimals_used === 'string' ? payload.decimals_used.trim() : '',
         raw: rawText,
-        midbandMeta,
-        validation
-      };
-
-      const totalRounded = Number(total.toFixed(1));
-      result.total = totalRounded;
-
-      const hasLow = typeof result.scoreLow === 'number' && Number.isFinite(result.scoreLow);
-      const hasHigh = typeof result.scoreHigh === 'number' && Number.isFinite(result.scoreHigh);
-      const lockRange = `${totalRounded.toFixed(1)}-${totalRounded.toFixed(1)}`;
-
-      if (hasLow && hasHigh) {
-        const lowRounded = Number(result.scoreLow.toFixed(1));
-        const highRounded = Number(result.scoreHigh.toFixed(1));
-        const avg = Number(((lowRounded + highRounded) / 2).toFixed(1));
-        if (Math.abs(avg - totalRounded) > 0.4) {
-          result.scoreLow = totalRounded;
-          result.scoreHigh = totalRounded;
-          result.range = lockRange;
-        } else {
-          result.scoreLow = lowRounded;
-          result.scoreHigh = highRounded;
-          result.range = `${lowRounded.toFixed(1)}-${highRounded.toFixed(1)}`;
+        midbandMeta: null,
+        audit: {
+          selectedType: type,
+          usedType: type,
+          detectedType,
+          mismatchDetected: mismatch,
+          detector: typeAudit,
+          secondPassUsed: false,
+          llmMode: scorerMode,
+          detectorVector: typeAudit?.vector || null,
+          detectorConfidence: typeAudit?.confidence ?? null
         }
-      } else if (hasLow || hasHigh) {
-        const single = hasLow ? Number(result.scoreLow.toFixed(1)) : Number(result.scoreHigh.toFixed(1));
-        if (Math.abs(single - totalRounded) > 0.4) {
-          result.scoreLow = totalRounded;
-          result.scoreHigh = totalRounded;
-        } else {
-          result.scoreLow = single;
-          result.scoreHigh = single;
-        }
-        result.range = lockRange;
-      } else {
-        result.scoreLow = totalRounded;
-        result.scoreHigh = totalRounded;
-        result.range = lockRange;
-      }
-
-      result.audit = {
-        selectedType: type,
-        usedType,
-        detectedType,
-        mismatchDetected: !!mismatch,
-        detector: typeAudit,
-        secondPassUsed: !!secondUsed,
-        llmMode: scorerMode
-      };
-
-      result.audit = {
-        ...result.audit,
-        detectorVector: typeAudit?.vector || null,
-        detectorConfidence: typeAudit?.confidence ?? null
       };
 
       return result;
@@ -4002,7 +3665,6 @@ ${transcript}`
       throw error;
     }
   }
-
   function scoreWithBuiltin(type, raw, audio, reason){
     resetVideoFollowup();
 
@@ -4115,24 +3777,17 @@ ${transcript}`
   const conf = RUBRICS[usedType] || RUBRICS[type];
 
   const cats = {};
-  let categoryAlignedTotal = 0;
-  let categorySumValid = true;
+  const commentsByCat = {};
+  if(scoreData.comments && typeof scoreData.comments === 'object'){
+    Object.entries(scoreData.comments).forEach(([key,val])=>{
+      if(typeof val === 'string') commentsByCat[key] = val;
+    });
+  }
   conf.cats.forEach(c=>{
-    const normalized = normalizeCategoryScore(scoreData.categories?.[c.key]);
-    const fallback = 6;
-    const value = Number.isFinite(normalized) ? normalized : fallback;
-    cats[c.key] = value;
-    if(Number.isFinite(normalized)){
-      categoryAlignedTotal += normalized * (c.w * 10);
-    } else {
-      categorySumValid = false;
-    }
+    const normalized = normalizeCategoryScore(scoreData.categories?.[c.key], null);
+    cats[c.key] = Number.isFinite(normalized) ? normalized : null;
   });
-  categoryAlignedTotal = categorySumValid
-    ? Number(Math.max(0, Math.min(100, categoryAlignedTotal)).toFixed(1))
-    : null;
 
-  // Display-only metrics/highlights (do not affect scoring)
   const m = baseMetrics(transcript);
   if(audio){
     if(!audio.wpm && m.wpm) audio.wpm=m.wpm;
@@ -4141,9 +3796,27 @@ ${transcript}`
       audio.tips+=(audio.tips?' ':'')+(audio.speedRating==='Too slow'?'Increase your pace.':audio.speedRating==='Too fast'?'Slow down your delivery.':'Speaking pace is good.');
     }
   }
+
+  const total = normalizeHundredScore(scoreData.total);
+  const low = normalizeHundredScore(scoreData.scoreLow);
+  const high = normalizeHundredScore(scoreData.scoreHigh);
+  const resolvedLow = Number.isFinite(low) ? low : (Number.isFinite(total) ? total : null);
+  const resolvedHigh = Number.isFinite(high) ? high : (Number.isFinite(total) ? total : null);
+  const finalTotal = Number.isFinite(total) ? Number(total.toFixed(1)) : 0;
+
+  let finalRange = typeof scoreData.range === 'string' ? scoreData.range.trim() : '';
+  if(!finalRange){
+    if(Number.isFinite(resolvedLow) && Number.isFinite(resolvedHigh)){
+      finalRange = `${resolvedLow.toFixed(1)}-${resolvedHigh.toFixed(1)}`;
+    } else {
+      const fixed = finalTotal.toFixed(1);
+      finalRange = `${fixed}-${fixed}`;
+    }
+  }
+
   const result = {
     cats,
-    comments: scoreData.comments || {},
+    comments: commentsByCat,
     explanation: scoreData.explanation || '',
     notes: scoreData.notes || '',
     qa: scoreData.qa || [],
@@ -4152,135 +3825,37 @@ ${transcript}`
     qm: {qCount:0,qPerMin:0,avgTokens:0,openCount:0,leadCount:0,compoundCount:0,foundationCount:0,impeachCount:0,followupCount:0,openRatio:0,leadRatio:0,compoundRate:0},
     effWords: (transcript.trim().match(/\S+/g)||[]).length,
     audio,
-    range: scoreData.range || '',
+    range: finalRange,
     midband_justification: Array.isArray(scoreData.midband_justification) ? scoreData.midband_justification.map(j => typeof j === 'string' ? j.trim() : String(j || '')).filter(Boolean) : [],
     decimals_used: typeof scoreData.decimals_used === 'string' ? scoreData.decimals_used.trim() : '',
     midbandMeta: scoreData.midbandMeta || null,
     audit: scoreData.audit || null,
     raw: scoreData.raw || ''
   };
-  const parseRangePair = str => {
-    if(typeof str !== 'string') return [null,null];
-    const cleaned = str.replace(/[–—]/g,'-').replace(/\bto\b/gi,'-');
-    const parts = cleaned.split('-').map(part => part.trim()).filter(Boolean);
-    if(parts.length !== 2) return [null,null];
-    const low = normalizeHundredScore(parts[0]);
-    const high = normalizeHundredScore(parts[1]);
-    return [low, high];
-  };
 
-  let scoreLow = normalizeHundredScore(scoreData.scoreLow);
-  let scoreHigh = normalizeHundredScore(scoreData.scoreHigh);
-  if(scoreLow===null || scoreHigh===null){
-    const [parsedLow, parsedHigh] = parseRangePair(scoreData.range);
-    if(scoreLow===null) scoreLow = parsedLow;
-    if(scoreHigh===null) scoreHigh = parsedHigh;
-  }
-
-  let llmTotal = normalizeHundredScore(scoreData.total);
-  const computedTotal = Number.isFinite(categoryAlignedTotal) ? categoryAlignedTotal : null;
-  if(llmTotal===null && computedTotal!==null){
-    llmTotal = computedTotal;
-  }
-  let finalTotal = llmTotal ?? 0;
-  let totalAdjusted = false;
-  if(computedTotal!==null){
-    const diff = Math.abs((llmTotal ?? computedTotal) - computedTotal);
-    if(diff > 0.4 || !Number.isFinite(llmTotal)){
-      finalTotal = computedTotal;
-      totalAdjusted = true;
-    }
-  }
-  finalTotal = Number(Math.max(0, Math.min(100, finalTotal)).toFixed(1));
-
-  const reconcileRange = () => {
-    let low = scoreLow;
-    let high = scoreHigh;
-    const fallbackSingle = finalTotal;
-    if(low===null && high===null){
-      low = fallbackSingle;
-      high = fallbackSingle;
-    } else if(low!==null && high!==null){
-      const avg = Number(((low + high)/2).toFixed(1));
-      if(!Number.isFinite(avg) || Math.abs(avg - finalTotal) > 0.6){
-        low = fallbackSingle;
-        high = fallbackSingle;
-      }
-    } else {
-      const single = low!==null ? low : high;
-      if(!Number.isFinite(single) || Math.abs(single - finalTotal) > 0.6){
-        low = fallbackSingle;
-        high = fallbackSingle;
-      } else {
-        low = single;
-        high = single;
-      }
-    }
-    return { low: Number(low.toFixed(1)), high: Number(high.toFixed(1)), adjusted: low!==scoreLow || high!==scoreHigh };
-  };
-
-  const reconciledRange = reconcileRange();
-  result.scoreLow = reconciledRange.low;
-  result.scoreHigh = reconciledRange.high;
-  result.range = `${result.scoreLow.toFixed(1)}-${result.scoreHigh.toFixed(1)}`;
-
+  result.scoreLow = Number.isFinite(resolvedLow) ? Number(resolvedLow.toFixed(1)) : finalTotal;
+  result.scoreHigh = Number.isFinite(resolvedHigh) ? Number(resolvedHigh.toFixed(1)) : finalTotal;
   result.total = finalTotal;
   const ratingFromData = typeof scoreData.rating === 'string' && scoreData.rating.trim() ? scoreData.rating.trim() : null;
   result.rating = ratingFromData || scoreToRating(result.total);
 
   renderReport(usedType, result);
-  const provenanceMessages=['LLM-only rubric scoring (no local blend).'];
-  let provenanceWarn=false;
-  const meta=result.midbandMeta || scoreData.midbandMeta || null;
+  const provenanceMessages=['ChatGPT provided this rubric score.'];
   const statusEl=$('videoStatus');
   if(statusEl){
-    if(meta && meta.categoryTriggered && meta.categoryAligned === false){
-      statusEl.textContent='Guardrail: categories ≠ total. Press Re-score so ChatGPT recalculates with the rubric.';
-      statusEl.style.color='#ef9a9a';
-    } else if(totalAdjusted){
-      statusEl.textContent='Scored by ChatGPT—guardrail realigned the weighted total before publishing.';
-      statusEl.style.color='#facc15';
-    } else {
-      statusEl.textContent='Scored by ChatGPT (LLM-only). Weighted totals verified.';
-      statusEl.style.color='#9aa4b2';
-    }
+    statusEl.textContent='Scored by ChatGPT.';
+    statusEl.style.color='#9aa4b2';
   }
   const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
   if(result.total >= 75 && result.total <= 80){
-    const count = Array.isArray(justifications) ? justifications.length : 0;
+    const count = justifications.length;
     if(count > 0){
-      provenanceMessages.push(`Model finalized within 75–80 with ${count} noted observation${count===1?'':'s'}.`);
+      provenanceMessages.push(`Score landed in the 75–80 band with ${count} checklist observation${count===1?'':'s'}.`);
     } else {
-      provenanceMessages.push('Model finalized within 75–80.');
-    }
-  } else {
-    provenanceMessages.push('Model finalized score outside 75–80.');
-  }
-  if(totalAdjusted){
-    provenanceMessages.push('Guardrail: Weighted categories reset the reported total to match the rubric math.');
-    provenanceWarn = true;
-  }
-  if(reconciledRange.adjusted){
-    provenanceMessages.push('Guardrail: Score range synced with the adjusted total.');
-  }
-  if(meta && meta.categoryTriggered){
-    const finalDelta = typeof meta.finalCategoryDelta === 'number' && Number.isFinite(meta.finalCategoryDelta)
-      ? meta.finalCategoryDelta.toFixed(1)
-      : null;
-    const deltaNote = finalDelta ? ` (delta ${finalDelta})` : '';
-    if(meta.categoryAligned){
-      provenanceMessages.push(`Category totals realigned with the reported total${deltaNote}.`);
-    } else {
-      provenanceMessages.push(`Category totals remain misaligned with the reported total${deltaNote}.`);
-      provenanceMessages.push('Action required: press Re-score so ChatGPT recomputes the rubric math until every category and the total match.');
-      provenanceWarn=true;
+      provenanceMessages.push('Score landed in the 75–80 band.');
     }
   }
-  if(meta && meta.autoFilledDecimals){
-    const note=meta.decimalsValue?` (${meta.decimalsValue})`:'';
-    provenanceMessages.push(`Decimals note auto-filled${note}.`);
-  }
-  showProvenance(provenanceMessages.join('<br>'), provenanceWarn);
+  showProvenance(provenanceMessages.join('<br>'), false);
   const summaryText = summarizeVideoResult(usedType, result);
   prepareVideoFollowup({transcript, type: usedType, summaryText, rawText: scoreData.raw || ''});
 }).catch(err => {
