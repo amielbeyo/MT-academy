@@ -116,6 +116,7 @@ textarea.disabled{opacity:.6;cursor:not-allowed}
 hr.sep{border:0;border-top:1px solid rgba(255,255,255,.2);margin:12px 0}
 a.inline{color:var(--accent);text-decoration:underline}
 .hidden-link{color:inherit;text-decoration:none}
+.coach-hidden{display:none!important}
 .title-block h1{color:#e2e8f0}
 .title-block .small,.title-block p{color:rgba(226,232,240,.9)}
 #howto.card{padding:0;background:transparent;border:none;box-shadow:none}
@@ -2596,7 +2597,16 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const hasComments=Object.keys(comments).length>0;
     const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
     const ratingText=result.rating || scoreToRating(result.total);
-    const rangeDisplay=result.range?escHTML(result.range):'N/A';
+    let rangeDisplay='N/A';
+    if(result.range){
+      const rawRange=String(result.range).trim();
+      const match=rawRange.match(/^(\d+(?:\.\d+)?)\s*[\u2013\u2014\-]\s*(\d+(?:\.\d+)?)/);
+      if(match){
+        rangeDisplay=escHTML(match[1]===match[2]?match[1]:rawRange);
+      }else{
+        rangeDisplay=escHTML(rawRange);
+      }
+    }
     const decimalsNote=typeof result.decimals_used==='string'&&result.decimals_used.trim()?escHTML(result.decimals_used.trim()):'';
     const justifications=Array.isArray(result.midband_justification)?result.midband_justification:[];
     const midbandMeta=result.midbandMeta||null;
@@ -2607,14 +2617,14 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
         <div>Final Rating</div><div><strong>${ratingText}</strong></div>
         <div>Score</div><div>${result.total} / 100</div>
         <div>Range</div><div>${rangeDisplay}</div>
-        ${decimalsNote?`<div>Decimals Note</div><div>${decimalsNote}</div>`:''}
+        ${decimalsNote?`<div class="coach-hidden" data-metric="decimals-note-label">Decimals Note</div><div class="coach-hidden" data-metric="decimals-note-value">${decimalsNote}</div>`:''}
         <div>Words</div><div>${m.wordCount}</div>
         <div>WPM</div><div>${m.wpm||'N/A'}</div>
-        <div>Fillers</div><div>${m.fillers}</div>
+        <div class="coach-hidden" data-metric="fillers-label">Fillers</div><div class="coach-hidden" data-metric="fillers-value">${m.fillers}</div>
         <div>Signposts</div><div>${m.signposts}</div>
-        <div>Vocab Richness</div><div>${m.vocabRich.toFixed(1)}/10</div>
-        <div>Exemplar Similarity (lex)</div><div>${Math.round(cmp.lexCos*100)}%</div>
-        <div>Exemplar Similarity (bigrams)</div><div>${Math.round(cmp.biCos*100)}%</div>
+        <div class="coach-hidden" data-metric="vocab-label">Vocab Richness</div><div class="coach-hidden" data-metric="vocab-value">${m.vocabRich.toFixed(1)}/10</div>
+        <div class="coach-hidden" data-metric="exemplar-lex-label">Exemplar Similarity (lex)</div><div class="coach-hidden" data-metric="exemplar-lex-value">${Math.round(cmp.lexCos*100)}%</div>
+        <div class="coach-hidden" data-metric="exemplar-bi-label">Exemplar Similarity (bigrams)</div><div class="coach-hidden" data-metric="exemplar-bi-value">${Math.round(cmp.biCos*100)}%</div>
       </div>`;
     if(result.explanation){
       html+=`<div class="small" style="margin-top:8px"><strong>Explanation:</strong> ${escHTML(result.explanation)}</div>`;
