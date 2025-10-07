@@ -118,6 +118,60 @@ a.inline{color:var(--accent);text-decoration:underline}
 .hidden-link{color:inherit;text-decoration:none}
 .title-block h1{color:#e2e8f0}
 .title-block .small,.title-block p{color:rgba(226,232,240,.9)}
+
+/* How-to guide styling */
+#howto.card{background:transparent;padding:0;border:none;box-shadow:none}
+#howto .howto-shell{position:relative;width:min(1100px,92vw);margin:0 auto;padding:clamp(2.5rem,6vw,4rem) clamp(1.5rem,4vw,3rem) 3rem;display:flex;flex-direction:column;gap:clamp(2rem,5vw,3rem)}
+#howto .howto-glow{position:absolute;inset:clamp(1rem,3vw,2.5rem);border-radius:28px;background:linear-gradient(135deg,rgba(56,189,248,.08),rgba(14,165,233,.03));border:1px solid rgba(148,163,184,.16);backdrop-filter:blur(22px);pointer-events:none}
+#howto .howto-hero,#howto .howto-content,#howto .howto-footer{position:relative;z-index:1}
+#howto .howto-hero{background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(14,165,233,.08));border-radius:24px;padding:clamp(1.8rem,5vw,2.75rem);border:1px solid rgba(56,189,248,.25);box-shadow:0 25px 60px rgba(15,23,42,.4);display:flex;flex-direction:column;gap:1rem}
+#howto .howto-title{margin:0;font-size:clamp(2.1rem,5vw,2.7rem);letter-spacing:-.02em;color:#e2e8f0}
+#howto .howto-hero p{margin:0;color:var(--muted);max-width:60ch}
+#howto .howto-hero p+p{font-size:.95rem;max-width:65ch;opacity:.9}
+#howto .howto-eyebrow{font-size:.85rem;letter-spacing:.2em;text-transform:uppercase;color:#bae6fd;font-weight:600}
+#howto .howto-nav ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.75rem}
+#howto .howto-nav a{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem .95rem;border-radius:999px;border:1px solid rgba(56,189,248,.35);background:rgba(15,23,42,.6);color:var(--text);text-decoration:none;font-size:.95rem;transition:transform .2s ease,box-shadow .2s ease,background .2s ease}
+#howto .howto-nav a:hover,#howto .howto-nav a:focus{transform:translateY(-2px);box-shadow:0 12px 30px rgba(56,189,248,.25);background:rgba(56,189,248,.2);outline:none}
+#howto .howto-nav a.active{background:rgba(56,189,248,.32);box-shadow:0 16px 36px rgba(14,165,233,.24);color:#f0f9ff}
+#howto .howto-chip-list{display:flex;flex-wrap:wrap;gap:.65rem;padding:.5rem 0 0}
+#howto .howto-chip{position:relative;display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .85rem;border-radius:14px;background:rgba(15,23,42,.72);border:1px solid rgba(148,163,184,.2);text-decoration:none;color:var(--muted);font-size:.85rem;transition:transform .2s ease,background .2s ease,border .2s ease}
+#howto .howto-chip:hover,#howto .howto-chip:focus{transform:translateY(-2px);border-color:rgba(148,163,184,.4);color:#f8fafc}
+#howto .howto-chip.active{background:rgba(56,189,248,.28);border-color:rgba(56,189,248,.5);color:#f0f9ff;box-shadow:0 16px 36px rgba(14,165,233,.24)}
+#howto .howto-chip span{display:inline-flex;align-items:center;justify-content:center;width:1.45rem;height:1.45rem;border-radius:50%;background:rgba(56,189,248,.18);color:#e0f2fe;font-size:.78rem;font-weight:600}
+#howto .howto-content{display:flex;flex-direction:column;gap:1.75rem}
+#howto .howto-card{position:relative;background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.18);border-radius:22px;padding:2rem 2.25rem;box-shadow:0 24px 50px rgba(15,23,42,.45);overflow:hidden}
+#howto .howto-card::after{content:"";position:absolute;inset:0;border-radius:inherit;border:1px solid rgba(56,189,248,.12);pointer-events:none;transition:opacity .2s ease}
+#howto .howto-card:hover::after,#howto .howto-card:focus-within::after{opacity:.8;border-color:rgba(56,189,248,.22)}
+#howto .howto-card h2,#howto .howto-card h3{margin-top:0;margin-bottom:.75rem;font-size:1.4rem;letter-spacing:-.01em;color:#f0f9ff}
+#howto .howto-card p,#howto .howto-card ol{color:var(--muted);margin:0 0 .85rem;line-height:1.6}
+#howto .howto-card ol{padding-left:1.25rem;display:grid;gap:.65rem}
+#howto .howto-card li{padding-left:.25rem}
+#howto .howto-card--highlight{background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(14,165,233,.1));border:1px solid rgba(56,189,248,.28)}
+#howto .howto-grid{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+#howto .howto-grid-tile{background:rgba(15,23,42,.85);border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:1.25rem 1.4rem;display:flex;flex-direction:column;gap:.75rem;box-shadow:0 18px 36px rgba(15,23,42,.45)}
+#howto .howto-grid-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;color:#f1f5f9}
+#howto .howto-grid-header svg{width:1rem;height:1rem}
+#howto .howto-summary{margin:0;color:var(--muted)}
+#howto .howto-actions{display:flex;gap:.6rem;flex-wrap:wrap}
+#howto .howto-link{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .9rem;border-radius:999px;border:1px solid rgba(148,163,184,.28);text-decoration:none;color:#e0f2fe;font-size:.9rem;background:rgba(15,23,42,.6);transition:transform .2s ease,box-shadow .2s ease,background .2s ease,color .2s ease}
+#howto .howto-link svg{transition:transform .2s ease}
+#howto .howto-link:hover,#howto .howto-link:focus{transform:translateY(-1px);background:rgba(56,189,248,.22);box-shadow:0 12px 30px rgba(56,189,248,.22);color:#f8fafc}
+#howto .howto-link:hover svg,#howto .howto-link:focus svg{transform:translateX(2px)}
+#howto .howto-link--launch{background:var(--secondary);border-color:rgba(56,189,248,.35)}
+#howto .howto-link--launch:hover,#howto .howto-link--launch:focus{background:rgba(37,99,235,.9)}
+#howto .howto-callout{margin-top:1.1rem;padding:1rem 1.25rem;border-radius:16px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.32);color:#e0f2fe;display:flex;flex-direction:column;gap:.5rem}
+#howto .howto-footer{margin-top:1.5rem;text-align:center}
+#howto .howto-footer p{margin:0;color:var(--muted)}
+#howto .howto-footer a{text-decoration:none;color:#e0f2fe}
+#howto .howto-footer a:hover,#howto .howto-footer a:focus{text-decoration:underline}
+#howto .howto-content a{color:var(--accent)}
+#howto .howto-content a:hover,#howto .howto-content a:focus{color:#7dd3fc}
+#howto .howto-grid-header strong{font-size:1.05rem}
+#howto .howto-grid-tile strong{color:#f8fafc}
+#howto .howto-grid-header{flex-wrap:wrap}
+#howto .howto-grid-header .howto-link{flex-shrink:0}
+@media(max-width:960px){#howto .howto-shell{padding:2.1rem 1.5rem 2.5rem}}
+@media(max-width:640px){#howto .howto-card{padding:1.6rem 1.35rem}#howto .howto-grid-header{flex-direction:column;align-items:flex-start}#howto .howto-actions{width:100%}#howto .howto-link{width:fit-content}}
 </style>
 </head>
 <body>
@@ -388,57 +442,198 @@ a.inline{color:var(--accent);text-decoration:underline}
   </section>
   <!-- How To -->
   <section id="howto" class="card">
-    <h2>How to Use</h2>
-    <p class="small">Open a tab for the tool you need and follow these steps.</p>
-    <ul class="small">
-      <li>
-        <a href="objections.html" class="hidden-link"><strong>Objections:</strong></a>
-        <ul class="small">
-          <li>Pick a topic and difficulty.</li>
-          <li><em>New Drill</em> gives a built‑in objection.</li>
-          <li><em>GPT Prompt</em> asks ChatGPT to craft a new one.</li>
-          <li>Select the objection you would make, then press <em>Check</em>.</li>
-          <li><em>ChatGPT Argue</em> debates your reasoning with ChatGPT.</li>
-          <li><em>Score</em> lets ChatGPT grade your argument.</li>
-        </ul>
-      </li>
-      <li>
-        <a href="video-coach.html" class="hidden-link"><strong>Video Coach:</strong></a>
-        <ul class="small">
-          <li>Select the speech type and click <em>Start Recording</em>.</li>
-          <li>Use <em>Stop</em> when done, then <em>Play</em> or <em>Download</em> to review.</li>
-          <li><em>Re-score</em> analyzes delivery; <em>Show Voice</em> displays the transcript.</li>
-          <li><em>Movement (ChatGPT)</em> reviews posture and gestures; <em>API Key / Engine</em> adds keys.</li>
-          <li>If the movement request is too large or unsupported, the tool automatically falls back to transcript-only guidance.</li>
-          <li><em>Test ChatGPT</em> confirms your key works.</li>
-        </ul>
-      </li>
-      <li>
-        <a href="writing.html" class="hidden-link"><strong>Writing:</strong></a>
-        <ul class="small">
-          <li>Choose a document type and add notes.</li>
-          <li>Press <em>Ask ChatGPT to Draft</em> for a sample.</li>
-          <li>Edit the output and save it however you like.</li>
-        </ul>
-      </li>
-      <li>
-        <a href="rules.html" class="hidden-link"><strong>Rules:</strong></a>
-        <ul class="small">
-          <li>Search by number or topic.</li>
-          <li>Use <em>Clear</em> to reset or open the <em>Official PDF</em>.</li>
-          <li>Click a rule to read the full text and explanation.</li>
-        </ul>
-      </li>
-      <li>
-        <a href="quiz.html" class="hidden-link"><strong>Rules Quiz:</strong></a>
-        <ul class="small">
-          <li>Select mode, rules, question count, and difficulty.</li>
-          <li>Press <em>Start Quiz</em>, answer, then click <em>Next</em> for the following question.</li>
-          <li>Track your progress with the score display.</li>
-        </ul>
-      </li>
-    </ul>
-    <p class="small">To use ChatGPT features—including transcript scoring, video-based movement coaching, and drafting tools—create your own OpenAI API key and add funds to your account. See the API Keys page for step-by-step setup.</p>
+    <div class="howto-shell howto">
+      <div class="howto-glow" aria-hidden="true"></div>
+      <header class="howto-hero">
+        <span class="howto-eyebrow">MT academy Playbook</span>
+        <h2 class="howto-title">How to Use MT academy</h2>
+        <p>Every MT academy tool shares the same goal: make it easier to prepare for mock trial. Use this guide for a quick refresher, to onboard teammates, or to map out your next practice session.</p>
+        <p>Browse the highlights below or jump straight to the full apps using the shortcut tiles. Each practice space opens in its own tab so you can experiment without losing progress.</p>
+        <nav class="howto-nav" aria-label="How to guide sections">
+          <ul>
+            <li><a href="#howto-overview">Quick Start</a></li>
+            <li><a href="#howto-objections">Objections Drill</a></li>
+            <li><a href="#howto-video-coach">Video Coach</a></li>
+            <li><a href="#howto-writing">Writing Lab</a></li>
+            <li><a href="#howto-rules">Rules Library</a></li>
+            <li><a href="#howto-quiz">Rules Quiz</a></li>
+            <li><a href="#howto-api">OpenAI API Keys</a></li>
+          </ul>
+        </nav>
+        <div class="howto-chip-list" role="list" aria-label="Jump to sections">
+          <a class="howto-chip" href="#howto-overview" role="listitem"><span>01</span> Quick Start</a>
+          <a class="howto-chip" href="#howto-objections" role="listitem"><span>02</span> Objections</a>
+          <a class="howto-chip" href="#howto-video-coach" role="listitem"><span>03</span> Video Coach</a>
+          <a class="howto-chip" href="#howto-writing" role="listitem"><span>04</span> Writing Lab</a>
+          <a class="howto-chip" href="#howto-rules" role="listitem"><span>05</span> Rules Library</a>
+          <a class="howto-chip" href="#howto-quiz" role="listitem"><span>06</span> Rules Quiz</a>
+          <a class="howto-chip" href="#howto-api" role="listitem"><span>07</span> API Keys</a>
+        </div>
+      </header>
+
+      <main class="howto-content">
+        <section id="howto-overview" class="howto-card howto-card--highlight">
+          <h3>Quick Start</h3>
+          <p>Decide what skill you want to sharpen, then launch the matching tool. You can move between apps freely—your progress and generated drafts stay in their tabs until you clear them.</p>
+          <p>If you plan to use ChatGPT scoring, drafting, or movement analysis, create your own OpenAI API key before jumping into drills (see <a href="#howto-api">API Keys</a> below). Each tile includes a shortcut to its how-to section and a direct launch link.</p>
+          <div class="howto-grid" aria-label="Tool shortcuts">
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>Objections Drill</strong>
+                <a class="howto-link howto-link--howto" href="#howto-objections" aria-label="Read how to use the Objections Drill">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Practice fast objections with built-in fact patterns or AI-generated prompts.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="objections.html" data-section-target="objections">Launch tool</a>
+              </div>
+            </article>
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>Video Coach</strong>
+                <a class="howto-link howto-link--howto" href="#howto-video-coach" aria-label="Read how to use the Video Coach">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Record and score speeches with movement analysis plus delivery feedback.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="video-coach.html" data-section-target="video">Launch tool</a>
+              </div>
+            </article>
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>Writing Lab</strong>
+                <a class="howto-link howto-link--howto" href="#howto-writing" aria-label="Read how to use the Writing Lab">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Draft openings, closings, and crosses using your notes and ChatGPT assists.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="writing.html" data-section-target="writing">Launch tool</a>
+              </div>
+            </article>
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>Rules Library</strong>
+                <a class="howto-link howto-link--howto" href="#howto-rules" aria-label="Read how to use the Rules Library">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Search the NCHSAA rules instantly and save citations for competition.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="rules.html" data-section-target="rules">Launch tool</a>
+              </div>
+            </article>
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>Rules Quiz</strong>
+                <a class="howto-link howto-link--howto" href="#howto-quiz" aria-label="Read how to use the Rules Quiz">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Challenge yourself or teammates with custom quizzes and lightning rounds.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="quiz.html" data-section-target="quiz">Launch tool</a>
+              </div>
+            </article>
+            <article class="howto-grid-tile">
+              <div class="howto-grid-header">
+                <strong>API Keys Portal</strong>
+                <a class="howto-link howto-link--howto" href="#howto-api" aria-label="Read how to set up API keys">
+                  <svg aria-hidden="true" viewBox="0 0 16 16" fill="currentColor"><path d="M3 8a.75.75 0 0 1 .75-.75h6.69L8.22 5.03a.75.75 0 1 1 1.06-1.06l3.5 3.5a.75.75 0 0 1 0 1.06l-3.5 3.5a.75.75 0 1 1-1.06-1.06l2.22-2.22H3.75A.75.75 0 0 1 3 8Z"/></svg>
+                  How-to
+                </a>
+              </div>
+              <p class="howto-summary">Securely store, test, or remove the OpenAI keys used across every tool.</p>
+              <div class="howto-actions">
+                <a class="howto-link howto-link--launch" href="api-keys.html" data-section-target="keys">Launch tool</a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="howto-objections" class="howto-card">
+          <h3>Objections Drill</h3>
+          <ol>
+            <li>Set the topic, difficulty, and prompt style (built-in scenario or fresh AI prompt).</li>
+            <li>Read the fact pattern, select the best objection, and note the supporting rule.</li>
+            <li>Click <em>Check</em> to compare your answer with the expected objection and rule citation.</li>
+            <li>Use <em>ChatGPT Argue</em> to practice explaining your reasoning in real time.</li>
+            <li>Press <em>Score</em> to receive detailed feedback from ChatGPT on the strength of your argument.</li>
+            <li>Need a refresher on objection lists? Open the <a href="rules.html" data-section-target="rules">Rules Library</a> in another tab.</li>
+          </ol>
+        </section>
+
+        <section id="howto-video-coach" class="howto-card">
+          <h3>Video Coach</h3>
+          <ol>
+            <li>Choose the speech type you want to rehearse, then hit <em>Start Recording</em>.</li>
+            <li>After finishing, click <em>Stop</em>, then review or download your video.</li>
+            <li>Select <em>Re-score</em> for updated delivery notes and <em>Show Voice</em> to review the transcript.</li>
+            <li>Use <em>Movement (ChatGPT)</em> for posture and gesture analysis—large uploads automatically fall back to transcript coaching.</li>
+            <li>Confirm your API configuration anytime with <em>Test ChatGPT</em> in the toolbar.</li>
+            <li>Final results appear as a rating (Terrible → Amazing) with specific action items to try in your next run.</li>
+            <li>Want to benchmark progress? Log each rehearsal or share the download with coaches.</li>
+          </ol>
+        </section>
+
+        <section id="howto-writing" class="howto-card">
+          <h3>Writing Lab</h3>
+          <ol>
+            <li>Pick a document type (opening, closing, cross, etc.) and jot down the facts or themes you want to highlight.</li>
+            <li>Click <em>Ask ChatGPT to Draft</em> to generate a sample passage tailored to your notes.</li>
+            <li>Edit the draft directly in the browser, then copy it into your preferred editor or team folder.</li>
+            <li>Pair your draft with a <a href="rules.html" data-section-target="rules">rule citation</a> or <a href="objections.html" data-section-target="objections">objection drill</a> to stress-test your argument.</li>
+          </ol>
+        </section>
+
+        <section id="howto-rules" class="howto-card">
+          <h3>Rules Library</h3>
+          <ol>
+            <li>Search by rule number, keyword, or topic. Results update instantly.</li>
+            <li>Select a rule to read the full text along with a short explanation.</li>
+            <li>Use <em>Clear</em> to reset your search or open the <em>Official PDF</em> for the complete rulebook.</li>
+            <li>Need a pop quiz on what you just read? Jump to the <a href="quiz.html" data-section-target="quiz">Rules Quiz</a> without leaving your browser.</li>
+          </ol>
+        </section>
+
+        <section id="howto-quiz" class="howto-card">
+          <h3>Rules Quiz</h3>
+          <ol>
+            <li>Choose a mode (standard or lightning), the rule sets you want to review, question count, and difficulty.</li>
+            <li>Press <em>Start Quiz</em> to begin. Each question appears one at a time—answer, then click <em>Next</em>.</li>
+            <li>Track your accuracy with the live score display and revisit tricky rules with the review links.</li>
+            <li>Run a rematch after reviewing the <a href="rules.html" data-section-target="rules">Rules Library</a> to lock in those citations.</li>
+          </ol>
+        </section>
+
+        <section id="howto-api" class="howto-card">
+          <h3>OpenAI API Keys</h3>
+          <ol>
+            <li>Log in at <a href="https://platform.openai.com/">platform.openai.com</a> using your own account.</li>
+            <li>Visit the <a href="https://platform.openai.com/account/billing/overview">Billing dashboard</a> and add a payment method so ChatGPT requests can process.</li>
+            <li>Open the <a href="https://platform.openai.com/api-keys">API Keys page</a> and click <strong>Create new secret key</strong>.</li>
+            <li>Copy the key into MT academy's <a href="api-keys.html" data-section-target="keys">API Key portal</a>, choose a model, and hit <em>Save ChatGPT Key</em>.</li>
+            <li>Return to any tool and click <em>Test ChatGPT</em> (or the equivalent button) to confirm everything works.</li>
+          </ol>
+          <p>Keep your key private. You can remove it at any time with the <em>Remove</em> button on the API Keys page.</p>
+          <div class="howto-callout" role="note">
+            <strong>Need help?</strong>
+            <span>OpenAI bills by usage. You can monitor spending on the <a href="https://platform.openai.com/account/usage">Usage dashboard</a> and set alerts there. For MT academy-specific questions, reach out through the <a href="contact.html" data-section-target="contact">contact form</a>.</span>
+          </div>
+        </section>
+      </main>
+
+      <footer class="howto-footer">
+        <p>Need more practice? Jump straight into the <a href="objections.html" data-section-target="objections">Objections Drill</a>, review the <a href="rules.html" data-section-target="rules">Rules Library</a>, or reach out on the <a href="contact.html" data-section-target="contact">contact page</a>.</p>
+      </footer>
+    </div>
   </section>
   <!-- Contact -->
   <section id="contact" class="card">
@@ -4901,11 +5096,63 @@ function safe(fn){
   catch(e){ console.error(e); }
 }
 
+function initHowtoGuide(){
+  const container=$('howto');
+  if(!container) return;
+  const navLinks=Array.from(container.querySelectorAll('.howto-nav a'));
+  const chipLinks=Array.from(container.querySelectorAll('.howto-chip-list a'));
+  if(!navLinks.length) return;
+  const sections=navLinks
+    .map(link=>{
+      const href=link.getAttribute('href');
+      if(!href) return null;
+      try{return container.querySelector(href);}catch(_){return null;}
+    })
+    .filter(Boolean);
+
+  function activate(id){
+    navLinks.forEach(link=>{
+      const match=link.getAttribute('href')===`#${id}`;
+      link.classList.toggle('active',match);
+    });
+    chipLinks.forEach(chip=>{
+      const match=chip.getAttribute('href')===`#${id}`;
+      chip.classList.toggle('active',match);
+    });
+  }
+
+  navLinks.forEach(link=>{
+    link.addEventListener('click',()=>{
+      const href=link.getAttribute('href');
+      if(href&&href.startsWith('#')) activate(href.slice(1));
+    });
+  });
+  chipLinks.forEach(chip=>{
+    chip.addEventListener('click',()=>{
+      const href=chip.getAttribute('href');
+      if(href&&href.startsWith('#')) activate(href.slice(1));
+    });
+  });
+
+  if(sections.length && 'IntersectionObserver' in window){
+    activate(sections[0].id);
+    const observer=new IntersectionObserver(entries=>{
+      entries
+        .filter(entry=>entry.isIntersecting)
+        .forEach(entry=>activate(entry.target.id));
+    },{rootMargin:'-45% 0px -45% 0px',threshold:0.1});
+    sections.forEach(section=>observer.observe(section));
+  }else if(sections.length){
+    activate(sections[0].id);
+  }
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
   safe(()=>Objections.wire());
   safe(()=>VideoCoach.wire());
   safe(()=>{ RulesExplorer.wire(); RulesExplorer.render(); });
   safe(()=>{ RulesQuiz.wire(); RulesQuiz.refresh(); });
+  safe(()=>initHowtoGuide());
   safe(()=>{
     envWarnInit();
     renderModeBadge();
@@ -4914,13 +5161,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
 
   const sections=Array.from(document.querySelectorAll('section.card'));
-  function showSection(id){
+  function showSection(id,opts={}){
+    const skipHash=Boolean(opts.skipHash);
+    const skipScroll=Boolean(opts.skipScroll);
     sections.forEach(sec=>sec.style.display=sec.id===id?'block':'none');
     document.querySelectorAll('#navMenu .tab').forEach(link=>{
       if(link.getAttribute('href')===`#${id}`){link.classList.add('active');}
       else{link.classList.remove('active');}
     });
-    location.hash=id;
+    if(!skipScroll){
+      try{ window.scrollTo({top:0,behavior:'smooth'}); }
+      catch(_){ window.scrollTo(0,0); }
+    }
+    if(!skipHash){
+      location.hash=id;
+    }
     const usesMode = id==='objections' || id==='video' || id==='writing';
     const badge=$('modeBadge');
     if(badge){
@@ -4940,13 +5195,33 @@ document.addEventListener('DOMContentLoaded',()=>{
     });
   });
 
-  const initialHash=location.hash.slice(1) || 'howto';
-  showSection(initialHash);
+  const mainIds=new Set(sections.map(sec=>sec.id));
+  const rawHash=location.hash.slice(1);
+  const isHowtoSub=rawHash&&rawHash.startsWith('howto-');
+  const initialTarget=mainIds.has(rawHash)?rawHash:'howto';
+  showSection(initialTarget,{skipHash:isHowtoSub,skipScroll:isHowtoSub});
+  if(isHowtoSub){
+    requestAnimationFrame(()=>{
+      const sub=document.querySelector(`#${rawHash}`);
+      if(sub){
+        sub.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    });
+  }
 
-  document.querySelectorAll('a.hidden-link').forEach(link=>{
+  document.querySelectorAll('[data-section-target]').forEach(link=>{
     link.addEventListener('click',e=>{
+      if(e.defaultPrevented) return;
+      if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button!==0) return;
+      const target=link.getAttribute('data-section-target');
+      if(!target) return;
       e.preventDefault();
-      showSection(link.getAttribute('href').slice(1));
+      showSection(target);
+      const nav=$('navMenu');
+      if(nav){
+        nav.classList.remove('open');
+        $('menuToggle').setAttribute('aria-expanded','false');
+      }
     });
   });
 
