@@ -2176,6 +2176,10 @@ ${userOnly}
 Scoring rule:
 - Apply the rubric strictly to the EVALUATE block ([USER] lines).
 - Ignore any facts or arguments that appear only in CONTEXT.
+- Treat [OC] turns as the opposing counsel (ChatGPT) and [USER] turns as the advocate you are scoring.
+- When judging responsiveness, look at whether the advocate addressed the most recent truly new question or argument that opposing counsel had already raised before the advocate clicked Rule on Argument.
+- Once the advocate invokes Rule on Argument, regard it as the judge cutting off further debate: do not deduct points for any new material the opposing counsel adds in its final [OC] turn, because the advocate had no chance to reply.
+- If opposing counsel's final turn merely repeats or rephrases earlier material, likewise treat the exchange as complete and avoid any penalty for the advocate ending there.
 - Do NOT infer or credit facts not in the SCENARIO.`;
 
     // Keep your existing rubric/template & parser/output
