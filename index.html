@@ -96,6 +96,7 @@ textarea.disabled{opacity:.6;cursor:not-allowed}
 .kv div{padding:2px 0}
 .scorebar{height:8px;background:var(--surface);border-radius:999px;position:relative;margin-top:4px;overflow:hidden;border:1px solid rgba(148,163,184,.35)}
 .scorebar>span{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:999px}
+.scorebar-detail{font-size:.75rem;color:rgba(148,163,184,.9);margin-top:2px}
 /* Gateway modal */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9999}
 .modal{width:min(740px,94vw);max-height:90vh;overflow-y:auto;background:var(--card);border:1px solid rgba(148,163,184,.35);border-radius:16px;box-shadow:0 20px 42px rgba(2,6,23,.6);padding:20px;color:var(--text)}
@@ -1200,10 +1201,10 @@ function extractFirstJson(str){
 /* State data */
 function makeRubricMap(stateName, abbr){
   return {
-    opening:`Evaluate a ${stateName} high-school mock trial OPENING STATEMENT. Score on a 0–100 scale (multiply the 1–10 result by 10) using these weights: Theme & Story Hook 22, Team & Case Positioning 14, Burden & Law Framing 18, Witness & Evidence Preview 28, Call to Action 18. Checklist: launch with a memorable theme, introduce who you represent, explain the burden and key law, preview the witnesses/exhibits that will prove each promise, and finish with a clear verdict ask. Reward concise openings that tie promises to specific record anchors; deduct when any section is missing or vague.`,
-    closing:`Evaluate a ${stateName} high-school mock trial CLOSING ARGUMENT. Weights (total 100): Themeful Introduction 18, Burden & Law Reminders 16, Roadmap & Chapters 18, Witness & Evidence Analysis 22, Rebuttal & Case Defense 16, Verdict Request 10. Checklist: reopen the theme with a compelling hook, restate the burden, walk element-by-element through the proof, answer the opponent’s best arguments, and close with a direct verdict ask. Reward closings that compare both cases with citations; deduct when they simply recap testimony or dodge the defense narrative.`,
-    direct:`Evaluate a ${stateName} high-school mock trial DIRECT EXAMINATION. Weights: Background Chapter 20, Event Chapter 24, Aftermath & Impact Chapter 18, Exhibit Foundations 20, Follow-up Listening 18. Look for conversational, open questions that build background, cover the core event, address aftermath, lay foundations, and follow up on drift. Deduct for leading/compound phrasing, missing foundations, or ignored witness confusion; reward directs that feel like a guided story built on record facts.`,
-    cross:`Evaluate a ${stateName} high-school mock trial CROSS EXAMINATION. Weights: Chapter Hook & Theory 20, Chapter Development 22, Impeachment & Admissions 24, Control & Pace 20, Exit & Button 14. Checklist: headline each chapter with a sharp hook, stack tight leading questions, lock in admissions or impeachments, maintain surgical control, and finish with a memorable button. Reward fact-anchored chapters that pin the witness; deduct when questions ramble, invite narrative answers, or skip obvious impeachment opportunities.`
+    opening:`Evaluate a ${stateName} high-school mock trial OPENING STATEMENT. Score on a 0–100 scale (multiply the 1–10 result by 10) using these weights: Theme & Story Hook 30, Team & Case Positioning 12, Burden & Law Framing 16, Witness & Evidence Preview 28, Call to Action 14. Checklist: launch with a memorable theme, introduce who you represent, explain the burden and key law, preview the witnesses/exhibits that will prove each promise, and finish with a clear verdict ask. Reward concise openings that tie promises to specific record anchors; deduct when any section is missing or vague.`,
+    closing:`Evaluate a ${stateName} high-school mock trial CLOSING ARGUMENT. Weights (total 100): Themeful Introduction 20, Burden & Law Reminders 14, Roadmap & Chapters 20, Witness & Evidence Analysis 26, Rebuttal & Case Defense 12, Verdict Request 8. Checklist: reopen the theme with a compelling hook, restate the burden, walk element-by-element through the proof, answer the opponent’s best arguments, and close with a direct verdict ask. Reward closings that compare both cases with citations; deduct when they simply recap testimony or dodge the defense narrative.`,
+    direct:`Evaluate a ${stateName} high-school mock trial DIRECT EXAMINATION. Weights: Background Chapter 18, Event Chapter 26, Aftermath & Impact Chapter 16, Exhibit Foundations 22, Follow-up Listening 18. Look for conversational, open questions that build background, cover the core event, address aftermath, lay foundations, and follow up on drift. Deduct for leading/compound phrasing, missing foundations, or ignored witness confusion; reward directs that feel like a guided story built on record facts.`,
+    cross:`Evaluate a ${stateName} high-school mock trial CROSS EXAMINATION. Weights: Chapter Hook & Theory 18, Chapter Development 24, Impeachment & Admissions 28, Control & Pace 18, Exit & Button 12. Checklist: headline each chapter with a sharp hook, stack tight leading questions, lock in admissions or impeachments, maintain surgical control, and finish with a memorable button. Reward fact-anchored chapters that pin the witness; deduct when questions ramble, invite narrative answers, or skip obvious impeachment opportunities.`
   };
 }
 /* Global engine state */
@@ -2342,33 +2343,33 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   const RUBRICS={
     opening:{name:'Opening',cats:[
-      {key:'theme',n:'Theme & Story Hook',w:0.22},
-      {key:'positioning',n:'Team & Case Positioning',w:0.14},
-      {key:'burden',n:'Burden & Law Framing',w:0.18},
+      {key:'theme',n:'Theme & Story Hook',w:0.30},
+      {key:'positioning',n:'Team & Case Positioning',w:0.12},
+      {key:'burden',n:'Burden & Law Framing',w:0.16},
       {key:'evidence',n:'Witness & Evidence Preview',w:0.28},
-      {key:'ask',n:'Call to Action',w:0.18}
+      {key:'ask',n:'Call to Action',w:0.14}
     ]},
     closing:{name:'Closing',cats:[
-      {key:'intro',n:'Themeful Introduction',w:0.18},
-      {key:'burden',n:'Burden & Law Reminders',w:0.16},
-      {key:'roadmap',n:'Roadmap & Chapters',w:0.18},
-      {key:'witnesses',n:'Witness & Evidence Analysis',w:0.22},
-      {key:'rebuttal',n:'Rebuttal & Case Defense',w:0.16},
-      {key:'ask',n:'Verdict Request',w:0.10}
+      {key:'intro',n:'Themeful Introduction',w:0.20},
+      {key:'burden',n:'Burden & Law Reminders',w:0.14},
+      {key:'roadmap',n:'Roadmap & Chapters',w:0.20},
+      {key:'witnesses',n:'Witness & Evidence Analysis',w:0.26},
+      {key:'rebuttal',n:'Rebuttal & Case Defense',w:0.12},
+      {key:'ask',n:'Verdict Request',w:0.08}
     ]},
     direct:{name:'Direct',cats:[
-      {key:'background',n:'Background Chapter',w:0.20},
-      {key:'event',n:'Event Chapter',w:0.24},
-      {key:'aftermath',n:'Aftermath & Impact Chapter',w:0.18},
-      {key:'exhibits',n:'Exhibit Foundations',w:0.20},
+      {key:'background',n:'Background Chapter',w:0.18},
+      {key:'event',n:'Event Chapter',w:0.26},
+      {key:'aftermath',n:'Aftermath & Impact Chapter',w:0.16},
+      {key:'exhibits',n:'Exhibit Foundations',w:0.22},
       {key:'followup',n:'Follow-up Listening',w:0.18}
     ]},
     cross:{name:'Cross',cats:[
-      {key:'hook',n:'Chapter Hook & Theory',w:0.20},
-      {key:'chapters',n:'Chapter Development',w:0.22},
-      {key:'impeach',n:'Impeachment & Admissions',w:0.24},
-      {key:'control',n:'Control & Pace',w:0.20},
-      {key:'button',n:'Exit & Button',w:0.14}
+      {key:'hook',n:'Chapter Hook & Theory',w:0.18},
+      {key:'chapters',n:'Chapter Development',w:0.24},
+      {key:'impeach',n:'Impeachment & Admissions',w:0.28},
+      {key:'control',n:'Control & Pace',w:0.18},
+      {key:'button',n:'Exit & Button',w:0.12}
     ]}
   };
 
@@ -2648,19 +2649,44 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     return {buildScores(){return {cats:pack,total,metrics:bm,compare:cmp,qm:qM,effWords}}};
   }
 
-  function scorebar(val){
-    if(!Number.isFinite(val)){
-      return '<div>N/A<div class="scorebar"><span style="width:0%"></span></div></div>';
+  function formatScoreValue(num, decimals=1){
+    if(!Number.isFinite(num)) return '';
+    const fixed=num.toFixed(decimals);
+    return fixed.replace(/\.0+$/,'').replace(/(\.\d*[1-9])0+$/,'$1');
+  }
+
+  function scorebar(val, weight){
+    const hasVal=Number.isFinite(val);
+    const hasWeight=Number.isFinite(weight);
+    const weightPoints=hasWeight?weight*100:null;
+    const actualPoints=hasVal&&hasWeight?(val/10)*weightPoints:null;
+    const pct=hasVal?clamp(Math.round((val/10)*100),0,100):0;
+    let mainLabel;
+    if(hasVal && hasWeight){
+      mainLabel=`${formatScoreValue(actualPoints)} / ${formatScoreValue(weightPoints, weightPoints%1?1:0)} pts`;
+    } else if(hasVal){
+      mainLabel=`${formatScoreValue(val,1)} / 10`;
+    } else if(hasWeight){
+      mainLabel=`N/A`;
+    } else {
+      mainLabel='N/A';
     }
-    const pct=clamp(Math.round((val/10)*100),0,100);
-    return `<div>${val}/10<div class="scorebar"><span style="width:${pct}%"></span></div></div>`;
+    const detailParts=[];
+    if(hasVal){
+      detailParts.push(`${formatScoreValue(val,1)} / 10`);
+    }
+    if(hasWeight){
+      detailParts.push(`weight ${formatScoreValue(weightPoints, weightPoints%1?1:0)}%`);
+    }
+    const detail=detailParts.length?`<div class="scorebar-detail">${detailParts.join(' • ')}</div>`:'';
+    return `<div><div>${mainLabel}</div>${detail}<div class="scorebar"><span style="width:${pct}%"></span></div></div>`;
   }
 
   function renderReport(type, result){
     const conf=RUBRICS[type], pack=result.cats, m=result.metrics, cmp=result.compare;
     const comments=result.comments||{};
     const hasComments=Object.keys(comments).length>0;
-    const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key])}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
+    const rows=conf.cats.map(c=>`<tr><td>${c.n}</td><td style="width:220px">${scorebar(pack[c.key], c.w)}</td>${hasComments?`<td>${escHTML(comments[c.key]||'')}</td>`:''}</tr>`).join('');
     const ratingText=result.rating || scoreToRating(result.total);
     let rangeDisplay='N/A';
     if(result.range){
