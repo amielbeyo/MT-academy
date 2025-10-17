@@ -302,7 +302,10 @@ a.inline{color:var(--accent);text-decoration:underline}
       <div><strong>Why:</strong> <span id="objWhy"></span></div>
     </div>
     <div id="objJudgeFollowupWrap" class="controls small" hidden style="margin-top:8px;flex-direction:column;gap:6px">
-      <textarea id="objJudgeFollowup" placeholder="Ask the judge a follow-up question about your score (Enter to send, Shift+Enter for newline)" style="width:100%;min-height:64px" disabled></textarea>
+      <textarea id="objJudgeFollowup" placeholder="Ask the judge a follow-up question about your score (Enter or tap Send, Shift+Enter for newline)" style="width:100%;min-height:64px" disabled></textarea>
+      <div class="controls" style="justify-content:flex-end;gap:6px">
+        <button id="objJudgeFollowupSend" class="btn secondary small" type="button" disabled aria-disabled="true">Send</button>
+      </div>
       <div id="objJudgeFollowupStatus" class="small"></div>
     </div>
   </section>
@@ -339,7 +342,10 @@ a.inline{color:var(--accent);text-decoration:underline}
     <div class="warn" style="margin-top:8px">ChatGPT receives strict guardrails to keep the weighted category math exact. If a score ever flags a mismatch, press <strong>Re-score</strong>; the guardrail will keep flagging the result until the rubric totals and categories align.</div>
     <div id="videoFeedback" class="small"></div>
     <div id="videoFollowupWrap" class="controls small" style="margin-top:8px;flex-direction:column;gap:6px;display:none">
-      <textarea id="videoFollowup" placeholder="Ask the judge a follow-up question about this score (Enter to send, Shift+Enter for newline)" style="width:100%;min-height:64px" disabled></textarea>
+      <textarea id="videoFollowup" placeholder="Ask the judge a follow-up question about this score (Enter or tap Send, Shift+Enter for newline)" style="width:100%;min-height:64px" disabled></textarea>
+      <div class="controls" style="justify-content:flex-end;gap:6px">
+        <button id="videoFollowupSend" class="btn secondary small" type="button" disabled aria-disabled="true">Send</button>
+      </div>
       <div id="videoFollowupStatus" class="small"></div>
     </div>
     <div id="videoFollowupReplies" class="small" style="margin-top:8px;white-space:pre-wrap"></div>
@@ -367,7 +373,10 @@ a.inline{color:var(--accent);text-decoration:underline}
     </div>
     <textarea id="gptWriteOutput" placeholder="ChatGPT output will appear here"></textarea>
     <div class="small" style="margin-top:4px">Use the box below to clarify your request or ask follow-up questions about this draft.</div>
-    <textarea id="gptWriteFollowup" class="small" placeholder="Ask ChatGPT a follow-up about this draft (Enter to send, Shift+Enter for newline)" disabled></textarea>
+    <textarea id="gptWriteFollowup" class="small" placeholder="Ask ChatGPT a follow-up about this draft (Enter or tap Send, Shift+Enter for newline)" disabled></textarea>
+    <div class="controls small" style="justify-content:flex-end;gap:6px">
+      <button id="gptWriteFollowupSend" class="btn secondary small" type="button" disabled aria-disabled="true">Send</button>
+    </div>
     <div id="gptWriteStatus" class="small" style="margin-top:4px"></div>
     <div id="writeExemplar" class="small" style="margin-top:8px"></div>
   </section>
@@ -1173,15 +1182,25 @@ function scoreToRating(score){
 function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
 function escHTML(s){return s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])):''}
 
-function attachFollowupSender(id, handler){
+function attachFollowupSender(id, handler, buttonId){
   const el=$(id);
-  if(!el||typeof handler!=='function') return;
-  el.addEventListener('keydown',ev=>{
-    if(ev.key!=='Enter') return;
-    if(ev.shiftKey||ev.altKey||ev.isComposing) return;
-    ev.preventDefault();
-    handler();
-  });
+  if(el&&typeof handler==='function'){
+    el.addEventListener('keydown',ev=>{
+      if(ev.key!=='Enter') return;
+      if(ev.shiftKey||ev.altKey||ev.isComposing) return;
+      ev.preventDefault();
+      handler();
+    });
+  }
+  if(buttonId){
+    const btn=$(buttonId);
+    if(btn&&typeof handler==='function'){
+      btn.addEventListener('click',()=>{
+        if(btn.disabled) return;
+        handler();
+      });
+    }
+  }
 }
 
 /* Robust JSON extraction (handles ```json fences) */
@@ -1788,8 +1807,10 @@ function resetJudgeFollowup(){
  judgeFollowupSending=false;
  const wrap=$('objJudgeFollowupWrap');
  const input=$('objJudgeFollowup');
+ const button=$('objJudgeFollowupSend');
  if(wrap) wrap.hidden=true;
  if(input){ input.value=''; input.disabled=true; }
+ if(button){ button.disabled=true; button.setAttribute('aria-disabled','true'); }
  updateJudgeFollowupStatus('');
 }
 
@@ -1808,12 +1829,17 @@ function resetJudgeFollowup(){
     if(chat) chat.hidden=false;
     const wrap=$('objJudgeFollowupWrap');
     const input=$('objJudgeFollowup');
+    const button=$('objJudgeFollowupSend');
     const ready=EngineState.mode==='chatgpt' && !!EngineState.openaiKey;
     if(wrap) wrap.hidden=false;
     if(input){
       input.value='';
       input.disabled=!ready;
       if(ready) input.focus();
+    }
+    if(button){
+      button.disabled=!ready;
+      button.setAttribute('aria-disabled', (!ready).toString());
     }
     updateJudgeFollowupStatus(ready?
       'Follow-up ready. Ask the judge for clarification or guidance.' :
@@ -1841,6 +1867,11 @@ async function sendJudgeFollowup(){
  }
  judgeFollowupSending=true;
  input.disabled=true;
+ const button=$('objJudgeFollowupSend');
+ if(button){
+  button.disabled=true;
+  button.setAttribute('aria-disabled','true');
+ }
  const chat=$('objGPTChat');
  if(chat) chat.hidden=false;
  appendChat('user',question);
@@ -1879,7 +1910,12 @@ async function sendJudgeFollowup(){
   input.disabled=false;
   input.value='';
   input.focus();
- }
+  const button=$('objJudgeFollowupSend');
+  if(button){
+   button.disabled=false;
+   button.setAttribute('aria-disabled','false');
+  }
+}
 }
 function populate(){const sel=$('objSelect');sel.innerHTML=OBJECTION_CHOICES.map(c=>`<option>${c}</option>`).join('')}
 function pool(){const f=$('objFilter').value||'all',d=$('objDiff').value||'both';return DB.filter(x=>(f==='all'||cat(x.ans)===f)&&passDiff(x.ans,d))}
@@ -2256,7 +2292,7 @@ function wire(){
   $('btnGPTRule').addEventListener('click',gptRule);
   $('objGPTInput').addEventListener('input',updateGPTSend);
   $('btnObjChangeEngine').addEventListener('click',openVideoGate);
-  attachFollowupSender('objJudgeFollowup',sendJudgeFollowup);
+  attachFollowupSender('objJudgeFollowup',sendJudgeFollowup,'objJudgeFollowupSend');
   resetJudgeFollowup();
   updateGPTSend();
   newQ();
@@ -4177,10 +4213,16 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
   function enableWriteFollowup(enabled){
     const follow = $('gptWriteFollowup');
-    if(!follow) return;
-    follow.disabled = !enabled;
-    follow.setAttribute('aria-disabled', (!enabled).toString());
-    follow.classList.toggle('disabled', !enabled);
+    const button = $('gptWriteFollowupSend');
+    if(follow){
+      follow.disabled = !enabled;
+      follow.setAttribute('aria-disabled', (!enabled).toString());
+      follow.classList.toggle('disabled', !enabled);
+    }
+    if(button){
+      button.disabled = !enabled;
+      button.setAttribute('aria-disabled', (!enabled).toString());
+    }
   }
 
   async function gptWrite(){
@@ -4308,10 +4350,15 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     videoFollowupSending=false;
     const wrap=$('videoFollowupWrap');
     const input=$('videoFollowup');
+    const button=$('videoFollowupSend');
     const status=$('videoFollowupStatus');
     const replies=$('videoFollowupReplies');
     if(wrap) wrap.style.display='none';
     if(input){ input.value=''; input.disabled=true; }
+    if(button){
+      button.disabled=true;
+      button.setAttribute('aria-disabled','true');
+    }
     if(status){ status.textContent=''; status.style.color='inherit'; }
     if(replies) replies.textContent='';
   }
@@ -4378,6 +4425,7 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     const wrap=$('videoFollowupWrap');
     const input=$('videoFollowup');
     const replies=$('videoFollowupReplies');
+    const button=$('videoFollowupSend');
     const ready=EngineState.mode==='chatgpt' && !!EngineState.openaiKey;
     if(wrap) wrap.style.display='flex';
     if(replies) replies.textContent='';
@@ -4385,6 +4433,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       input.value='';
       input.disabled=!ready;
       if(ready) input.focus();
+    }
+    if(button){
+      button.disabled=!ready;
+      button.setAttribute('aria-disabled', (!ready).toString());
     }
     updateVideoFollowupStatus(ready?
       'Follow-up ready. Ask the judge for clarification or coaching tips.' :
@@ -4414,6 +4466,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
 
     videoFollowupSending=true;
     input.disabled=true;
+    const button=$('videoFollowupSend');
+    if(button){
+      button.disabled=true;
+      button.setAttribute('aria-disabled','true');
+    }
     appendVideoFollowup('user',question);
 
     const contextParts=[];
@@ -4451,6 +4508,11 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
       input.disabled=false;
       input.value='';
       input.focus();
+      const button=$('videoFollowupSend');
+      if(button){
+        button.disabled=false;
+        button.setAttribute('aria-disabled','false');
+      }
     }
   }
 
@@ -4480,10 +4542,10 @@ Which brings me to the third reason, the mistakes of the Phoenix PD. Detective A
     $('btnGPTWrite').addEventListener('click', gptWrite);
     $('btnWriteChangeEngine')?.addEventListener('click', openVideoGate);
     $('writeType').addEventListener('change', updateWriteExemplar);
-    attachFollowupSender('gptWriteFollowup', gptWriteFollowup);
+    attachFollowupSender('gptWriteFollowup', gptWriteFollowup, 'gptWriteFollowupSend');
     enableWriteFollowup(false);
     updateWriteStatus('');
-    attachFollowupSender('videoFollowup', sendVideoFollowup);
+    attachFollowupSender('videoFollowup', sendVideoFollowup, 'videoFollowupSend');
     resetVideoFollowup();
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ $('btnFlipCamera')?.setAttribute('disabled','true'); }
     updateWriteExemplar();
