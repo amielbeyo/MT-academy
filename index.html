@@ -2125,62 +2125,74 @@ function gptStopRecord(){
    try{gptRecog.stop();}catch(e){}
   }
 }
-  async function gptRule(){
+
+function buildJudgeArgumentTranscript(currentScenario, conversation){
+  if(!currentScenario){
+    return { transcript: '', argumentTurns: 0 };
+  }
+
+  const scenarioHeader =
+`SCENARIO (verbatim)
+Fact: ${currentScenario.fact}
+Question: ${currentScenario.q}
+Candidate Objection (from prompt): ${currentScenario.ans} (Rule ${currentScenario.rule})`;
+
+  const contextLines = conversation.map((msg, idx) => {
+    const tag = msg.role === 'user' ? '[USER]' : (msg.role === 'assistant' ? '[OC]' : '[SYS]');
+    const turn = String(idx + 1).padStart(2, '0');
+    return `${turn} ${tag}: ${msg.content}`;
+  });
+
+  const userTurns = conversation.filter(m => m.role === 'user');
+  const advocateTurns = userTurns.slice(1); // skip the initial scenario prompt
+  const evaluateLines = advocateTurns.map((msg, idx) => {
+    const turn = idx + 1;
+    return `[USER TURN ${turn}]: ${msg.content}`;
+  });
+
+  const contextBlock = contextLines.join('\n') || '[No prior turns captured]';
+  const evaluateBlock = evaluateLines.join('\n') || '[No advocate turns captured]';
+
+  const scoringInstructions = [
+    'Scoring rule:',
+    '- Apply the rubric strictly to the EVALUATE block ([USER TURN] lines).',
+    '- Ignore any facts or arguments that appear only in CONTEXT.',
+    '- Treat [OC] turns as the opposing counsel (ChatGPT) and [USER] turns as the advocate you are scoring.',
+    '- When judging responsiveness, look at whether the advocate addressed the most recent truly new question or argument that opposing counsel had already raised before the advocate clicked Rule on Argument.',
+    '- Once the advocate invokes Rule on Argument, regard it as the judge cutting off further debate: do not deduct points for any new material the opposing counsel adds in its final [OC] turn, because the advocate had no chance to reply.',
+    '- If opposing counsel\'s final turn merely repeats or rephrases earlier material, likewise treat the exchange as complete and avoid any penalty for the advocate ending there.',
+    '- Do NOT infer or credit facts not in the SCENARIO.',
+    '- This transcript is provided in a fresh conversation. Do not reference or rely on any prior chat history.',
+  ].join('\n');
+
+  const transcript =
+`${scenarioHeader}
+
+CONTEXT (read for background; DO NOT SCORE any of this):
+${contextBlock}
+
+EVALUATE (score ONLY the [USER TURN] lines below using the rubric):
+${evaluateBlock}
+
+${scoringInstructions}`;
+
+  return { transcript, argumentTurns: advocateTurns.length };
+}
+
+async function gptRule(){
     if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){
       alert('ChatGPT mode not enabled or API key missing.');
       return;
     }
 
     // Require at least one user argument beyond the initial scenario
-    const userMsgs = gptChat.filter(m => m.role === 'user');
-    if(userMsgs.length <= 1){
+    const { transcript, argumentTurns } = buildJudgeArgumentTranscript(cur, gptChat);
+    if(argumentTurns <= 0){
       alert('Provide your argument before requesting a ruling.');
       return;
     }
 
     resetJudgeFollowup();
-
-    // Tag the whole conversation for CONTEXT (judge can read it, but must not score it)
-    const fullTagged = gptChat.map(m => {
-      // User = you; Assistant = opposing counsel; anything else = system
-      const tag = (m.role === 'user') ? '[USER]' : (m.role === 'assistant' ? '[OC]' : '[SYS]');
-      return `${tag}: ${m.content}`;
-    }).join('\n');
-
-    // Build a USER-ONLY block that the judge must score
-    const userOnly = gptChat
-      .filter(m => m.role === 'user')
-      .slice(1)
-      .map(m => `[USER]: ${m.content}`)
-      .join('\n');
-
-    // Include the original scenario verbatim so the judge has the same context
-    const scenarioHeader =
-`SCENARIO (verbatim)
-Fact: ${cur.fact}
-Question: ${cur.q}
-Candidate Objection (from prompt): ${cur.ans} (Rule ${cur.rule})`;
-
-    // Compose the transcript with explicit instructions:
-    // - CONTEXT is visible but not to be scored
-    // - EVALUATE block is the ONLY material to score
-    const transcript =
-`${scenarioHeader}
-
-CONTEXT (read for background; DO NOT SCORE any of this):
-${fullTagged}
-
-EVALUATE (score ONLY the [USER] lines below using the rubric):
-${userOnly}
-
-Scoring rule:
-- Apply the rubric strictly to the EVALUATE block ([USER] lines).
-- Ignore any facts or arguments that appear only in CONTEXT.
-- Treat [OC] turns as the opposing counsel (ChatGPT) and [USER] turns as the advocate you are scoring.
-- When judging responsiveness, look at whether the advocate addressed the most recent truly new question or argument that opposing counsel had already raised before the advocate clicked Rule on Argument.
-- Once the advocate invokes Rule on Argument, regard it as the judge cutting off further debate: do not deduct points for any new material the opposing counsel adds in its final [OC] turn, because the advocate had no chance to reply.
-- If opposing counsel's final turn merely repeats or rephrases earlier material, likewise treat the exchange as complete and avoid any penalty for the advocate ending there.
-- Do NOT infer or credit facts not in the SCENARIO.`;
 
     // Keep your existing rubric/template & parser/output
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
@@ -2188,19 +2200,19 @@ Scoring rule:
     let parsed=null;
     try{
       const model = EngineState.openaiModel || 'gpt-4o';
-      const tokenParam = chatTokenParam(model,400);
-      const resp = await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${EngineState.openaiKey}`},
-        body: JSON.stringify({
-          model,
-          messages:[{role:'user', content: prompt}],
-          temperature: 0.7,
-          ...tokenParam
-        })
+      const judgeMessages = [
+        {
+          role: 'system',
+          content: `${STATES[CURRENT_STATE].judgePrompt}\nYou are the scoring judge for a mock trial objection drill. Base every point on the transcript provided and apply the rubric exactly.`
+        },
+        { role: 'user', content: prompt }
+      ];
+      const text = await callOpenAIChat({
+        messages: judgeMessages,
+        model,
+        maxTokens: 400,
+        json: false
       });
-      const data = await resp.json();
-      const text = data?.choices?.[0]?.message?.content?.trim() || '';
 
       try{
         parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
