@@ -288,6 +288,7 @@ a.inline{color:var(--accent);text-decoration:underline}
     </div>
     <div class="small" style="margin-top:8px">Press <strong>ChatGPT Argue</strong> to show argument actions.</div>
     <button id="btnGPTArgue" class="btn primary" style="width:100%;margin-top:4px">ChatGPT Argue</button>
+    <div id="objGPTStatus" class="small" hidden aria-live="polite" style="margin-top:8px"></div>
     <div id="objGPTChat" class="small" hidden style="margin-top:8px;white-space:pre-wrap;max-height:400px;overflow-y:auto"></div>
     <div id="objGPTControls" class="controls" hidden style="margin-top:8px">
       <input id="objGPTInput" type="text" style="flex:1">
@@ -1702,6 +1703,14 @@ let cur=null, stats=load('mtpl.objStats',{}), gptChat=[], gptRecog=null, gptRecS
 function updateGPTSend(){
  $('btnGPTSend').disabled=gptSendLocked || !$('objGPTInput').value.trim();
 }
+function setGPTStatus(message='',isError=false){
+ const el=$('objGPTStatus');
+ if(!el) return;
+ const text=message||'';
+ el.textContent=text;
+ el.hidden=!text;
+ el.style.color=isError?'#fca5a5':'inherit';
+}
 function appendChat(role,text){
  const out=$('objGPTChat');
  const div=document.createElement('div');
@@ -1844,6 +1853,7 @@ async function sendJudgeFollowup(){
  const chat=$('objGPTChat');
  if(chat) chat.hidden=false;
  appendChat('user',question);
+  setGPTStatus('Judge is reviewing your follow-up question…');
  const contextParts=[];
   if(lastJudgeContext.summaryText){
   contextParts.push(`Your previous evaluation (structured summary):\n${lastJudgeContext.summaryText}`);
@@ -1866,14 +1876,17 @@ async function sendJudgeFollowup(){
    judgeFollowupChat.push({role:'assistant',content:reply});
    appendChat('judge',reply);
    updateJudgeFollowupStatus('Judge replied.');
+   setGPTStatus('Judge follow-up response ready.');
   }else{
    judgeFollowupChat.splice(userIndex,1);
    updateJudgeFollowupStatus('Judge returned an empty reply.',true);
+   setGPTStatus('Judge follow-up returned an empty reply.',true);
   }
  }catch(e){
   console.error('[Judge Follow-up]',e);
   judgeFollowupChat.splice(userIndex,1);
   updateJudgeFollowupStatus(`Follow-up failed: ${e?.message||'error'}`,true);
+  setGPTStatus(`Judge follow-up failed: ${e?.message||'error'}`,true);
  }finally{
   judgeFollowupSending=false;
   input.disabled=false;
@@ -1900,6 +1913,7 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
   $('btnGPTRule').disabled=false;
   gptSendLocked=false;
   updateGPTSend();
+  setGPTStatus('ChatGPT is generating a new objection drill…');
   let userPrompt=`Generate a ${diff} difficulty objection drill.`;
   if(diff==='difficult') userPrompt+=' Use a nuanced fact pattern requiring multiple evidence rules or exceptions.';
   try{
@@ -1926,11 +1940,14 @@ function model(){if(!cur)return;const r=$('objResult');r.hidden=false;$('objRuli
     const ans=OBJECTION_CHOICES.find(c=>norm(c)===norm(obj.ans));
     cur.ans=ans||obj.ans;
     $('objSelect').selectedIndex=0;
+    setGPTStatus('ChatGPT prompt ready. Press ChatGPT Argue to start.');
    } else {
     alert('Bad response from ChatGPT.');
+    setGPTStatus('ChatGPT returned an invalid objection prompt.',true);
    }
   }catch(e){
    console.error('[GPT Prompt]',e);
+   setGPTStatus(`ChatGPT prompt failed: ${e?.message||'error'}`,true);
    alert('ChatGPT error');
   }
  }
@@ -1999,6 +2016,9 @@ Task:
   $('objGPTInput').value='';
   gptSendLocked=false;
   updateGPTSend();
+  gptSendLocked=true;
+  updateGPTSend();
+  setGPTStatus('ChatGPT is composing the opposing counsel response…');
    try{
     const model=EngineState.openaiModel||'gpt-4o';
     const tokenParam=chatTokenParam(model,150);
@@ -2011,18 +2031,26 @@ Task:
    const text=data?.choices?.[0]?.message?.content?.trim()||'';
    gptChat.push({role:'assistant',content:text});
    appendChat('chatgpt',text);
+   setGPTStatus('ChatGPT responded. Your turn.');
   }catch(e){
    console.error('[GPT Argue]',e);
    const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
    appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
+   setGPTStatus(`ChatGPT opposing counsel failed: ${e?.message||'error'}`,true);
+  }finally{
+   gptSendLocked=false;
+   updateGPTSend();
   }
   }
   async function gptSend(){
    if(!(EngineState.mode==='chatgpt' && EngineState.openaiKey)){alert('ChatGPT mode not enabled or API key missing.');return;}
-   const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
-   updateGPTSend();
+  const inp=$('objGPTInput');const txt=inp.value.trim();if(!txt)return;inp.value='';
+  updateGPTSend();
   gptChat.push({role:'user',content:txt});
   appendChat('user',txt);
+  gptSendLocked=true;
+  updateGPTSend();
+  setGPTStatus('ChatGPT is formulating a reply…');
   try{
    const model=EngineState.openaiModel||'gpt-4o';
    const tokenParam=chatTokenParam(model,150);
@@ -2035,10 +2063,15 @@ Task:
    const reply=data?.choices?.[0]?.message?.content?.trim()||'';
    gptChat.push({role:'assistant',content:reply});
    appendChat('chatgpt',reply);
+   setGPTStatus('ChatGPT replied.');
   }catch(e){
    console.error('[GPT Send]',e);
    const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
    appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
+   setGPTStatus(`ChatGPT reply failed: ${e?.message||'error'}`,true);
+  }finally{
+   gptSendLocked=false;
+   updateGPTSend();
   }
   }
 function gptRecord(){
@@ -2197,6 +2230,7 @@ async function gptRule(){
     // Keep your existing rubric/template & parser/output
     const prompt = ChatGPTScoring.buildScoringPrompt(transcript, true, ChatGPTScoring.ARGUMENT_RUBRIC);
 
+    setGPTStatus('ChatGPT judge is reviewing your argument…');
     let parsed=null;
     try{
       const model = EngineState.openaiModel || 'gpt-4o';
@@ -2217,9 +2251,11 @@ async function gptRule(){
       try{
         parsed = ChatGPTScoring.parseScoreResponse(text); // unchanged parser
         appendJudgeDecision(parsed);                            // unchanged UI
+        setGPTStatus('Judge response ready.');
       }catch{
         // If the model didn't use the expected format, show raw text so you see what happened
         appendChat('judge', text);
+        setGPTStatus('Judge replied (unformatted).');
       }
 
       const summaryText = buildJudgeSummaryText(parsed);
@@ -2234,6 +2270,7 @@ async function gptRule(){
       const raw = e?.raw ? (typeof e.raw === 'string' ? e.raw.slice(0,200) : JSON.stringify(e.raw).slice(0,200)) : '';
       appendChat('chatgpt', `ChatGPT error: ${e?.message || 'error'}${raw ? ` | ${raw}` : ''}`);
       resetJudgeFollowup();
+      setGPTStatus(`Judge scoring failed: ${e?.message||'error'}`,true);
     }
   }
 function wire(){
